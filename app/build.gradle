@@ -1,0 +1,79 @@
+import android.annotation.SuppressLint
+
+plugins {
+	id("com.android.library")
+	id("org.jetbrains.kotlin.android")
+	id("maven-publish")
+}
+
+android {
+	namespace = "com.steve1316.automation_library"
+	compileSdk = 31
+
+	defaultConfig {
+		minSdk = 24
+		@SuppressLint("OldTargetApi")
+		targetSdk = 31
+
+		testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+		consumerProguardFiles("consumer-rules.pro")
+	}
+
+	buildTypes {
+		release {
+			minifyEnabled = false
+			proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+		}
+	}
+}
+
+afterEvaluate {
+	publishing {
+		publications {
+			release(MavenPublication) {
+				from components.release
+
+				groupId = "com.github.steve1316"
+				artifactId = "automation_library"
+				version = "1.0.0"
+			}
+		}
+	}
+}
+
+dependencies {
+
+	testImplementation("junit:junit:4.13.2")
+	androidTestImplementation("androidx.test.ext:junit:1.1.5")
+	androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
+
+	//////// Dependencies available to the project ////////
+
+	// Preferences
+	api("androidx.preference:preference-ktx:1.2.0")
+
+	// OpenCV Android SDK for image processing.
+	api("com.github.steve1316:opencv-android-sdk:4.7.0")
+
+	// Tesseract4Android for OCR text recognition.
+	api("cz.adaptech.android:tesseract4android:2.1.1")
+
+	// Twitter4j is used to connect to the Twitter API.
+	api("org.twitter4j:twitter4j-core:4.1.2")
+
+	// AppUpdater for notifying users when there is a new update available.
+	api("com.github.javiersantos:AppUpdater:2.7")
+
+	// Javacord for Discord integration.
+	api("org.javacord:javacord:3.3.2")
+
+	// Klaxon to parse JSON data files.
+	api("com.beust:klaxon:5.5")
+
+	// Needed for react-native-bootsplash.
+	api("androidx.swiperefreshlayout:swiperefreshlayout:1.0.0")
+	api("androidx.core:core-splashscreen:1.0.0")
+
+	// EventBus to communicate between modules and to the Javascript frontend.
+	api("org.greenrobot:eventbus:3.3.1")
+}
