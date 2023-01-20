@@ -21,6 +21,9 @@ import java.io.InputStream
 import java.net.HttpURLConnection
 import java.net.URL
 import java.text.DecimalFormat
+import java.text.DecimalFormatSymbols
+import java.util.*
+import kotlin.collections.ArrayList
 
 /**
  * Utility and helper functions for image processing via CV like OpenCV.
@@ -32,7 +35,7 @@ class ImageUtils(private val context: Context) {
 
 	private val matchMethod: Int = Imgproc.TM_CCOEFF_NORMED
 
-	private val decimalFormat = DecimalFormat("#.###")
+	private val decimalFormat = DecimalFormat("#.###", DecimalFormatSymbols(Locale.US))
 
 	var imageSubFolderName = ""
 
