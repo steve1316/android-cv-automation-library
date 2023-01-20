@@ -4,14 +4,19 @@ import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
 import android.annotation.SuppressLint
 import android.app.ActivityManager
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.content.res.Resources
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Path
 import android.os.Build
+import android.os.Bundle
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
+import android.view.accessibility.AccessibilityNodeInfo
+import android.widget.EditText
 import android.widget.Toast
 import com.steve1316.automation_library.R
 import com.steve1316.automation_library.data.SharedData
@@ -27,6 +32,9 @@ import java.io.FileNotFoundException
 class MyAccessibilityService : AccessibilityService() {
 	private var appName: String = ""
 	private lateinit var myContext: Context
+
+	var enableTextToPaste: Boolean = false
+	var textToPaste: String = ""
 
 	companion object {
 		private const val tag: String = "${SharedData.loggerTag}MyAccessibilityService"
@@ -76,6 +84,42 @@ class MyAccessibilityService : AccessibilityService() {
 	}
 
 	override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+		if (enableTextToPaste && event?.source != null && textToPaste != "" && (event.source?.className.toString().contains(EditText::class.java.simpleName) ||
+					event.source?.className.toString().contains("android.widget.EditText"))
+		) {
+			if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+				Log.d(tag, "Copying the text $textToPaste to paste into the EditText android component.")
+
+				// Create the argument object to get ready to paste the text.
+				val arguments = Bundle()
+				arguments.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, textToPaste)
+
+				if (event.source.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, arguments)) {
+					Log.d(tag, "Successfully pasted the text $textToPaste")
+				} else {
+					Log.e(tag, "Failed to paste the text $textToPaste")
+				}
+			} else {
+				Log.d(tag, "[LEGACY] Copying the text $textToPaste to paste into the EditText android component.")
+				event.source.performAction(AccessibilityNodeInfo.ACTION_LONG_CLICK)
+
+				val clipboard = myContext.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+				val clip = ClipData.newPlainText("Text to Paste", textToPaste)
+				clipboard.setPrimaryClip(clip)
+
+				Log.d(tag, "[LEGACY] Clipboard contents to paste: ${clipboard.primaryClip}")
+
+				if (event.source.performAction(AccessibilityNodeInfo.ACTION_PASTE)) {
+					Log.d(tag, "[LEGACY] Successfully pasted the text $textToPaste")
+				} else {
+					Log.e(tag, "[LEGACY] Failed to paste the text $textToPaste")
+				}
+			}
+
+			// Now reset the text to paste to prevent looping on onAccessibilityEvent().
+			textToPaste = ""
+		}
+
 		return
 	}
 
