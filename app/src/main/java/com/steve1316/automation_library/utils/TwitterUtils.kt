@@ -11,10 +11,12 @@ import twitter4j.v1.TwitterV1
 /**
  * Provides the functions needed to perform Twitter API-related tasks such as searching tweets for room codes.
  *
+ * Available helper methods are connect() and testConnection().
+ *
  * @property context The application context.
  * @property test If enabled, initialization will skip first connection in favour of manually calling testConnection() later.
  */
-class TwitterUtils(private val context: Context, private val test: Boolean = false) {
+open class TwitterUtils(private val context: Context, private val test: Boolean = false) {
 	private val twitterAPIKey: String
 	private val twitterAPIKeySecret: String
 	private val twitterAccessToken: String
