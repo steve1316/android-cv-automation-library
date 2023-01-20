@@ -82,7 +82,7 @@ class MessageLog {
 		 * @param context The context for the application.
 		 * @param maxAmount If the amount of files is greater than this value, then delete all logs. Defaults to 50.
 		 */
-		private fun cleanLogsFolder(context: Context, maxAmount: Int = 3) { // TODO: Change it back to 50.
+		private fun cleanLogsFolder(context: Context, maxAmount: Int = 50) {
 			val directory = File(context.getExternalFilesDir(null)?.absolutePath + "/logs/")
 
 			// Delete the oldest logs if the amount inside is greater than the given max amount.
