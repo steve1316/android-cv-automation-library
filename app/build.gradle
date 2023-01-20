@@ -65,13 +65,13 @@ dependencies {
 	api("com.github.javiersantos:AppUpdater:2.7")
 
 	// Javacord for Discord integration.
-	api("org.javacord:javacord:3.3.2")
+	api("org.javacord:javacord:3.7.0")
 
 	// Klaxon to parse JSON data files.
 	api("com.beust:klaxon:5.5")
 
 	// Needed for react-native-bootsplash.
-	api("androidx.swiperefreshlayout:swiperefreshlayout:1.0.0")
+	api("androidx.swiperefreshlayout:swiperefreshlayout:1.1.0")
 	api("androidx.core:core-splashscreen:1.0.0")
 
 	// EventBus to communicate between modules and to the Javascript frontend.
