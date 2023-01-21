@@ -30,10 +30,13 @@ import kotlin.collections.ArrayList
  *
  * @property context The application context.
  */
-class ImageUtils(private val context: Context) {
+open class ImageUtils(private val context: Context) {
 	private val tag: String = "${SharedData.loggerTag}ImageUtils"
 
-	private val matchMethod: Int = Imgproc.TM_CCOEFF_NORMED
+	var matchMethod: Int = Imgproc.TM_CCOEFF_NORMED
+	private var matchFilePath: String = ""
+	private lateinit var matchLocation: Point
+	private var matchLocations: ArrayList<Point> = arrayListOf()
 
 	private val decimalFormat = DecimalFormat("#.###", DecimalFormatSymbols(Locale.US))
 
@@ -73,21 +76,6 @@ class ImageUtils(private val context: Context) {
 	private var mostRecent = 1
 	private lateinit var tesseractSourceBitmap: Bitmap
 
-	companion object {
-		private var matchFilePath: String = ""
-		private lateinit var matchLocation: Point
-		private var matchLocations: ArrayList<Point> = arrayListOf()
-
-		/**
-		 * Saves the file path to the saved match image file for debugging purposes.
-		 *
-		 * @param filePath File path to where to store the image containing the location of where the match was found.
-		 */
-		private fun updateMatchFilePath(filePath: String) {
-			matchFilePath = filePath
-		}
-	}
-
 	init {
 		val sharedPreferences: SharedPreferences = PreferenceManager.getDefaultSharedPreferences(context)
 
@@ -97,8 +85,8 @@ class ImageUtils(private val context: Context) {
 		customScale = sharedPreferences.getFloat("customScale", 1.0f).toDouble()
 
 		// Set the file path to the /files/temp/ folder.
-		val matchFilePath: String = context.getExternalFilesDir(null)?.absolutePath + "/temp"
-		updateMatchFilePath(matchFilePath)
+		val tempMatchFilePath: String = context.getExternalFilesDir(null)?.absolutePath + "/temp"
+		matchFilePath = tempMatchFilePath
 	}
 
 	/**
