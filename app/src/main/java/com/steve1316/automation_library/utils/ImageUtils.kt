@@ -31,12 +31,12 @@ import kotlin.collections.ArrayList
  * @property context The application context.
  */
 open class ImageUtils(private val context: Context) {
-	private val tag: String = "${SharedData.loggerTag}ImageUtils"
+	val tag: String = "${SharedData.loggerTag}ImageUtils"
 
 	var matchMethod: Int = Imgproc.TM_CCOEFF_NORMED
 	private var matchFilePath: String = ""
-	private lateinit var matchLocation: Point
-	private var matchLocations: ArrayList<Point> = arrayListOf()
+	lateinit var matchLocation: Point
+	var matchLocations: ArrayList<Point> = arrayListOf()
 
 	private val decimalFormat = DecimalFormat("#.###", DecimalFormatSymbols(Locale.US))
 
@@ -45,10 +45,10 @@ open class ImageUtils(private val context: Context) {
 	////////////////////////////////////////////////////////////////////
 	////////////////////////////////////////////////////////////////////
 	// SharedPreferences
-	private val confidence: Double
-	private val confidenceAll: Double
-	private val debugMode: Boolean
-	private var customScale: Double
+	val confidence: Double
+	val confidenceAll: Double
+	val debugMode: Boolean
+	var customScale: Double
 
 	////////////////////////////////////////////////////////////////////
 	////////////////////////////////////////////////////////////////////
@@ -61,20 +61,20 @@ open class ImageUtils(private val context: Context) {
 	val isTabletLandscape: Boolean = (displayWidth == 2560 && displayHeight == 1600) // Galaxy Tab S7 1600x2560 Landscape Mode
 
 	// Scales (in terms of 720p and the dimensions from the Galaxy Tab S7)
-	private val lowerEndScales: MutableList<Double> = mutableListOf(0.60, 0.61, 0.62, 0.63, 0.64, 0.65, 0.67, 0.68, 0.69, 0.70)
-	private val middleEndScales: MutableList<Double> = mutableListOf(
+	val lowerEndScales: MutableList<Double> = mutableListOf(0.60, 0.61, 0.62, 0.63, 0.64, 0.65, 0.67, 0.68, 0.69, 0.70)
+	val middleEndScales: MutableList<Double> = mutableListOf(
 		0.70, 0.71, 0.72, 0.73, 0.74, 0.75, 0.76, 0.77, 0.78, 0.79, 0.80, 0.81, 0.82, 0.83, 0.84, 0.85, 0.87, 0.88, 0.89, 0.90, 0.91, 0.92, 0.93, 0.94, 0.95, 0.96, 0.97, 0.98, 0.99
 	)
-	private val tabletPortraitScales: MutableList<Double> = mutableListOf(0.70, 0.71, 0.72, 0.73, 0.74, 0.75)
-	private val tabletLandscapeScales: MutableList<Double> = mutableListOf(0.55, 0.56, 0.57, 0.58, 0.59, 0.60)
+	val tabletPortraitScales: MutableList<Double> = mutableListOf(0.70, 0.71, 0.72, 0.73, 0.74, 0.75)
+	val tabletLandscapeScales: MutableList<Double> = mutableListOf(0.55, 0.56, 0.57, 0.58, 0.59, 0.60)
 
 	////////////////////////////////////////////////////////////////////
 	////////////////////////////////////////////////////////////////////
 	// OCR configuration
-	private lateinit var tessBaseAPI: TessBaseAPI
-	private lateinit var tessDigitsBaseAPI: TessBaseAPI
-	private var mostRecent = 1
-	private lateinit var tesseractSourceBitmap: Bitmap
+	lateinit var tessBaseAPI: TessBaseAPI
+	lateinit var tessDigitsBaseAPI: TessBaseAPI
+	var mostRecent = 1
+	lateinit var tesseractSourceBitmap: Bitmap
 
 	init {
 		val sharedPreferences: SharedPreferences = PreferenceManager.getDefaultSharedPreferences(context)
@@ -94,7 +94,7 @@ open class ImageUtils(private val context: Context) {
 	 *
 	 * @param seconds Number of seconds to pause execution.
 	 */
-	private fun wait(seconds: Double) {
+	protected fun wait(seconds: Double) {
 		runBlocking {
 			delay((seconds * 1000).toLong())
 		}
@@ -114,7 +114,7 @@ open class ImageUtils(private val context: Context) {
 	 * @param customConfidence Specify a custom confidence. Defaults to the confidence set in the app's settings.
 	 * @return True if a match was found. False otherwise.
 	 */
-	private fun match(sourceBitmap: Bitmap, templateBitmap: Bitmap, region: IntArray = intArrayOf(0, 0, 0, 0), useSingleScale: Boolean = false, customConfidence: Double = 0.0): Boolean {
+	protected fun match(sourceBitmap: Bitmap, templateBitmap: Bitmap, region: IntArray = intArrayOf(0, 0, 0, 0), useSingleScale: Boolean = false, customConfidence: Double = 0.0): Boolean {
 		// If a custom region was specified, crop the source screenshot.
 		val srcBitmap = if (!region.contentEquals(intArrayOf(0, 0, 0, 0))) {
 			Bitmap.createBitmap(sourceBitmap, region[0], region[1], region[2], region[3])
@@ -248,7 +248,7 @@ open class ImageUtils(private val context: Context) {
 	 * @param customConfidence Specify a custom confidence. Defaults to the confidence set in the app's settings.
 	 * @return ArrayList of Point objects that represents the matches found on the source screenshot.
 	 */
-	private fun matchAll(sourceBitmap: Bitmap, templateBitmap: Bitmap, region: IntArray = intArrayOf(0, 0, 0, 0), customConfidence: Double = 0.0): ArrayList<Point> {
+	protected fun matchAll(sourceBitmap: Bitmap, templateBitmap: Bitmap, region: IntArray = intArrayOf(0, 0, 0, 0), customConfidence: Double = 0.0): ArrayList<Point> {
 		// If a custom region was specified, crop the source screenshot.
 		val srcBitmap = if (!region.contentEquals(intArrayOf(0, 0, 0, 0))) {
 			Bitmap.createBitmap(sourceBitmap, region[0], region[1], region[2], region[3])
@@ -473,7 +473,7 @@ open class ImageUtils(private val context: Context) {
 	 * @param templateFolderName Name of the subfolder in /assets/ that the template image is in. Defaults to imageSubFolderName.
 	 * @return A Pair of source and template Bitmaps.
 	 */
-	private fun getBitmaps(templateName: String, templateFolderName: String = imageSubFolderName): Pair<Bitmap?, Bitmap?> {
+	protected fun getBitmaps(templateName: String, templateFolderName: String = imageSubFolderName): Pair<Bitmap?, Bitmap?> {
 		var sourceBitmap: Bitmap? = null
 
 		// Keep swiping a little bit up and down to trigger a new image for ImageReader to grab.
@@ -516,7 +516,7 @@ open class ImageUtils(private val context: Context) {
 	 *
 	 * @return The source Bitmap.
 	 */
-	private fun getSourceScreenshot(): Bitmap {
+	protected fun getSourceScreenshot(): Bitmap {
 		while (true) {
 			val bitmap = MediaProjectionService.takeScreenshotNow(saveImage = debugMode)
 			if (bitmap != null) {
@@ -533,7 +533,7 @@ open class ImageUtils(private val context: Context) {
 	 *
 	 * @return A new Bitmap.
 	 */
-	fun getBitmapFromURL(url: URL): Bitmap {
+	protected fun getBitmapFromURL(url: URL): Bitmap {
 		if (debugMode) {
 			MessageLog.printToLog("\n[DEBUG] Starting process to create a Bitmap from the image url: $url", tag)
 		}
