@@ -33,15 +33,15 @@ class MyAccessibilityService : AccessibilityService() {
 	private var appName: String = ""
 	private lateinit var myContext: Context
 
-	var enableTextToPaste: Boolean = false
-	var textToPaste: String = ""
-
 	companion object {
 		private const val tag: String = "${SharedData.loggerTag}MyAccessibilityService"
 
 		// Other classes need this static reference to this service as calling dispatchGesture() would not work.
 		@SuppressLint("StaticFieldLeak")
 		private lateinit var instance: MyAccessibilityService
+
+		var enableTextToPaste: Boolean = false
+		var textToPaste: String = ""
 
 		/**
 		 * Returns a static reference to this class.
