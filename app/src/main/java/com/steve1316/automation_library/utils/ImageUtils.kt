@@ -40,7 +40,7 @@ open class ImageUtils(private val context: Context) {
 
 	protected val decimalFormat = DecimalFormat("#.###", DecimalFormatSymbols(Locale.US))
 
-	private var templateSubFolderName = ""
+	private var templatePathName = ""
 
 	////////////////////////////////////////////////////////////////////
 	////////////////////////////////////////////////////////////////////
@@ -106,9 +106,9 @@ open class ImageUtils(private val context: Context) {
 	 * @param subfolderPath Path name of the subfolder(s).
 	 */
 	protected fun setTemplateSubfolderPath(subfolderPath: String) {
-		templateSubFolderName = subfolderPath
+		templatePathName = subfolderPath
 		if (subfolderPath.last() != '/') {
-			templateSubFolderName += "/"
+			templatePathName += "/"
 		}
 	}
 
@@ -482,9 +482,10 @@ open class ImageUtils(private val context: Context) {
 	 * Open the source and template image files and return Bitmaps for them.
 	 *
 	 * @param templateName File name of the template image.
+	 * @param templatePath Path name of the subfolder in /assets/ that the template image is in. Defaults to the default template subfolder path name.
 	 * @return A Pair of source and template Bitmaps.
 	 */
-	protected fun getBitmaps(templateName: String): Pair<Bitmap?, Bitmap?> {
+	protected fun getBitmaps(templateName: String, templatePath: String = templatePathName): Pair<Bitmap?, Bitmap?> {
 		var sourceBitmap: Bitmap? = null
 
 		// Keep swiping a little bit up and down to trigger a new image for ImageReader to grab.
@@ -501,7 +502,7 @@ open class ImageUtils(private val context: Context) {
 		var templateBitmap: Bitmap?
 
 		// Get the Bitmap from the template image file inside the specified folder.
-		context.assets?.open("${templateSubFolderName}$templateName.webp").use { inputStream ->
+		context.assets?.open("${templatePath}$templateName.webp").use { inputStream ->
 			// Get the Bitmap from the template image file and then start matching.
 			templateBitmap = BitmapFactory.decodeStream(inputStream)
 		}
