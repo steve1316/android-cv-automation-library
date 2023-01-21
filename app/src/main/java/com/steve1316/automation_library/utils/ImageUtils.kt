@@ -38,7 +38,7 @@ open class ImageUtils(private val context: Context) {
 	lateinit var matchLocation: Point
 	var matchLocations: ArrayList<Point> = arrayListOf()
 
-	private val decimalFormat = DecimalFormat("#.###", DecimalFormatSymbols(Locale.US))
+	val decimalFormat = DecimalFormat("#.###", DecimalFormatSymbols(Locale.US))
 
 	var imageSubFolderName = ""
 
