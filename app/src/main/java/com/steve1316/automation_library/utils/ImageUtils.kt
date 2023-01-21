@@ -31,50 +31,50 @@ import kotlin.collections.ArrayList
  * @property context The application context.
  */
 open class ImageUtils(private val context: Context) {
-	val tag: String = "${SharedData.loggerTag}ImageUtils"
+	private val tag: String = "${SharedData.loggerTag}ImageUtils"
 
 	var matchMethod: Int = Imgproc.TM_CCOEFF_NORMED
 	private var matchFilePath: String = ""
-	lateinit var matchLocation: Point
-	var matchLocations: ArrayList<Point> = arrayListOf()
+	protected lateinit var matchLocation: Point
+	protected var matchLocations: ArrayList<Point> = arrayListOf()
 
-	val decimalFormat = DecimalFormat("#.###", DecimalFormatSymbols(Locale.US))
+	protected val decimalFormat = DecimalFormat("#.###", DecimalFormatSymbols(Locale.US))
 
-	var imageSubFolderName = ""
+	private var templateSubFolderName = ""
 
 	////////////////////////////////////////////////////////////////////
 	////////////////////////////////////////////////////////////////////
 	// SharedPreferences
-	val confidence: Double
-	val confidenceAll: Double
-	val debugMode: Boolean
-	var customScale: Double
+	protected val confidence: Double
+	protected val confidenceAll: Double
+	protected val debugMode: Boolean
+	protected var customScale: Double
 
 	////////////////////////////////////////////////////////////////////
 	////////////////////////////////////////////////////////////////////
 	// Device configuration
 	val displayWidth: Int = SharedData.displayWidth
 	val displayHeight: Int = SharedData.displayHeight
-	val is1080p: Boolean = (displayWidth == 1080) || (displayHeight == 1080) // 1080p Portrait or Landscape Mode.
-	val is720p: Boolean = (displayWidth == 720) || (displayHeight == 720) // 720p
-	val isTabletPortrait: Boolean = (displayWidth == 1600 && displayHeight == 2560) || (displayWidth == 2560 && displayHeight == 1600) // Galaxy Tab S7 1600x2560 Portrait Mode
-	val isTabletLandscape: Boolean = (displayWidth == 2560 && displayHeight == 1600) // Galaxy Tab S7 1600x2560 Landscape Mode
+	protected val is1080p: Boolean = (displayWidth == 1080) || (displayHeight == 1080) // 1080p Portrait or Landscape Mode.
+	protected val is720p: Boolean = (displayWidth == 720) || (displayHeight == 720) // 720p
+	protected val isTabletPortrait: Boolean = (displayWidth == 1600 && displayHeight == 2560) || (displayWidth == 2560 && displayHeight == 1600) // Galaxy Tab S7 1600x2560 Portrait Mode
+	protected val isTabletLandscape: Boolean = (displayWidth == 2560 && displayHeight == 1600) // Galaxy Tab S7 1600x2560 Landscape Mode
 
 	// Scales (in terms of 720p and the dimensions from the Galaxy Tab S7)
-	val lowerEndScales: MutableList<Double> = mutableListOf(0.60, 0.61, 0.62, 0.63, 0.64, 0.65, 0.67, 0.68, 0.69, 0.70)
-	val middleEndScales: MutableList<Double> = mutableListOf(
+	protected val lowerEndScales: MutableList<Double> = mutableListOf(0.60, 0.61, 0.62, 0.63, 0.64, 0.65, 0.67, 0.68, 0.69, 0.70)
+	protected val middleEndScales: MutableList<Double> = mutableListOf(
 		0.70, 0.71, 0.72, 0.73, 0.74, 0.75, 0.76, 0.77, 0.78, 0.79, 0.80, 0.81, 0.82, 0.83, 0.84, 0.85, 0.87, 0.88, 0.89, 0.90, 0.91, 0.92, 0.93, 0.94, 0.95, 0.96, 0.97, 0.98, 0.99
 	)
-	val tabletPortraitScales: MutableList<Double> = mutableListOf(0.70, 0.71, 0.72, 0.73, 0.74, 0.75)
-	val tabletLandscapeScales: MutableList<Double> = mutableListOf(0.55, 0.56, 0.57, 0.58, 0.59, 0.60)
+	protected val tabletPortraitScales: MutableList<Double> = mutableListOf(0.70, 0.71, 0.72, 0.73, 0.74, 0.75)
+	protected val tabletLandscapeScales: MutableList<Double> = mutableListOf(0.55, 0.56, 0.57, 0.58, 0.59, 0.60)
 
 	////////////////////////////////////////////////////////////////////
 	////////////////////////////////////////////////////////////////////
 	// OCR configuration
-	lateinit var tessBaseAPI: TessBaseAPI
-	lateinit var tessDigitsBaseAPI: TessBaseAPI
-	var mostRecent = 1
-	lateinit var tesseractSourceBitmap: Bitmap
+	protected lateinit var tessBaseAPI: TessBaseAPI
+	protected lateinit var tessDigitsBaseAPI: TessBaseAPI
+	protected var mostRecent = 1
+	protected lateinit var tesseractSourceBitmap: Bitmap
 
 	init {
 		val sharedPreferences: SharedPreferences = PreferenceManager.getDefaultSharedPreferences(context)
@@ -470,10 +470,9 @@ open class ImageUtils(private val context: Context) {
 	 * Open the source and template image files and return Bitmaps for them.
 	 *
 	 * @param templateName File name of the template image.
-	 * @param templateFolderName Name of the subfolder in /assets/ that the template image is in. Defaults to imageSubFolderName.
 	 * @return A Pair of source and template Bitmaps.
 	 */
-	protected fun getBitmaps(templateName: String, templateFolderName: String = imageSubFolderName): Pair<Bitmap?, Bitmap?> {
+	protected fun getBitmaps(templateName: String): Pair<Bitmap?, Bitmap?> {
 		var sourceBitmap: Bitmap? = null
 
 		// Keep swiping a little bit up and down to trigger a new image for ImageReader to grab.
@@ -488,14 +487,9 @@ open class ImageUtils(private val context: Context) {
 		}
 
 		var templateBitmap: Bitmap?
-		val folderName = if (templateFolderName !== "") {
-			"$templateFolderName/"
-		} else {
-			""
-		}
 
 		// Get the Bitmap from the template image file inside the specified folder.
-		context.assets?.open("${folderName}$templateName.webp").use { inputStream ->
+		context.assets?.open("${templateSubFolderName}$templateName.webp").use { inputStream ->
 			// Get the Bitmap from the template image file and then start matching.
 			templateBitmap = BitmapFactory.decodeStream(inputStream)
 		}
@@ -558,7 +552,6 @@ open class ImageUtils(private val context: Context) {
 	 * Finds the location of the specified image inside assets.
 	 *
 	 * @param templateName File name of the template image.
-	 * @param templateFolderName Name of the subfolder in /assets/ that the template image is in. Defaults to imageSubFolderName.
 	 * @param tries Number of tries before failing. Defaults to 5.
 	 * @param confidence Custom confidence for template matching. Defaults to 0.0 which will use the confidence set in the app's settings.
 	 * @param region Specify the region consisting of (x, y, width, height) of the source screenshot to template match. Defaults to (0, 0, 0, 0) which is equivalent to searching the full image.
@@ -566,8 +559,8 @@ open class ImageUtils(private val context: Context) {
 	 * @param testMode Flag to test and get a valid scale for device compatibility.
 	 * @return Point object containing the location of the match or null if not found.
 	 */
-	fun findImage(
-		templateName: String, templateFolderName: String = imageSubFolderName, tries: Int = 5, confidence: Double = 0.0, region: IntArray = intArrayOf(0, 0, 0, 0),
+	open fun findImage(
+		templateName: String, tries: Int = 5, confidence: Double = 0.0, region: IntArray = intArrayOf(0, 0, 0, 0),
 		suppressError: Boolean = false, testMode: Boolean = false
 	): Point? {
 		var numberOfTries = tries
@@ -583,7 +576,7 @@ open class ImageUtils(private val context: Context) {
 		}
 
 		while (numberOfTries > 0) {
-			val (sourceBitmap, templateBitmap) = getBitmaps(templateName, templateFolderName)
+			val (sourceBitmap, templateBitmap) = getBitmaps(templateName)
 
 			if (sourceBitmap != null && templateBitmap != null) {
 				val resultFlag: Boolean = match(sourceBitmap, templateBitmap, region, useSingleScale = true, customConfidence = confidence)
@@ -635,17 +628,16 @@ open class ImageUtils(private val context: Context) {
 	 * Finds all occurrences of the specified image. Has an optional parameter to specify looking in the items folder instead.
 	 *
 	 * @param templateName File name of the template image.
-	 * @param templateFolderName Name of the subfolder in /assets/ that the template image is in. Defaults to imageSubFolderName.
 	 * @param region Specify the region consisting of (x, y, width, height) of the source screenshot to template match. Defaults to (0, 0, 0, 0) which is equivalent to searching the full image.
 	 * @param confidence Accuracy threshold for matching. Defaults to 0.0 which will use the confidence set in the app's settings.
 	 * @return An ArrayList of Point objects containing all the occurrences of the specified image or null if not found.
 	 */
-	fun findAll(templateName: String, templateFolderName: String = imageSubFolderName, region: IntArray = intArrayOf(0, 0, 0, 0), confidence: Double = 0.0): ArrayList<Point> {
+	open fun findAll(templateName: String, region: IntArray = intArrayOf(0, 0, 0, 0), confidence: Double = 0.0): ArrayList<Point> {
 		if (debugMode) {
 			MessageLog.printToLog("\n[DEBUG] Starting process to find all ${templateName.uppercase()} images...", tag)
 		}
 
-		val (sourceBitmap, templateBitmap) = getBitmaps(templateName, templateFolderName)
+		val (sourceBitmap, templateBitmap) = getBitmaps(templateName)
 
 		// Clear the ArrayList first before attempting to find all matches.
 		matchLocations.clear()
@@ -678,7 +670,7 @@ open class ImageUtils(private val context: Context) {
 	 * @param suppressError Whether or not to suppress saving error messages to the log.
 	 * @return True if the specified image vanished from the screen. False otherwise.
 	 */
-	fun waitVanish(templateName: String, timeout: Int = 5, region: IntArray = intArrayOf(0, 0, 0, 0), suppressError: Boolean = false): Boolean {
+	open fun waitVanish(templateName: String, timeout: Int = 5, region: IntArray = intArrayOf(0, 0, 0, 0), suppressError: Boolean = false): Boolean {
 		MessageLog.printToLog("[INFO] Now waiting for $templateName to vanish from the screen...", tag)
 
 		var remaining = timeout
@@ -706,7 +698,7 @@ open class ImageUtils(private val context: Context) {
 	 * @param green The pixel's Green value.
 	 * @return A Pair object of the (x,y) coordinates on the Bitmap for the matched pixel.
 	 */
-	fun pixelSearch(bitmap: Bitmap, red: Int, blue: Int, green: Int, suppressError: Boolean = false): Pair<Int, Int> {
+	open fun pixelSearch(bitmap: Bitmap, red: Int, blue: Int, green: Int, suppressError: Boolean = false): Pair<Int, Int> {
 		if (debugMode) {
 			MessageLog.printToLog("\n[DEBUG] Starting process to find the specified pixel ($red, $blue, $green)...", tag)
 		}
@@ -824,7 +816,7 @@ open class ImageUtils(private val context: Context) {
 	 *
 	 * @return The detected String in the cropped region.
 	 */
-	fun findTextTesseract(
+	open fun findTextTesseract(
 		x: Int, y: Int, width: Int, height: Int, thresh: Boolean = true, threshold: Double = 130.0, thresholdMax: Double = 255.0, reuseSourceBitmap: Boolean = false, detectDigitsOnly: Boolean = false
 	): String {
 		val startTime: Long = System.currentTimeMillis()
