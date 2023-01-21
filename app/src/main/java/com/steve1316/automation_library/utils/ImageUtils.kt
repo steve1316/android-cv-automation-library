@@ -100,6 +100,18 @@ open class ImageUtils(private val context: Context) {
 		}
 	}
 
+	/**
+	 * Sets the path name of the subfolder(s) that will house the template images.
+	 *
+	 * @param subfolderPath Path name of the subfolder(s).
+	 */
+	protected fun setTemplateSubfolderPath(subfolderPath: String) {
+		templateSubFolderName = subfolderPath
+		if (subfolderPath.last() != '/') {
+			templateSubFolderName += "/"
+		}
+	}
+
 	////////////////////////////////////////////////////////////////////
 	////////////////////////////////////////////////////////////////////
 	// Template matching
