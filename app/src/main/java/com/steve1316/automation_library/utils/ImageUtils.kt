@@ -59,6 +59,7 @@ open class ImageUtils(private val context: Context) {
 	val is720p: Boolean = (displayWidth == 720) || (displayHeight == 720) // 720p
 	val isTabletPortrait: Boolean = (displayWidth == 1600 && displayHeight == 2560) || (displayWidth == 2560 && displayHeight == 1600) // Galaxy Tab S7 1600x2560 Portrait Mode
 	val isTabletLandscape: Boolean = (displayWidth == 2560 && displayHeight == 1600) // Galaxy Tab S7 1600x2560 Landscape Mode
+	val isTablet: Boolean = isTabletPortrait || isTabletLandscape
 
 	// Scales (in terms of 720p and the dimensions from the Galaxy Tab S7)
 	protected val lowerEndScales: MutableList<Double> = mutableListOf(0.60, 0.61, 0.62, 0.63, 0.64, 0.65, 0.67, 0.68, 0.69, 0.70)
