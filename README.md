@@ -1,6 +1,6 @@
 # Automation Library
 
-This library serves to consolidate all necessary code to facilitate a backend for automation purposes on Android devices. Currently, this library can do the following:
+This library serves to consolidate all necessary code to facilitate a backend for automation purposes on Android devices. The OpenCV Android SDK is being imported from this [OpenCV Android SDK repo](https://github.com/steve1316/opencv-android-sdk). Currently, this library can do the following:
 
 -   Uses `MyAccessibilityService` to programmatically execute gestures and `MediaProjectionService` to acquire screenshots for `ImageUtils` to perform image processing operations on.
 -   `BotService` handles the display and movement of the floating overlay button to start and stop program execution.
