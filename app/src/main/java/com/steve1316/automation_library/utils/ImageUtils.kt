@@ -501,9 +501,14 @@ open class ImageUtils(private val context: Context) {
 		}
 
 		var templateBitmap: Bitmap?
+		val newTemplatePath = if (templatePath.last() != '/') {
+			"$templatePath/"
+		} else {
+			templatePath
+		}
 
 		// Get the Bitmap from the template image file inside the specified folder.
-		context.assets?.open("${templatePath}$templateName.webp").use { inputStream ->
+		context.assets?.open("${newTemplatePath}$templateName.webp").use { inputStream ->
 			// Get the Bitmap from the template image file and then start matching.
 			templateBitmap = BitmapFactory.decodeStream(inputStream)
 		}
