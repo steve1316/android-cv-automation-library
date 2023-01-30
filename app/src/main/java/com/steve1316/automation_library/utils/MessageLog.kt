@@ -109,7 +109,7 @@ class MessageLog {
 		private fun printTime(skipPrintTime: Boolean = false): String {
 			val elapsedMillis: Long = System.currentTimeMillis() - startTime
 
-			return if (skipPrintTime) {
+			return if (!skipPrintTime) {
 				String.format(
 					"%02d:%02d:%02d",
 					TimeUnit.MILLISECONDS.toHours(elapsedMillis),
