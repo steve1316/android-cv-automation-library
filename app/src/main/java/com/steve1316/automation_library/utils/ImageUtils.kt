@@ -378,7 +378,7 @@ open class ImageUtils(private val context: Context) {
 
 		// Loop until all other matches are found and break out when there are no more to be found.
 		while (matchCheck) {
-			if (!SharedData.isRunning) {
+			if (!BotService.isRunning) {
 				break
 			}
 

@@ -50,10 +50,6 @@ class MediaProjectionService : Service() {
 		private lateinit var tempDirectory: String
 		private lateinit var threadHandler: Handler
 
-		var displayWidth: Int = 0
-		var displayHeight: Int = 0
-		var displayDPI: Int = 0
-
 		private lateinit var virtualDisplay: VirtualDisplay
 		private lateinit var defaultDisplay: Display
 		private lateinit var windowManager: WindowManager
@@ -95,19 +91,19 @@ class MediaProjectionService : Service() {
 			// would offset the screen coordinates of matches by the difference.
 			val metrics = DisplayMetrics()
 			defaultDisplay.getRealMetrics(metrics)
-			displayWidth = metrics.widthPixels
-			displayHeight = metrics.heightPixels
-			displayDPI = metrics.densityDpi
+			SharedData.displayWidth = metrics.widthPixels
+			SharedData.displayHeight = metrics.heightPixels
+			SharedData.displayDPI = metrics.densityDpi
 
-			Log.d(tag, "Current Virtual Display at ${displayWidth}x${displayHeight}, DPI: $displayDPI")
+			Log.d(tag, "Current Virtual Display at ${SharedData.displayWidth}x${SharedData.displayHeight}, DPI: ${SharedData.displayDPI}")
 
 			// Start the ImageReader.
-			imageReader = ImageReader.newInstance(displayWidth, displayHeight, PixelFormat.RGBA_8888, 2)
+			imageReader = ImageReader.newInstance(SharedData.displayWidth, SharedData.displayHeight, PixelFormat.RGBA_8888, 2)
 
 			// Now create the VirtualDisplay.
 			virtualDisplay = mediaProjection?.createVirtualDisplay(
-				"My Virtual Display", displayWidth, displayHeight,
-				displayDPI, getVirtualDisplayFlags(), imageReader.surface, null, threadHandler
+				"My Virtual Display", SharedData.displayWidth, SharedData.displayHeight,
+				SharedData.displayDPI, getVirtualDisplayFlags(), imageReader.surface, null, threadHandler
 			)!!
 		}
 
@@ -128,10 +124,10 @@ class MediaProjectionService : Service() {
 				val buffer = planes[0].buffer
 				val pixelStride = planes[0].pixelStride
 				val rowStride = planes[0].rowStride
-				val rowPadding: Int = rowStride - pixelStride * displayWidth
+				val rowPadding: Int = rowStride - pixelStride * SharedData.displayWidth
 
 				// Create the Bitmap.
-				sourceBitmap = Bitmap.createBitmap(displayWidth + rowPadding / pixelStride, displayHeight, Bitmap.Config.ARGB_8888)
+				sourceBitmap = Bitmap.createBitmap(SharedData.displayWidth + rowPadding / pixelStride, SharedData.displayHeight, Bitmap.Config.ARGB_8888)
 				sourceBitmap.copyPixelsFromBuffer(buffer)
 
 				// Now write the Bitmap to the specified file inside the /files/temp/ folder. This adds about 500-600ms to runtime every time this is called when Debug Mode is on.

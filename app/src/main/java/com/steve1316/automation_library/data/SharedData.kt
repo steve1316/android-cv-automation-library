@@ -8,10 +8,10 @@ class SharedData {
 	companion object {
 		const val loggerTag = "[AUTO_LIB]"
 
-		var isRunning = false
+		// These are set in the MediaProjectionService upon successful creation of the Virtual Display.
 		var mainPackagePath: String = ""
-
 		var displayWidth: Int = 0
 		var displayHeight: Int = 0
+		var displayDPI: Int = 0
 	}
 }
