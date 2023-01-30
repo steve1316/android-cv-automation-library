@@ -42,6 +42,7 @@ class MyAccessibilityService : AccessibilityService() {
 
 		var enableTextToPaste: Boolean = false
 		var textToPaste: String = ""
+		var imageSubFolder = "images/"
 
 		/**
 		 * Returns a static reference to this class.
@@ -155,7 +156,13 @@ class MyAccessibilityService : AccessibilityService() {
 		// Get the Bitmap from the template image file inside the specified folder.
 		val templateBitmap: Bitmap
 		val dimensions: Pair<Int, Int> = try {
-			myContext.assets?.open("images/$imageName.webp").use { inputStream ->
+			val newImageSubFolder = if (imageSubFolder.last() != '/') {
+				"$imageSubFolder/"
+			} else {
+				imageSubFolder
+			}
+
+			myContext.assets?.open("$newImageSubFolder$imageName.webp").use { inputStream ->
 				// Get the Bitmap from the template image file and then start matching.
 				templateBitmap = BitmapFactory.decodeStream(inputStream)
 			}
