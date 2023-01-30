@@ -535,7 +535,11 @@ open class ImageUtils(private val context: Context) {
 			if (bitmap != null) {
 				return bitmap
 			} else {
-				if (debugMode) MessageLog.printToLog("[DEBUG] Source bitmap is null. Waiting a second before trying again.", tag, isWarning = true)
+				if (debugMode) MessageLog.printToLog("[DEBUG] Source bitmap is null. Moving the screen a bit and waiting a second before trying again.", tag, isWarning = true)
+
+				MyAccessibilityService.getInstance().swipe(500f, 500f, 500f, 400f, 100L)
+				MyAccessibilityService.getInstance().swipe(500f, 400f, 500f, 500f, 100L)
+
 				wait(1.0)
 			}
 		}
