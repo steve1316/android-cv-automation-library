@@ -103,17 +103,22 @@ class MessageLog {
 		 *
 		 * Source is from https://stackoverflow.com/questions/9027317/how-to-convert-milliseconds-to-hhmmss-format/9027379
 		 *
+		 * @param skipPrintTime Flag to determine printing the timestamp.
 		 * @return String of HH:MM:SS format of the elapsed time.
 		 */
-		private fun printTime(): String {
+		private fun printTime(skipPrintTime: Boolean = false): String {
 			val elapsedMillis: Long = System.currentTimeMillis() - startTime
 
-			return String.format(
-				"%02d:%02d:%02d",
-				TimeUnit.MILLISECONDS.toHours(elapsedMillis),
-				TimeUnit.MILLISECONDS.toMinutes(elapsedMillis) - TimeUnit.HOURS.toMinutes(TimeUnit.MILLISECONDS.toHours(elapsedMillis)),
-				TimeUnit.MILLISECONDS.toSeconds(elapsedMillis) - TimeUnit.MINUTES.toSeconds(TimeUnit.MILLISECONDS.toMinutes(elapsedMillis))
-			)
+			return if (skipPrintTime) {
+				String.format(
+					"%02d:%02d:%02d",
+					TimeUnit.MILLISECONDS.toHours(elapsedMillis),
+					TimeUnit.MILLISECONDS.toMinutes(elapsedMillis) - TimeUnit.HOURS.toMinutes(TimeUnit.MILLISECONDS.toHours(elapsedMillis)),
+					TimeUnit.MILLISECONDS.toSeconds(elapsedMillis) - TimeUnit.MINUTES.toSeconds(TimeUnit.MILLISECONDS.toMinutes(elapsedMillis))
+				)
+			} else {
+				""
+			}
 		}
 
 		/**
@@ -123,8 +128,9 @@ class MessageLog {
 		 * @param tag Distinguish between messages for where they came from.
 		 * @param isWarning Flag to determine whether to display log message in console as debug or warning.
 		 * @param isError Flag to determine whether to display log message in console as debug or error.
+		 * @param skipPrintTime Flag to determine printing the timestamp in the message.
 		 */
-		fun printToLog(message: String, tag: String, isWarning: Boolean = false, isError: Boolean = false) {
+		fun printToLog(message: String, tag: String, isWarning: Boolean = false, isError: Boolean = false, skipPrintTime: Boolean = false) {
 			if (!isError && isWarning) {
 				Log.w(tag, message)
 			} else if (isError && !isWarning) {
@@ -133,11 +139,14 @@ class MessageLog {
 				Log.d(tag, message)
 			}
 
+			var timestamp: String = printTime(skipPrintTime)
+			if (timestamp != "") timestamp = "$timestamp "
+
 			// Remove the newline prefix if needed and place it where it should be.
 			val newMessage = if (message.startsWith("\n")) {
-				"\n" + printTime() + " " + message.removePrefix("\n")
+				"\n" + timestamp + message.removePrefix("\n")
 			} else {
-				printTime() + " " + message
+				timestamp + message
 			}
 
 			messageLog.add(newMessage)
