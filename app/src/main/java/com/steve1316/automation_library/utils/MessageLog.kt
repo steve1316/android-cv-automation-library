@@ -23,7 +23,7 @@ class MessageLog {
 		private const val tag: String = "${SharedData.loggerTag}MessageLog"
 
 		var messageLog = arrayListOf<String>()
-		private val startTime: Long = System.currentTimeMillis()
+		private var startTime: Long = 0L
 		var saveCheck = false
 
 		/**
@@ -107,6 +107,10 @@ class MessageLog {
 		 * @return String of HH:MM:SS format of the elapsed time.
 		 */
 		private fun printTime(skipPrintTime: Boolean = false): String {
+			if (startTime == 0L) {
+				startTime = System.currentTimeMillis()
+			}
+
 			val elapsedMillis: Long = System.currentTimeMillis() - startTime
 
 			return if (!skipPrintTime) {
