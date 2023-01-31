@@ -110,10 +110,11 @@ class BotService : Service() {
 							isRunning = true
 
 							// Get the developer module's MainActivity class.
-							val className: Class<out Class<*>> = Class.forName("${SharedData.mainPackagePath}.MainActivity")::class.java
+							val contentIntent: Intent = packageManager.getLaunchIntentForPackage(packageName)!!
+							val className = contentIntent.component!!.className
 
 							// Set up the notification to send the user back to their MainActivity when pressed.
-							NotificationUtils.updateNotification(myContext, className, "Automation is now running")
+							NotificationUtils.updateNotification(myContext, Class.forName(className), "Automation is now running")
 
 							thread = thread {
 								// Clear the message log in the frontend.
@@ -200,8 +201,9 @@ class BotService : Service() {
 
 		// Update the app's notification with the status.
 		if (!isException) {
-			val className: Class<out Class<*>> = Class.forName("${SharedData.mainPackagePath}.MainActivity")::class.java
-			NotificationUtils.updateNotification(myContext, className, "Completed successfully with no errors.")
+			val contentIntent: Intent = packageManager.getLaunchIntentForPackage(packageName)!!
+			val className = contentIntent.component!!.className
+			NotificationUtils.updateNotification(myContext, Class.forName(className), "Completed successfully with no errors.")
 		}
 
 		// Reset the overlay button's image on a separate UI thread.

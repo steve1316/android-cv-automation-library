@@ -267,7 +267,9 @@ class MediaProjectionService : Service() {
 
 		if (isStartCommand(intent)) {
 			// Create a new Notification in the foreground telling users that the MediaProjection Service is now active.
-			val (notification, notificationID) = NotificationUtils.getNewNotification(this, Class.forName("${SharedData.mainPackagePath}.MainActivity")::class.java)
+			val contentIntent: Intent = packageManager.getLaunchIntentForPackage(packageName)!!
+			val name = contentIntent.component!!.className
+			val (notification, notificationID) = NotificationUtils.getNewNotification(this, Class.forName(name))
 			startForeground(notificationID, notification)
 
 			val resultCode = intent.getIntExtra("RESULT_CODE", Activity.RESULT_CANCELED)
