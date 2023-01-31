@@ -22,9 +22,20 @@ class MessageLog {
 	companion object {
 		private const val tag: String = "${SharedData.loggerTag}MessageLog"
 
-		var messageLog = arrayListOf<String>()
+		private var messageLog = arrayListOf<String>()
 		private var startTime: Long = 0L
-		var saveCheck = false
+		private var saveCheck = false
+
+		/**
+		 * Resets the relevant flags and the log array back to default to prepare for the next run.
+		 *
+		 */
+		fun reset() {
+			startTime = 0L
+			saveCheck = false
+			messageLog.clear()
+			Log.d(tag, "MessageLog has now been reset and is ready for the next run.")
+		}
 
 		/**
 		 * Save the current Message Log into a new file inside internal storage's /logs/ folder.

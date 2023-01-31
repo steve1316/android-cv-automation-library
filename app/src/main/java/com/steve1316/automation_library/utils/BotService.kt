@@ -112,10 +112,6 @@ class BotService : Service() {
 
 							thread = thread {
 								try {
-									// Clear the Message Log.
-									MessageLog.messageLog.clear()
-									MessageLog.saveCheck = false
-
 									// Clear the message log in the frontend.
 									EventBus.getDefault().post(JSEvent("BotService", "Running"))
 
@@ -224,8 +220,9 @@ class BotService : Service() {
 
 		DiscordUtils.queue.add("```diff\n- Terminated connection to Discord API for $appName\n```")
 
-		// Save the message log.
+		// Save the message log and reset MessageLog.
 		MessageLog.saveLogToFile(myContext)
+		MessageLog.reset()
 
 		// Update the app's notification with the status.
 		if (!isException) {
