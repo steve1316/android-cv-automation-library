@@ -1,6 +1,7 @@
 package com.steve1316.automation_library.utils
 
 import android.annotation.SuppressLint
+import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
@@ -19,10 +20,12 @@ import android.widget.Toast
 import androidx.preference.PreferenceManager
 import com.steve1316.automation_library.R
 import com.steve1316.automation_library.data.SharedData
+import com.steve1316.automation_library.events.ExceptionEvent
 import com.steve1316.automation_library.events.JSEvent
 import com.steve1316.automation_library.events.StartEvent
 import kotlinx.coroutines.runBlocking
 import org.greenrobot.eventbus.EventBus
+import org.greenrobot.eventbus.Subscribe
 import kotlin.concurrent.thread
 import kotlin.math.roundToInt
 
@@ -38,6 +41,7 @@ class BotService : Service() {
 	private lateinit var myContext: Context
 	private lateinit var overlayView: View
 	private lateinit var overlayButton: ImageButton
+	private var isException: Boolean = false
 
 	companion object {
 		private lateinit var thread: Thread
@@ -63,6 +67,7 @@ class BotService : Service() {
 	@SuppressLint("ClickableViewAccessibility", "InflateParams")
 	override fun onCreate() {
 		super.onCreate()
+		EventBus.getDefault().register(this)
 
 		// Save a reference to the app's context and app name.
 		myContext = this
@@ -111,56 +116,26 @@ class BotService : Service() {
 							NotificationUtils.updateNotification(myContext, className, "Automation is now running")
 
 							thread = thread {
-								try {
-									// Clear the message log in the frontend.
-									EventBus.getDefault().post(JSEvent("BotService", "Running"))
+								// Clear the message log in the frontend.
+								EventBus.getDefault().post(JSEvent("BotService", "Running"))
 
-									// Run the Discord process on a new Thread if it is enabled.
-									if (PreferenceManager.getDefaultSharedPreferences(myContext).getBoolean("enableDiscordNotifications", false)) {
-										val discordUtils = DiscordUtils(myContext)
-										thread {
-											runBlocking {
-												DiscordUtils.queue.clear()
-												discordUtils.main()
-											}
+								// Run the Discord process on a new Thread if it is enabled.
+								if (PreferenceManager.getDefaultSharedPreferences(myContext).getBoolean("enableDiscordNotifications", false)) {
+									val discordUtils = DiscordUtils(myContext)
+									thread {
+										runBlocking {
+											DiscordUtils.queue.clear()
+											discordUtils.main()
 										}
 									}
-
-									// Send start message to signal the developer's module to begin running their entry point. Execution will go to the developer's module until it is all done.
-									EventBus.getDefault().postSticky(StartEvent("Entry Point ON"))
-
-									// Perform cleanup after everything is done.
-									performCleanUp()
-								} catch (e: Exception) {
-									if (e.toString() == "java.lang.InterruptedException") {
-										NotificationUtils.updateNotification(myContext, className, "Completed successfully with no errors.")
-									} else {
-										NotificationUtils.updateNotification(
-											myContext,
-											className,
-											"Encountered Exception: ${e.javaClass.canonicalName}\nTap me to see more details.",
-											title = "Encountered Exception",
-											displayBigText = true
-										)
-
-										MessageLog.printToLog("$appName encountered an Exception: ${e.stackTraceToString()}", tag, isError = true)
-
-										if (e.stackTraceToString().length >= 2500) {
-											Log.d(tag, "Splitting up Discord message to avoid being cut off due to character limit.")
-											val halfLength: Int = e.stackTraceToString().length / 2
-											val message1: String = e.stackTraceToString().substring(0, halfLength)
-											val message2: String = e.stackTraceToString().substring(halfLength)
-
-											DiscordUtils.queue.add("> Encountered exception in Farming Mode: \n$message1")
-											DiscordUtils.queue.add("> $message2")
-										} else {
-											DiscordUtils.queue.add("> Encountered exception in Farming Mode: \n${e.stackTraceToString()}")
-										}
-									}
-
-									// Perform cleanup after everything is done but mark the overall result as a failure.
-									performCleanUp(isException = true)
 								}
+
+								// Send start message to signal the developer's module to begin running their entry point. Execution will go to the developer's module until it is all done.
+								EventBus.getDefault().postSticky(StartEvent("Entry Point ON"))
+
+								// Perform cleanup after everything is done.
+								if (!isException) performCleanUp()
+								else isException = false
 							}
 						} else {
 							// If the entry point was already in the middle of running, stop it and perform cleanup.
@@ -212,9 +187,8 @@ class BotService : Service() {
 	/**
 	 * Perform cleanup upon app completion or encountering an Exception.
 	 *
-	 * @param isException Prevents updating the Notification again if the app stopped due to an Exception.
 	 */
-	private fun performCleanUp(isException: Boolean = false) {
+	private fun performCleanUp() {
 		Log.d(tag, "BotService for $appName is now stopped.")
 		isRunning = false
 
@@ -234,5 +208,47 @@ class BotService : Service() {
 		Handler(Looper.getMainLooper()).post {
 			overlayButton.setImageResource(R.drawable.play_circle_filled)
 		}
+	}
+
+	/**
+	 * Listener function to call the inner event sending function in order to send the message back to the Javascript frontend.
+	 *
+	 * @param event The JSEvent object to parse its event name and message.
+	 */
+	@Subscribe
+	fun onExceptionEvent(event: ExceptionEvent) {
+		// Get the developer module's MainActivity class.
+		val contentIntent: Intent = packageManager.getLaunchIntentForPackage(packageName)!!
+		val className = contentIntent.component!!.className
+
+		if (event.exception.toString() == "java.lang.InterruptedException") {
+			NotificationUtils.updateNotification(myContext, Class.forName(className), "Completed successfully with no errors.")
+		} else {
+			NotificationUtils.updateNotification(
+				myContext,
+				Class.forName(className),
+				"${event.exception.javaClass.canonicalName}\nTap me to see more details.",
+				title = "Encountered Exception",
+				displayBigText = true
+			)
+
+			MessageLog.printToLog("$appName encountered an Exception: ${event.exception.stackTraceToString()}", tag, isError = true)
+
+			if (event.exception.stackTraceToString().length >= 2500) {
+				Log.d(tag, "Splitting up Discord message to avoid being cut off due to character limit.")
+				val halfLength: Int = event.exception.stackTraceToString().length / 2
+				val message1: String = event.exception.stackTraceToString().substring(0, halfLength)
+				val message2: String = event.exception.stackTraceToString().substring(halfLength)
+
+				DiscordUtils.queue.add("> Encountered exception: \n$message1")
+				DiscordUtils.queue.add("> $message2")
+			} else {
+				DiscordUtils.queue.add("> Encountered exception: \n${event.exception.stackTraceToString()}")
+			}
+		}
+
+		// Perform cleanup after everything is done but mark the overall result as a failure.
+		isException = true
+		performCleanUp()
 	}
 }
