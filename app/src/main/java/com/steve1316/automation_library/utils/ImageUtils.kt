@@ -761,13 +761,34 @@ open class ImageUtils(private val context: Context) {
 	// Tesseract
 
 	/**
+	 * Checks for Tesseract initialization and if it was not, initialize it.
+	 *
+	 * @param traineddataFileName The file name including its extension for the .traineddata of Tesseract.
+	 * @return True if both Tesseract client objects were initialized.
+	 */
+	fun checkTesseractInitialization(traineddataFileName: String): Boolean {
+		return if (!this::tessBaseAPI.isInitialized || !this::tessDigitsBaseAPI.isInitialized) {
+			MessageLog.printToLog("[WARNING] Check failed for Tesseract initialization. Starting process to initialize Tesseract now...", tag)
+			initTesseract(traineddataFileName)
+		} else {
+			true
+		}
+	}
+
+	/**
 	 * Initialize Tesseract for future OCR operations. Make sure to put your .traineddata inside the root of the /assets/ folder.
 	 *
 	 * @param traineddataFileName The file name including its extension for the .traineddata of Tesseract.
+	 * @return True if both Tesseract client objects were initialized.
 	 */
-	fun initTesseract(traineddataFileName: String) {
+	fun initTesseract(traineddataFileName: String): Boolean {
 		tessBaseAPI = TessBaseAPI()
 		tessDigitsBaseAPI = TessBaseAPI()
+
+		val fileName = if (!traineddataFileName.contains(".trainneddata")) {
+			MessageLog.printToLog("[TESSERACT] Developer did not include the correct extension when initializing Tesseract so appending it for them.", tag)
+			"$traineddataFileName.trainneddata"
+		} else traineddataFileName
 
 		val externalFilesDir: File? = context.getExternalFilesDir(null)
 		val tempDirectory: String = externalFilesDir?.absolutePath + "/tesseract/tessdata/"
@@ -781,20 +802,20 @@ open class ImageUtils(private val context: Context) {
 			if (!successfullyCreated) {
 				MessageLog.printToLog("[ERROR] Failed to create the /files/tesseract/tessdata/ folder.", tag, isError = true)
 			} else {
-				MessageLog.printToLog("[INFO] Successfully created /files/tesseract/tessdata/ folder.", tag)
+				MessageLog.printToLog("[TESSERACT] Successfully created /files/tesseract/tessdata/ folder.", tag)
 			}
 		} else {
-			MessageLog.printToLog("[INFO] /files/tesseract/tessdata/ folder already exists.", tag)
+			MessageLog.printToLog("[TESSERACT] /files/tesseract/tessdata/ folder already exists.", tag)
 		}
 
 		// If the .traineddata is not in the application folder, copy it there from assets.
-		val trainedDataPath = File(tempDirectory, traineddataFileName)
+		val trainedDataPath = File(tempDirectory, fileName)
 		if (!trainedDataPath.exists()) {
 			try {
-				MessageLog.printToLog("[INFO] Starting Tesseract initialization.", tag)
-				val input = context.assets.open(traineddataFileName)
+				MessageLog.printToLog("[TESSERACT] Starting Tesseract initialization.", tag)
+				val input = context.assets.open(fileName)
 
-				val output = FileOutputStream("$tempDirectory/$traineddataFileName")
+				val output = FileOutputStream("$tempDirectory/$fileName")
 
 				val buffer = ByteArray(1024)
 				var read: Int
@@ -806,7 +827,7 @@ open class ImageUtils(private val context: Context) {
 				output.flush()
 				output.close()
 
-				MessageLog.printToLog("[INFO] Finished Tesseract initialization.", tag)
+				MessageLog.printToLog("[TESSERACT] Finished Tesseract initialization.", tag)
 			} catch (e: IOException) {
 				MessageLog.printToLog("[ERROR] Tesseract I/O Exception: ${e.stackTraceToString()}", tag, isError = true)
 			}
@@ -822,6 +843,8 @@ open class ImageUtils(private val context: Context) {
 		// Set the Page Segmentation Mode to '--psm 7' or "Treat the image as a single text line" according to https://tesseract-ocr.github.io/tessdoc/ImproveQuality.html#page-segmentation-method
 		tessBaseAPI.pageSegMode = TessBaseAPI.PageSegMode.PSM_SINGLE_BLOCK
 		tessDigitsBaseAPI.pageSegMode = TessBaseAPI.PageSegMode.PSM_SINGLE_LINE
+
+		return this::tessBaseAPI.isInitialized && this::tessDigitsBaseAPI.isInitialized
 	}
 
 	/**
