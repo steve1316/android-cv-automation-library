@@ -539,7 +539,7 @@ open class ImageUtils(private val context: Context) {
 	 * @param newX The x coordinate of the new position.
 	 * @param newY The y coordinate of the new position.
 	 */
-	protected fun adjustBitmapTriggerNewImage(oldX: Float, oldY: Float, newX: Float, newY: Float, duration: Long = 100L) {
+	protected fun adjustTriggerNewImageSwipeBehavior(oldX: Float, oldY: Float, newX: Float, newY: Float, duration: Long = 100L) {
 		oldXSwipe = oldX
 		oldYSwipe = oldY
 		newXSwipe = newX
