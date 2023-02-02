@@ -42,6 +42,13 @@ open class ImageUtils(private val context: Context) {
 
 	private var templatePathName = ""
 
+	// Coordinates for swipe behavior to generate new images.
+	private var oldXSwipe: Float = 500f
+	private var oldYSwipe: Float = 500f
+	private var newXSwipe: Float = 500f
+	private var newYSwipe: Float = 400f
+	private var durationSwipe: Long = 100L
+
 	////////////////////////////////////////////////////////////////////
 	////////////////////////////////////////////////////////////////////
 	// SharedPreferences
@@ -480,7 +487,7 @@ open class ImageUtils(private val context: Context) {
 	// Fetching Bitmaps
 
 	/**
-	 * Open the source and template image files and return Bitmaps for them.
+	 * Open the source and template image files and return Bitmaps for them. Also executes swipes in order to generate new images if necessary.
 	 *
 	 * @param templateName File name of the template image.
 	 * @param templatePath Path name of the subfolder in /assets/ that the template image is in. Defaults to the default template subfolder path name.
@@ -494,8 +501,8 @@ open class ImageUtils(private val context: Context) {
 			sourceBitmap = MediaProjectionService.takeScreenshotNow()
 
 			if (sourceBitmap == null) {
-				MyAccessibilityService.getInstance().swipe(500f, 500f, 500f, 400f, 100L)
-				MyAccessibilityService.getInstance().swipe(500f, 400f, 500f, 500f, 100L)
+				MyAccessibilityService.getInstance().swipe(oldXSwipe, oldYSwipe, newXSwipe, newYSwipe, durationSwipe)
+				MyAccessibilityService.getInstance().swipe(oldXSwipe, newYSwipe, newXSwipe, oldYSwipe, durationSwipe)
 				wait(0.5)
 			}
 		}
@@ -522,6 +529,22 @@ open class ImageUtils(private val context: Context) {
 
 			Pair(sourceBitmap, null)
 		}
+	}
+
+	/**
+	 * Adjusts the coordinates for the swiping behavior to generate a new image for getBitmaps().
+	 *
+	 * @param oldX The x coordinate of the old position.
+	 * @param oldY The y coordinate of the old position.
+	 * @param newX The x coordinate of the new position.
+	 * @param newY The y coordinate of the new position.
+	 */
+	protected fun adjustBitmapTriggerNewImage(oldX: Float, oldY: Float, newX: Float, newY: Float, duration: Long = 100L) {
+		oldXSwipe = oldX
+		oldYSwipe = oldY
+		newXSwipe = newX
+		newYSwipe = newY
+		durationSwipe = duration
 	}
 
 	/**
