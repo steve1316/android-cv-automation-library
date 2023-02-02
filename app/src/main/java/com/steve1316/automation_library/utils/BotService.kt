@@ -135,11 +135,17 @@ class BotService : Service() {
 								EventBus.getDefault().postSticky(StartEvent("Entry Point ON"))
 
 								// Perform cleanup after everything is done.
-								if (!isException) performCleanUp()
-								else isException = false
+								if (!isException) {
+									Log.d(tag, "Process has finished running and no exceptions were detected.")
+									performCleanUp()
+								} else {
+									Log.d(tag, "Process has finished running but an exception(s) were detected.")
+									isException = false
+								}
 							}
 						} else {
 							// If the entry point was already in the middle of running, stop it and perform cleanup.
+							Log.d(tag, "Overlay button was pressed while process was running. Interrupting the process now...")
 							thread.interrupt()
 							performCleanUp()
 						}
@@ -181,6 +187,7 @@ class BotService : Service() {
 		windowManager.removeView(overlayView)
 
 		// Stop the Accessibility service.
+		Log.d(tag, "BotService is now being destroyed. Shutting down the Accessibility Service as well.")
 		val service = Intent(myContext, MyAccessibilityService::class.java)
 		myContext.stopService(service)
 	}
@@ -190,7 +197,7 @@ class BotService : Service() {
 	 *
 	 */
 	private fun performCleanUp() {
-		Log.d(tag, "BotService for $appName is now stopped.")
+		Log.d(tag, "BotService for $appName is now stopped and executing cleanup now...")
 		isRunning = false
 
 		DiscordUtils.queue.add("```diff\n- Terminated connection to Discord API for $appName\n```")
@@ -219,6 +226,8 @@ class BotService : Service() {
 	 */
 	@Subscribe
 	fun onExceptionEvent(event: ExceptionEvent) {
+		Log.d(tag, "Now executing logic for the ExceptionEvent listener.")
+
 		// Get the developer module's MainActivity class.
 		val contentIntent: Intent = packageManager.getLaunchIntentForPackage(packageName)!!
 		val className = contentIntent.component!!.className
