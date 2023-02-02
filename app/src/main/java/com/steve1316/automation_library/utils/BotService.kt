@@ -139,7 +139,6 @@ class BotService : Service() {
 									Log.d(tag, "Process has finished running and no exceptions were detected.")
 									performCleanUp()
 								} else {
-									Log.d(tag, "Process has finished running but an exception(s) were detected.")
 									isException = false
 								}
 							}
@@ -235,6 +234,8 @@ class BotService : Service() {
 		if (event.exception.toString() == "java.lang.InterruptedException") {
 			NotificationUtils.updateNotification(myContext, Class.forName(className), "Completed successfully with no errors.")
 		} else {
+			Log.d(tag, "Process has finished running but an exception(s) were detected.")
+
 			NotificationUtils.updateNotification(
 				myContext,
 				Class.forName(className),
@@ -256,10 +257,8 @@ class BotService : Service() {
 			} else {
 				DiscordUtils.queue.add("> Encountered exception: \n${event.exception.stackTraceToString()}")
 			}
-		}
 
-		// Perform cleanup after everything is done but mark the overall result as a failure.
-		isException = true
-		performCleanUp()
+			isException = true
+		}
 	}
 }
