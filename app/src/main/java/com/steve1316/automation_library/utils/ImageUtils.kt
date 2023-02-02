@@ -808,9 +808,9 @@ open class ImageUtils(private val context: Context) {
 		tessBaseAPI = TessBaseAPI()
 		tessDigitsBaseAPI = TessBaseAPI()
 
-		val fileName = if (!traineddataFileName.contains(".trainneddata")) {
+		val fileName = if (!traineddataFileName.contains(".traineddata")) {
 			MessageLog.printToLog("[TESSERACT] Developer did not include the correct extension when initializing Tesseract so appending it for them.", tag)
-			"$traineddataFileName.trainneddata"
+			"$traineddataFileName.traineddata"
 		} else traineddataFileName
 
 		val externalFilesDir: File? = context.getExternalFilesDir(null)
