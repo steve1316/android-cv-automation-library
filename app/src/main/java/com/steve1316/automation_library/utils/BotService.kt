@@ -181,6 +181,7 @@ class BotService : Service() {
 
 	override fun onDestroy() {
 		super.onDestroy()
+		EventBus.getDefault().unregister(this)
 
 		// Remove the overlay View that holds the overlay button.
 		windowManager.removeView(overlayView)
