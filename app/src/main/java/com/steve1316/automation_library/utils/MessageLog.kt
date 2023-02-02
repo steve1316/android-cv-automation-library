@@ -43,9 +43,9 @@ class MessageLog {
 		 * @param context The context for the application.
 		 */
 		fun saveLogToFile(context: Context) {
-			cleanLogsFolder(context)
-
 			if (!saveCheck) {
+				cleanLogsFolder(context)
+
 				Log.d(tag, "Now beginning process to save current Message Log to internal storage...")
 
 				// Generate file path to save to. All message logs will be saved to the /logs/ folder inside internal storage. Create the /logs/ folder if needed.
@@ -70,7 +70,7 @@ class MessageLog {
 				messageLog.add("\nNow saving Message Log to file named \"$fileName\" at $path")
 
 				// Send a event to the React Native frontend.
-				EventBus.getDefault().post(JSEvent("MessageLog", "Now saving Message Log to file named \"$fileName\" at $path"))
+				EventBus.getDefault().post(JSEvent("MessageLog", "\nNow saving Message Log to file named \"$fileName\" at $path"))
 
 				val file = File(path, "$fileName.txt")
 
