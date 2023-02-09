@@ -259,6 +259,8 @@ class BotService : Service() {
 				DiscordUtils.queue.add("> Encountered exception: \n${event.exception.stackTraceToString()}")
 			}
 
+			performCleanUp()
+
 			isException = true
 		}
 	}
