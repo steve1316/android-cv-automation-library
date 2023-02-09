@@ -42,6 +42,7 @@ class BotService : Service() {
 	private lateinit var overlayView: View
 	private lateinit var overlayButton: ImageButton
 	private var isException: Boolean = false
+	private var skipNotificationUpdate: Boolean = false
 
 	companion object {
 		private lateinit var thread: Thread
@@ -133,14 +134,7 @@ class BotService : Service() {
 
 								// Send start message to signal the developer's module to begin running their entry point. Execution will go to the developer's module until it is all done.
 								EventBus.getDefault().postSticky(StartEvent("Entry Point ON"))
-
-								// Perform cleanup after everything is done.
-								if (!isException) {
-									Log.d(tag, "Process has finished running and no exceptions were detected.")
-									performCleanUp()
-								} else {
-									isException = false
-								}
+								performCleanUp()
 							}
 						} else {
 							// If the entry point was already in the middle of running, stop it and perform cleanup.
@@ -197,25 +191,33 @@ class BotService : Service() {
 	 *
 	 */
 	private fun performCleanUp() {
-		Log.d(tag, "BotService for $appName is now stopped and executing cleanup now...")
-		isRunning = false
+		if (!skipNotificationUpdate) {
+			Log.d(tag, "BotService for $appName is now stopped and executing cleanup now...")
+			isRunning = false
 
-		DiscordUtils.queue.add("```diff\n- Terminated connection to Discord API for $appName\n```")
+			DiscordUtils.queue.add("```diff\n- Terminated connection to Discord API for $appName\n```")
 
-		// Save the message log and reset MessageLog.
-		MessageLog.saveLogToFile(myContext)
-		MessageLog.reset()
+			// Save the message log and reset MessageLog.
+			MessageLog.saveLogToFile(myContext)
+			MessageLog.reset()
 
-		// Update the app's notification with the status.
-		if (!isException) {
-			val contentIntent: Intent = packageManager.getLaunchIntentForPackage(packageName)!!
-			val className = contentIntent.component!!.className
-			NotificationUtils.updateNotification(myContext, Class.forName(className), "Completed successfully with no errors.")
-		}
+			// Update the app's notification with the status.
+			if (!isException) {
+				val contentIntent: Intent = packageManager.getLaunchIntentForPackage(packageName)!!
+				val className = contentIntent.component!!.className
+				NotificationUtils.updateNotification(myContext, Class.forName(className), "Completed successfully with no errors.")
+			} else {
+				skipNotificationUpdate = true
+			}
 
-		// Reset the overlay button's image on a separate UI thread.
-		Handler(Looper.getMainLooper()).post {
-			overlayButton.setImageResource(R.drawable.play_circle_filled)
+			// Reset the overlay button's image on a separate UI thread.
+			Handler(Looper.getMainLooper()).post {
+				overlayButton.setImageResource(R.drawable.play_circle_filled)
+			}
+
+			isException = false
+		} else {
+			skipNotificationUpdate = false
 		}
 	}
 
@@ -259,9 +261,8 @@ class BotService : Service() {
 				DiscordUtils.queue.add("> Encountered exception: \n${event.exception.stackTraceToString()}")
 			}
 
-			performCleanUp()
-
 			isException = true
+			performCleanUp()
 		}
 	}
 }
