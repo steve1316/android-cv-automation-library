@@ -503,7 +503,7 @@ open class ImageUtils(private val context: Context) {
 			if (sourceBitmap == null) {
 				MyAccessibilityService.getInstance().swipe(oldXSwipe, oldYSwipe, newXSwipe, newYSwipe, durationSwipe)
 				MyAccessibilityService.getInstance().swipe(oldXSwipe, newYSwipe, newXSwipe, oldYSwipe, durationSwipe)
-				wait(0.5)
+				wait(0.25)
 			}
 		}
 
@@ -534,10 +534,11 @@ open class ImageUtils(private val context: Context) {
 	/**
 	 * Adjusts the coordinates for the swiping behavior to generate a new image for getBitmaps().
 	 *
-	 * @param oldX The x coordinate of the old position.
-	 * @param oldY The y coordinate of the old position.
-	 * @param newX The x coordinate of the new position.
-	 * @param newY The y coordinate of the new position.
+	 * @param oldX The x coordinate of the old position. Defaults to 500f.
+	 * @param oldY The y coordinate of the old position. Defaults to 500f.
+	 * @param newX The x coordinate of the new position. Defaults to 500f.
+	 * @param newY The y coordinate of the new position. Defaults to 400f
+	 * @param duration How long the swipe should take. Defaults to 100L.
 	 */
 	protected fun adjustTriggerNewImageSwipeBehavior(oldX: Float, oldY: Float, newX: Float, newY: Float, duration: Long = 100L) {
 		oldXSwipe = oldX
@@ -560,10 +561,9 @@ open class ImageUtils(private val context: Context) {
 			} else {
 				if (debugMode) MessageLog.printToLog("[DEBUG] Source bitmap is null. Moving the screen a bit and waiting a second before trying again.", tag, isWarning = true)
 
-				MyAccessibilityService.getInstance().swipe(500f, 500f, 500f, 400f, 100L)
-				MyAccessibilityService.getInstance().swipe(500f, 400f, 500f, 500f, 100L)
-
-				wait(1.0)
+				MyAccessibilityService.getInstance().swipe(oldXSwipe, oldYSwipe, newXSwipe, newYSwipe, durationSwipe)
+				MyAccessibilityService.getInstance().swipe(oldXSwipe, newYSwipe, newXSwipe, oldYSwipe, durationSwipe)
+				wait(0.25)
 			}
 		}
 	}
