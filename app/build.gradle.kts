@@ -45,34 +45,34 @@ afterEvaluate {
 dependencies {
 	//////// Dependencies available to the project ////////
 
-	implementation(libs.bundles.androidApp)
+	api(libs.bundles.androidApp)
 
 	// OpenCV Android for image processing.
-	implementation(libs.opencv.android.sdk)
+	api(libs.opencv.android.sdk)
 
 	// Tesseract4Android for OCR text recognition.
-	implementation(libs.tesseract4android)
+	api(libs.tesseract4android)
 
 	// string-similarity to compare the string from OCR to the strings in data.
-	implementation(libs.stringSimilarity)
+	api(libs.stringSimilarity)
 
 	// Javacord for Discord integration.
-	implementation(libs.javacord)
+	api(libs.javacord)
 
 	// Klaxon to parse JSON data files.
-	implementation(libs.klaxon)
+	api(libs.klaxon)
 
 	// EventBus to communicate between modules and to the Javascript frontend.
-	implementation(libs.eventbus)
+	api(libs.eventbus)
 
 	// Google's Firebase Machine Learning OCR for Text Detection.
-	implementation(libs.mlkitTextRecognition)
+	api(libs.mlkitTextRecognition)
 
 	// Twitter4j is used to connect to the Twitter API.
-	implementation(libs.twitter4j.core)
+	api(libs.twitter4j.core)
 
 	// AppUpdater for notifying users when there is a new update available.
-	implementation(libs.appUpdater)
+	api(libs.appUpdater)
 }
 
 kotlin {
