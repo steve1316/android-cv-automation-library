@@ -113,11 +113,19 @@ class NotificationUtils {
 		 *
 		 * @param context The application context.
 		 * @param contentClass Class of the Activity to go to when the notification is pressed on.
+		 * @param isRunning Boolean for whether or not the bot process is currently running.
 		 * @param message Message to append to the Notification text body.
 		 * @param title Title for the Notification. Defaults to "Status".
 		 * @param displayBigText Display the big form of the text body template in place of the content text. Defaults to false which will not render it.
 		 */
-		fun updateNotification(context: Context, contentClass: Class<*>, message: String, title: String = "Status", displayBigText: Boolean = false) {
+		fun updateNotification(context: Context, contentClass: Class<*>, isRunning: Boolean, message: String, title: String = "Status", displayBigText: Boolean = false) {
+			var contentText = "Bot process is stopped"
+			if (message != "") {
+				contentText = message
+			} else if (isRunning) {
+				contentText = "Bot process is running"
+			}
+
 			// Create a PendingIntent to send the user back to the application if they tap the notification itself.
 			val contentIntent = Intent(context, contentClass)
 			val contentPendingIntent = PendingIntent.getActivity(context, NOTIFICATION_ID, contentIntent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
@@ -147,7 +155,7 @@ class NotificationUtils {
 					NotificationCompat.Builder(context, CHANNEL_ID).apply {
 						setSmallIcon(R.drawable.ic_baseline_control_camera_24)
 						setContentTitle(title)
-						setContentText(message)
+						setContentText(contentText)
 						setContentIntent(contentPendingIntent)
 						addAction(R.drawable.stop_circle_filled, context.getString(R.string.accessibility_service_action), stopPendingIntent)
 						priority = NotificationManager.IMPORTANCE_HIGH
@@ -173,7 +181,7 @@ class NotificationUtils {
 					NotificationCompat.Builder(context, CHANNEL_ID).apply {
 						setSmallIcon(R.drawable.ic_baseline_control_camera_24)
 						setContentTitle(title)
-						setContentText(message)
+						setContentText(contentText)
 						setContentIntent(contentPendingIntent)
 						priority = NotificationManager.IMPORTANCE_HIGH
 						setCategory(Notification.CATEGORY_SERVICE)

@@ -1,5 +1,6 @@
 package com.steve1316.automation_library.utils
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.os.Build
 import android.util.Log
@@ -26,6 +27,9 @@ class MessageLog {
 		private var startTime: Long = 0L
 		private var saveCheck = false
 
+		// Add synchronization object for thread-safe access
+		private val messageLogLock = Object()
+
 		/**
 		 * Resets the relevant flags and the log array back to default to prepare for the next run.
 		 *
@@ -33,7 +37,7 @@ class MessageLog {
 		fun reset() {
 			startTime = 0L
 			saveCheck = false
-			messageLog.clear()
+			clearLog()
 			Log.d(tag, "MessageLog has now been reset and is ready for the next run.")
 		}
 
@@ -77,13 +81,47 @@ class MessageLog {
 				if (!file.exists()) {
 					file.createNewFile()
 					file.printWriter().use { out ->
-						messageLog.forEach {
-							out.println(it)
+						// Synchronize access to messageLog to prevent concurrent modification
+						synchronized(messageLogLock) {
+							messageLog.forEach {
+								out.println(it)
+							}
 						}
 					}
 				}
 
 				saveCheck = true
+			}
+		}
+
+		/**
+		 * Add a message to the log in a thread-safe manner.
+		 *
+		 * @param message The message to add to the log.
+		 */
+		fun addMessage(message: String) {
+			synchronized(messageLogLock) {
+				messageLog.add(message)
+			}
+		}
+
+		/**
+		 * Clear the message log in a thread-safe manner.
+		 */
+		fun clearLog() {
+			synchronized(messageLogLock) {
+				messageLog.clear()
+			}
+		}
+
+		/**
+		 * Get a copy of the current message log in a thread-safe manner.
+		 *
+		 * @return A copy of the current message log.
+		 */
+		fun getMessageLogCopy(): List<String> {
+			synchronized(messageLogLock) {
+				return ArrayList(messageLog)
 			}
 		}
 
@@ -117,6 +155,7 @@ class MessageLog {
 		 * @param skipPrintTime Flag to determine printing the timestamp.
 		 * @return String of HH:MM:SS format of the elapsed time.
 		 */
+		@SuppressLint("DefaultLocale")
 		private fun printTime(skipPrintTime: Boolean = false): String {
 			if (startTime == 0L) {
 				startTime = System.currentTimeMillis()

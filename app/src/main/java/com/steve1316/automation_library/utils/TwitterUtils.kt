@@ -72,7 +72,7 @@ open class TwitterUtils(private val context: Context, private val test: Boolean 
 
 			val queryResult = oldTwitterClient.search().search(Query.of("Hello World"))
 			queryResult.count
-		} catch (e: Exception) {
+		} catch (_: Exception) {
 			MessageLog.printToLog("[ERROR] Cannot connect to Twitter API v1.1 due to keys and access tokens being incorrect.", tag, isError = true)
 			return "[ERROR] Cannot connect to Twitter API v1.1 due to keys and access tokens being incorrect."
 		}

@@ -1,0 +1,46 @@
+[versions]
+# The Android Studio warning about these not being used in any build scripts is wrong and can be ignored.
+# https://issuetracker.google.com/issues/343889864
+app-compileSdk = "36"
+app-buildToolsVersion = "36.0.0"
+app-minSdk = "24"
+#noinspection ExpiredTargetSdkVersion
+app-targetSdk = "30"
+app-versionName = "2.0.0"
+app-jvm-toolchain = "17"
+
+
+androidGradleBuildTools = "8.12.0"
+javacord = "3.8.0"
+kotlinGradlePlugin = "2.2.0"
+androidx-core = "1.17.0"
+androidx-preference = "1.2.1"
+tesseract4android = "4.9.0"
+stringSimiliarity = "1.0.0"
+klaxon = "5.6"
+eventbus = "3.3.1"
+mlkitTextRecognition = "19.0.1"
+opencvAndroidSdk = "4.12.0"
+appUpdater = "2.7"
+twitter4jCore = "4.1.2"
+
+[libraries]
+androidGradleBuildTools = { group = "com.android.tools.build", name = "gradle", version.ref = "androidGradleBuildTools" }
+javacord = { module = "org.javacord:javacord", version.ref = "javacord" }
+kotlinGradlePlugin = { group = "org.jetbrains.kotlin", name = "kotlin-gradle-plugin", version.ref = "kotlinGradlePlugin" }
+androidx-core = { group = "androidx.core", name = "core-ktx", version.ref = "androidx-core" }
+androidx-preference = { group = "androidx.preference", name = "preference-ktx", version.ref = "androidx-preference" }
+tesseract4android = { group = "cz.adaptech.tesseract4android", name = "tesseract4android", version.ref = "tesseract4android" }
+stringSimilarity = { group = "net.ricecode", name = "string-similarity", version.ref = "stringSimiliarity"}
+klaxon = { group = "com.beust", name = "klaxon", version.ref = "klaxon" }
+eventbus = { group = "org.greenrobot", name = "eventbus", version.ref = "eventbus" }
+mlkitTextRecognition = { group = "com.google.android.gms", name = "play-services-mlkit-text-recognition", version.ref = "mlkitTextRecognition"}
+appUpdater = { group = "com.github.javiersantos", name = "AppUpdater", version.ref = "appUpdater" }
+opencv-android-sdk = { module = "com.github.steve1316:opencv-android-sdk", version.ref = "opencvAndroidSdk" }
+twitter4j-core = { module = "org.twitter4j:twitter4j-core", version.ref = "twitter4jCore" }
+
+[bundles]
+androidApp = ["androidx-core", "androidx-preference"]
+
+[plugins]
+foojayJDKResolver = { id = "org.gradle.toolchains.foojay-resolver-convention", version = "1.0.0" }

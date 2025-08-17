@@ -50,12 +50,13 @@ class MyAccessibilityService : AccessibilityService() {
 		 * @return Static reference to MyAccessibilityService.
 		 */
 		fun getInstance(): MyAccessibilityService {
-			return if (this::instance.isInitialized) {
-				instance
-			} else {
-				Log.w(tag, "WARNING: This instance of MyAccessibilityService is being returned improperly! Do not use this any further until accessibility permissions are granted properly.")
-				MyAccessibilityService()
+			if (!::instance.isInitialized) {
+				throw IllegalStateException("Accessibility Service not initialized. Disable and re-enable the Accessibility Service.")
 			}
+			if (!BotService.isRunning) {
+				throw IllegalStateException("Accessibility Service is not running. Enable the Accessibility Service.")
+			}
+			return instance
 		}
 
 		/**
@@ -95,14 +96,14 @@ class MyAccessibilityService : AccessibilityService() {
 				val arguments = Bundle()
 				arguments.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, textToPaste)
 
-				if (event.source.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, arguments)) {
+				if (event.source?.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, arguments) ?: false) {
 					Log.d(tag, "Successfully pasted the text $textToPaste")
 				} else {
 					Log.e(tag, "Failed to paste the text $textToPaste")
 				}
 			} else {
 				Log.d(tag, "[LEGACY] Copying the text $textToPaste to paste into the EditText android component.")
-				event.source.performAction(AccessibilityNodeInfo.ACTION_LONG_CLICK)
+                event.source?.performAction(AccessibilityNodeInfo.ACTION_LONG_CLICK)
 
 				val clipboard = myContext.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
 				val clip = ClipData.newPlainText("Text to Paste", textToPaste)
@@ -110,7 +111,7 @@ class MyAccessibilityService : AccessibilityService() {
 
 				Log.d(tag, "[LEGACY] Clipboard contents to paste: ${clipboard.primaryClip}")
 
-				if (event.source.performAction(AccessibilityNodeInfo.ACTION_PASTE)) {
+				if (event.source?.performAction(AccessibilityNodeInfo.ACTION_PASTE) ?: false) {
 					Log.d(tag, "[LEGACY] Successfully pasted the text $textToPaste")
 				} else {
 					Log.e(tag, "[LEGACY] Failed to paste the text $textToPaste")

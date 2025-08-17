@@ -41,7 +41,7 @@ class DiscordUtils(myContext: Context) {
 
 		try {
 			client = DiscordApiBuilder().setToken(discordToken).login().join()
-		} catch (e: Exception) {
+		} catch (_: Exception) {
 			Log.d(tag, "[DISCORD] Failed to connect to Discord API using provided token.")
 			return
 		}
@@ -49,14 +49,14 @@ class DiscordUtils(myContext: Context) {
 		val user: User
 		try {
 			user = client.getUserById(discordUserID).join()
-		} catch (e: Exception) {
+		} catch (_: Exception) {
 			Log.d(tag, "[DISCORD] Failed to find user using provided user ID.")
 			return
 		}
 
 		try {
 			privateChannel = user.openPrivateChannel().join()
-		} catch (e: Exception) {
+		} catch (_: Exception) {
 			Log.d(tag, "[DISCORD] Failed to open private channel with user.")
 			return
 		}
