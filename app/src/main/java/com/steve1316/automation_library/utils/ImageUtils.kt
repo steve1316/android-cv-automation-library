@@ -44,12 +44,12 @@ import kotlin.math.abs
 open class ImageUtils(private val context: Context) {
 	private val tag: String = "${SharedData.loggerTag}ImageUtils"
 
-	var matchMethod: Int = Imgproc.TM_CCOEFF_NORMED
-	private var matchFilePath: String = ""
-	protected val decimalFormat = DecimalFormat("#.###", DecimalFormatSymbols(Locale.US))
+	protected open var matchMethod: Int = Imgproc.TM_CCOEFF_NORMED
+	protected open var matchFilePath: String = ""
+	protected open val decimalFormat = DecimalFormat("#.###", DecimalFormatSymbols(Locale.US))
 
 	private var templatePathName = ""
-	var templateImageExt = "png"
+	protected open var templateImageExt = "png"
 
 	// Coordinates for swipe behavior to generate new images.
 	private var oldXSwipe: Float = 500f
@@ -69,29 +69,29 @@ open class ImageUtils(private val context: Context) {
 	////////////////////////////////////////////////////////////////////
 	////////////////////////////////////////////////////////////////////
 	// Device configuration
-	val displayWidth: Int = SharedData.displayWidth
-	val displayHeight: Int = SharedData.displayHeight
-	val is1080p: Boolean = (displayWidth == 1080) // 1080p Portrait
-	val is720p: Boolean = (displayWidth == 720) // 720p Portrait
-	val isTabletPortrait: Boolean = (displayWidth == 1600) // Galaxy Tab S7 1600x2560 Portrait Mode
-	val isTabletLandscape: Boolean = (displayWidth == 2560) // Galaxy Tab S7 1600x2560 Landscape Mode
-	val isTablet: Boolean = isTabletPortrait || isTabletLandscape
+	open val displayWidth: Int = SharedData.displayWidth
+	open val displayHeight: Int = SharedData.displayHeight
+	open val is1080p: Boolean = (displayWidth == 1080) // 1080p Portrait
+	open val is720p: Boolean = (displayWidth == 720) // 720p Portrait
+	open val isTabletPortrait: Boolean = (displayWidth == 1600) // Galaxy Tab S7 1600x2560 Portrait Mode
+	open val isTabletLandscape: Boolean = (displayWidth == 2560) // Galaxy Tab S7 1600x2560 Landscape Mode
+	open val isTablet: Boolean = isTabletPortrait || isTabletLandscape
 
 	// Scales (in terms of 720p and the dimensions from the Galaxy Tab S7)
-	protected val lowerEndScales: MutableList<Double> = generateSequence(0.50) { it + 0.01 }
+	protected open val lowerEndScales: MutableList<Double> = generateSequence(0.50) { it + 0.01 }
 		.takeWhile { it <= 0.70 }
 		.toMutableList()
-	protected val middleEndScales: MutableList<Double> = generateSequence(0.50) { it + 0.01 }
+	protected open val middleEndScales: MutableList<Double> = generateSequence(0.50) { it + 0.01 }
 		.takeWhile { it <= 3.00 }
 		.toMutableList()
-	protected val tabletScales: MutableList<Double> = generateSequence(1.00) { it + 0.01 }
+	protected open val tabletScales: MutableList<Double> = generateSequence(1.00) { it + 0.01 }
 		.takeWhile { it <= 2.00 }
 		.toMutableList()
 
 	// Define template matching regions of the screen.
-	val regionTopHalf: IntArray = intArrayOf(0, 0, displayWidth, displayHeight / 2)
-	val regionBottomHalf: IntArray = intArrayOf(0, displayHeight / 2, displayWidth, displayHeight / 2)
-	val regionMiddle: IntArray = intArrayOf(0, displayHeight / 4, displayWidth, displayHeight / 2)
+	open val regionTopHalf: IntArray = intArrayOf(0, 0, displayWidth, displayHeight / 2)
+	open val regionBottomHalf: IntArray = intArrayOf(0, displayHeight / 2, displayWidth, displayHeight / 2)
+	open val regionMiddle: IntArray = intArrayOf(0, displayHeight / 4, displayWidth, displayHeight / 2)
 
 	////////////////////////////////////////////////////////////////////
 	////////////////////////////////////////////////////////////////////
@@ -120,7 +120,7 @@ open class ImageUtils(private val context: Context) {
 	 *
 	 * @param seconds Number of seconds to pause execution.
 	 */
-	protected fun wait(seconds: Double) {
+	protected open fun wait(seconds: Double) {
 		runBlocking {
 			delay((seconds * 1000).toLong())
 		}
@@ -131,7 +131,7 @@ open class ImageUtils(private val context: Context) {
 	 *
 	 * @param subfolderPath Path name of the subfolder(s).
 	 */
-	protected fun setTemplateSubfolderPath(subfolderPath: String) {
+	protected open fun setTemplateSubfolderPath(subfolderPath: String) {
 		templatePathName = subfolderPath
 		if (subfolderPath.last() != '/') {
 			templatePathName += "/"
@@ -155,7 +155,7 @@ open class ImageUtils(private val context: Context) {
 	 * @param mapping A mapping of template image names used to test and their lists of working scales to be modified in-place.
 	 * @return A mapping of template image names used to test and their lists of working scales.
 	 */
-	fun startTemplateMatchingTest(mapping: MutableMap<String, MutableList<ScaleConfidenceResult>>): MutableMap<String, MutableList<ScaleConfidenceResult>> {
+	open fun startTemplateMatchingTest(mapping: MutableMap<String, MutableList<ScaleConfidenceResult>>): MutableMap<String, MutableList<ScaleConfidenceResult>> {
 		val defaultConfidence = 0.8
 		val testScaleDecimalFormat = DecimalFormat("#.##")
 		val testConfidenceDecimalFormat = DecimalFormat("#.##")
@@ -212,7 +212,7 @@ open class ImageUtils(private val context: Context) {
 	 * @param testScale Scale used by testing. Defaults to 0.0 which will fallback to the other scale conditions.
 	 * @return Pair of (success: Boolean, location: Point?) where success indicates if a match was found and location contains the match coordinates if found.
 	 */
-	protected fun match(sourceBitmap: Bitmap, templateBitmap: Bitmap, templateName: String, region: IntArray = intArrayOf(0, 0, 0, 0), useSingleScale: Boolean = false, customConfidence: Double = 0.0, testScale: Double = 0.0): Pair<Boolean, Point?> {
+	protected open fun match(sourceBitmap: Bitmap, templateBitmap: Bitmap, templateName: String, region: IntArray = intArrayOf(0, 0, 0, 0), useSingleScale: Boolean = false, customConfidence: Double = 0.0, testScale: Double = 0.0): Pair<Boolean, Point?> {
 		// If a custom region was specified, crop the source screenshot.
 		val srcBitmap = if (!region.contentEquals(intArrayOf(0, 0, 0, 0))) {
 			// Validate region bounds to prevent IllegalArgumentException with creating a crop area that goes beyond the source Bitmap.
@@ -372,7 +372,7 @@ open class ImageUtils(private val context: Context) {
 	 * @param customConfidence Specify a custom confidence. Defaults to the confidence set in the app's settings.
 	 * @return ArrayList of Point objects that represents the matches found on the source screenshot.
 	 */
-	protected fun matchAll(sourceBitmap: Bitmap, templateBitmap: Bitmap, region: IntArray = intArrayOf(0, 0, 0, 0), customConfidence: Double = 0.0): ArrayList<Point> {
+	protected open fun matchAll(sourceBitmap: Bitmap, templateBitmap: Bitmap, region: IntArray = intArrayOf(0, 0, 0, 0), customConfidence: Double = 0.0): ArrayList<Point> {
 		// Create a local matchLocations list for this method
 		var matchLocation: Point
         val matchLocations = arrayListOf<Point>()
@@ -622,7 +622,7 @@ open class ImageUtils(private val context: Context) {
 	 * @param oldX The old absolute x-coordinate based off of the 1080p resolution.
 	 * @return The new relative x-coordinate based off of the current resolution.
 	 */
-	fun relWidth(oldX: Int): Int {
+	open fun relWidth(oldX: Int): Int {
 		return if (is1080p) {
 			oldX
 		} else {
@@ -636,7 +636,7 @@ open class ImageUtils(private val context: Context) {
 	 * @param oldY The old absolute y-coordinate based off of the 1080p resolution.
 	 * @return The new relative y-coordinate based off of the current resolution.
 	 */
-	fun relHeight(oldY: Int): Int {
+	open fun relHeight(oldY: Int): Int {
 		return if (is1080p) {
 			oldY
 		} else {
@@ -651,7 +651,7 @@ open class ImageUtils(private val context: Context) {
 	 * @param offset The offset to add/subtract from the base coordinate and to make relative to.
 	 * @return The calculated relative x-coordinate.
 	 */
-	fun relX(baseX: Double, offset: Int): Int {
+	open fun relX(baseX: Double, offset: Int): Int {
 		return baseX.toInt() + relWidth(offset)
 	}
 
@@ -662,7 +662,7 @@ open class ImageUtils(private val context: Context) {
 	 * @param offset The offset to add/subtract from the base coordinate and to make relative to.
 	 * @return The calculated relative y-coordinate.
 	 */
-	fun relY(baseY: Double, offset: Int): Int {
+	open fun relY(baseY: Double, offset: Int): Int {
 		return baseY.toInt() + relHeight(offset)
 	}
 
@@ -677,7 +677,7 @@ open class ImageUtils(private val context: Context) {
 	 * @param templatePath Path name of the subfolder in /assets/ that the template image is in. Defaults to the default template subfolder path name.
 	 * @return A Pair of source and template Bitmaps.
 	 */
-	protected fun getBitmaps(templateName: String, templatePath: String = templatePathName): Pair<Bitmap, Bitmap?> {
+	open fun getBitmaps(templateName: String, templatePath: String = templatePathName): Pair<Bitmap, Bitmap?> {
 		var sourceBitmap: Bitmap? = null
 
 		// Keep swiping a little bit up and down to trigger a new image for ImageReader to grab.
@@ -727,7 +727,7 @@ open class ImageUtils(private val context: Context) {
 	 * @param context String describing the context for error logging.
 	 * @return The cropped bitmap or null if bounds are still invalid after clamping.
 	 */
-	private fun createSafeBitmap(sourceBitmap: Bitmap, x: Int, y: Int, width: Int, height: Int, context: String): Bitmap? {
+	open fun createSafeBitmap(sourceBitmap: Bitmap, x: Int, y: Int, width: Int, height: Int, context: String): Bitmap? {
 		// Clamp individual dimensions to source bitmap bounds.
 		val clampedX = x.coerceIn(0, sourceBitmap.width)
 		val clampedY = y.coerceIn(0, sourceBitmap.height)
@@ -758,7 +758,7 @@ open class ImageUtils(private val context: Context) {
 	 * @param newY The y coordinate of the new position. Defaults to 400f
 	 * @param duration How long the swipe should take. Defaults to 100L.
 	 */
-	protected fun adjustTriggerNewImageSwipeBehavior(oldX: Float, oldY: Float, newX: Float, newY: Float, duration: Long = 100L) {
+	protected open fun adjustTriggerNewImageSwipeBehavior(oldX: Float, oldY: Float, newX: Float, newY: Float, duration: Long = 100L) {
 		oldXSwipe = oldX
 		oldYSwipe = oldY
 		newXSwipe = newX
@@ -771,7 +771,7 @@ open class ImageUtils(private val context: Context) {
 	 *
 	 * @return Bitmap of the source screenshot.
 	 */
-	protected fun getSourceBitmap(): Bitmap {
+	protected open fun getSourceBitmap(): Bitmap {
 		while (true) {
 			val bitmap = MediaProjectionService.takeScreenshotNow(saveImage = debugMode)
 			if (bitmap != null) {
@@ -791,7 +791,7 @@ open class ImageUtils(private val context: Context) {
 	 *
 	 * @return A new Bitmap.
 	 */
-	protected fun getBitmapFromURL(url: URL): Bitmap {
+	protected open fun getBitmapFromURL(url: URL): Bitmap {
 		if (debugMode) {
 			MessageLog.printToLog("\n[DEBUG] Starting process to create a Bitmap from the image url: $url", tag)
 		}
@@ -1003,7 +1003,7 @@ open class ImageUtils(private val context: Context) {
 	 * @param tolerance Tolerance for color matching (0-255). Defaults to 0 for exact match.
 	 * @return True if the color at the coordinates matches the expected RGB values within tolerance, false otherwise.
 	 */
-	fun checkColorAtCoordinates(x: Int, y: Int, rgb: IntArray, tolerance: Int = 0): Boolean {
+	open fun checkColorAtCoordinates(x: Int, y: Int, rgb: IntArray, tolerance: Int = 0): Boolean {
 		val sourceBitmap = getSourceBitmap()
 
 		// Check if coordinates are within bounds.
@@ -1042,7 +1042,7 @@ open class ImageUtils(private val context: Context) {
 	 * @param traineddataFileName The file name including its extension for the .traineddata of Tesseract.
 	 * @return True if both Tesseract client objects were initialized.
 	 */
-	fun checkTesseractInitialization(traineddataFileName: String): Boolean {
+	protected fun checkTesseractInitialization(traineddataFileName: String): Boolean {
 		return if (!this::tessBaseAPI.isInitialized || !this::tessDigitsBaseAPI.isInitialized) {
 			MessageLog.printToLog("[WARNING] Check failed for Tesseract initialization. Starting process to initialize Tesseract now...", tag)
 			initTesseract(traineddataFileName)
@@ -1057,7 +1057,7 @@ open class ImageUtils(private val context: Context) {
 	 * @param traineddataFileName The file name including its extension for the .traineddata of Tesseract.
 	 * @return True if both Tesseract client objects were initialized.
 	 */
-	fun initTesseract(traineddataFileName: String): Boolean {
+	protected fun initTesseract(traineddataFileName: String): Boolean {
 		tessBaseAPI = TessBaseAPI()
 		tessDigitsBaseAPI = TessBaseAPI()
 
