@@ -10,7 +10,7 @@ import twitter4j.v1.Query
 import twitter4j.v1.TwitterV1
 
 /**
- * Provides the functions needed to perform Twitter API-related tasks such as searching tweets for room codes.
+ * Provides the functions needed to perform Twitter API-related tasks such as searching for tweets.
  *
  * Available helper methods are connect() and testConnection().
  *
