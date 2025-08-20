@@ -41,7 +41,7 @@ import kotlin.math.abs
  *
  * @property context The application context.
  */
-open class ImageUtils(private val context: Context) {
+open class ImageUtils(protected val context: Context) {
 	private val tag: String = "${SharedData.loggerTag}ImageUtils"
 
 	protected open var matchMethod: Int = Imgproc.TM_CCOEFF_NORMED
