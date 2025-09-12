@@ -133,7 +133,7 @@ open class ImageUtils(protected val context: Context) {
 	 */
 	protected open fun setTemplateSubfolderPath(subfolderPath: String) {
 		templatePathName = subfolderPath
-		if (subfolderPath.last() != '/') {
+		if (subfolderPath.isNotEmpty() || subfolderPath.last() != '/') {
 			templatePathName += "/"
 		}
 	}
