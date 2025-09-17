@@ -163,7 +163,7 @@ class MyAccessibilityService : AccessibilityService() {
 				imageSubFolder
 			}
 
-			myContext.assets?.open("$newImageSubFolder$imageName.webp").use { inputStream ->
+			myContext.assets?.open("$newImageSubFolder$imageName.${SharedData.templateImageExt}").use { inputStream ->
 				// Get the Bitmap from the template image file and then start matching.
 				templateBitmap = BitmapFactory.decodeStream(inputStream)
 			}

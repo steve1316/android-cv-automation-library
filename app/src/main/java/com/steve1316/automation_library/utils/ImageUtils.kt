@@ -47,7 +47,6 @@ open class ImageUtils(protected val context: Context) {
 	protected open val decimalFormat = DecimalFormat("#.###", DecimalFormatSymbols(Locale.US))
 
 	private var templatePathName = ""
-	protected open var templateImageExt = "png"
 
 	// Coordinates for swipe behavior to generate new images.
 	private var oldXSwipe: Float = 500f
@@ -691,7 +690,7 @@ open class ImageUtils(protected val context: Context) {
 		}
 
 		// Get the Bitmap from the template image file inside the specified folder.
-		val assetFilePath = "${newTemplatePath}$templateName.${templateImageExt}"
+		val assetFilePath = "${newTemplatePath}$templateName.${SharedData.templateImageExt}"
 		Log.d(tag, "Grabbing the Bitmap from $assetFilePath for the \"$templateName\" template image.")
 		context.assets?.open(assetFilePath).use { inputStream ->
 			// Get the Bitmap from the template image file and then start matching.
