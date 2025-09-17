@@ -1,9 +1,7 @@
 package com.steve1316.automation_library.utils
 
 import android.content.Context
-import android.content.SharedPreferences
 import android.util.Log
-import androidx.preference.PreferenceManager
 import com.steve1316.automation_library.R
 import com.steve1316.automation_library.data.SharedData
 import org.javacord.api.DiscordApi
@@ -18,25 +16,25 @@ import java.util.*
  *
  * @param myContext The application's context.
  */
-class DiscordUtils(myContext: Context) {
+open class DiscordUtils(myContext: Context) {
 	private val tag: String = "${SharedData.loggerTag}DiscordUtils"
 	private var appName: String = myContext.getString(R.string.app_name)
 
-	private val sharedPreferences: SharedPreferences = PreferenceManager.getDefaultSharedPreferences(myContext)
-	private val discordToken: String = sharedPreferences.getString("discordToken", "")!!
-	private val discordUserID: String = sharedPreferences.getString("discordUserID", "")!!
+	open var discordToken: String = ""
+	open var discordUserID: String = ""
 
 	companion object {
 		val queue: Queue<String> = LinkedList()
 		lateinit var client: DiscordApi
 		var privateChannel: PrivateChannel? = null
+		var enableDiscordNotifications: Boolean = false
 	}
 
-	private fun sendMessage(message: String) {
+	open fun sendMessage(message: String) {
 		privateChannel?.sendMessage(message)?.join()
 	}
 
-	fun main() {
+	open fun main() {
 		Log.d(tag, "Starting Discord process now...")
 
 		try {

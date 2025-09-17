@@ -1,9 +1,6 @@
 package com.steve1316.automation_library.utils
 
-import android.content.Context
-import android.content.SharedPreferences
 import android.os.StrictMode
-import androidx.preference.PreferenceManager
 import com.steve1316.automation_library.data.SharedData
 import twitter4j.Twitter
 import twitter4j.v1.Query
@@ -14,28 +11,18 @@ import twitter4j.v1.TwitterV1
  *
  * Available helper methods are connect() and testConnection().
  *
- * @property context The application context.
  * @property test If enabled, initialization will skip first connection in favour of manually calling testConnection() later.
  */
-open class TwitterUtils(private val context: Context, private val test: Boolean = false) {
+open class TwitterUtils(private val test: Boolean = false) {
 	private val tag: String = "${SharedData.loggerTag}TwitterRoomFinder"
 
-	private val twitterAPIKey: String
-	private val twitterAPIKeySecret: String
-	private val twitterAccessToken: String
-	private val twitterAccessTokenSecret: String
+	open var twitterAPIKey: String = ""
+	open var twitterAPIKeySecret: String = ""
+	open var twitterAccessToken: String = ""
+	open var twitterAccessTokenSecret: String = ""
 
 	// For Twitter API v1.1
 	protected lateinit var oldTwitterClient: TwitterV1
-
-	init {
-		val sharedPreferences: SharedPreferences = PreferenceManager.getDefaultSharedPreferences(context)
-
-		twitterAPIKey = sharedPreferences.getString("twitterAPIKey", "")!!
-		twitterAPIKeySecret = sharedPreferences.getString("twitterAPIKeySecret", "")!!
-		twitterAccessToken = sharedPreferences.getString("twitterAccessToken", "")!!
-		twitterAccessTokenSecret = sharedPreferences.getString("twitterAccessTokenSecret", "")!!
-	}
 
 	/**
 	 * Connect to Twitter API V1.1

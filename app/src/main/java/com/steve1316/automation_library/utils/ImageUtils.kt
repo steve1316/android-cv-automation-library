@@ -1,14 +1,12 @@
 package com.steve1316.automation_library.utils
 
 import android.content.Context
-import android.content.SharedPreferences
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.util.Log
 import androidx.core.graphics.createBitmap
 import androidx.core.graphics.scale
-import androidx.preference.PreferenceManager
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import com.googlecode.tesseract.android.TessBaseAPI
@@ -60,11 +58,11 @@ open class ImageUtils(protected val context: Context) {
 
 	////////////////////////////////////////////////////////////////////
 	////////////////////////////////////////////////////////////////////
-	// SharedPreferences
-	protected val confidence: Double
-	protected val confidenceAll: Double
-	protected val debugMode: Boolean
-	protected var customScale: Double
+	// Use SharedPreferences or something else to set these values to what you want.
+	open var confidence: Double = 0.8
+	open var confidenceAll: Double = 0.8
+	open var debugMode: Boolean = false
+	open var customScale: Double = 1.0
 
 	////////////////////////////////////////////////////////////////////
 	////////////////////////////////////////////////////////////////////
@@ -103,13 +101,6 @@ open class ImageUtils(protected val context: Context) {
 	protected lateinit var tesseractSourceBitmap: Bitmap
 
 	init {
-		val sharedPreferences: SharedPreferences = PreferenceManager.getDefaultSharedPreferences(context)
-
-		confidence = sharedPreferences.getFloat("confidence", 0.8f).toDouble() / 100.0
-		confidenceAll = sharedPreferences.getFloat("confidenceAll", 0.8f).toDouble() / 100.0
-		debugMode = sharedPreferences.getBoolean("debugMode", false)
-		customScale = sharedPreferences.getFloat("customScale", 1.0f).toDouble()
-
 		// Set the file path to the /files/temp/ folder.
 		val tempMatchFilePath: String = context.getExternalFilesDir(null)?.absolutePath + "/temp"
 		matchFilePath = tempMatchFilePath

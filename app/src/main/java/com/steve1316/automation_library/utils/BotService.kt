@@ -18,7 +18,6 @@ import android.view.animation.Animation
 import android.view.animation.AnimationUtils
 import android.widget.ImageButton
 import android.widget.Toast
-import androidx.preference.PreferenceManager
 import com.steve1316.automation_library.R
 import com.steve1316.automation_library.data.SharedData
 import com.steve1316.automation_library.events.ExceptionEvent
@@ -148,7 +147,7 @@ class BotService : Service() {
 									EventBus.getDefault().post(JSEvent("BotService", "Running"))
 
 									// Run the Discord process on a new Thread if it is enabled.
-									if (PreferenceManager.getDefaultSharedPreferences(myContext).getBoolean("enableDiscordNotifications", false)) {
+									if (DiscordUtils.enableDiscordNotifications) {
 										val discordUtils = DiscordUtils(myContext)
 										thread {
 											runBlocking {
