@@ -103,6 +103,7 @@ open class ImageUtils(protected val context: Context) {
 	init {
 		// Set the file path to the /files/temp/ folder.
 		val tempMatchFilePath: String = context.getExternalFilesDir(null)?.absolutePath + "/temp"
+		Log.d(tag, "Setting the temp file path for ImageUtils to \"$tempMatchFilePath\".")
 		matchFilePath = tempMatchFilePath
 	}
 
@@ -690,7 +691,9 @@ open class ImageUtils(protected val context: Context) {
 		}
 
 		// Get the Bitmap from the template image file inside the specified folder.
-		context.assets?.open("${newTemplatePath}$templateName.${templateImageExt}").use { inputStream ->
+		val assetFilePath = "${newTemplatePath}$templateName.${templateImageExt}"
+		Log.d(tag, "Grabbing the Bitmap from $assetFilePath for the \"$templateName\" template image.")
+		context.assets?.open(assetFilePath).use { inputStream ->
 			// Get the Bitmap from the template image file and then start matching.
 			templateBitmap = BitmapFactory.decodeStream(inputStream)
 		}
@@ -1083,6 +1086,7 @@ open class ImageUtils(protected val context: Context) {
 				val input = context.assets.open(fileName)
 
 				val output = FileOutputStream("$tempDirectory/$fileName")
+				Log.d(tag, "Moving $fileName to $tempDirectory/$fileName for Tesseract initialization.")
 
 				val buffer = ByteArray(1024)
 				var read: Int
