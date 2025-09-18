@@ -171,7 +171,7 @@ class MyAccessibilityService : AccessibilityService() {
 			Pair(templateBitmap.width, templateBitmap.height)
 		} catch (e: FileNotFoundException) {
 			Log.e(tag, "Cannot find the image asset file: $e")
-			Log.w(tag, "Using a region of 25x25 as a fallback in order to proceed with tap location randomization.")
+			Log.e(tag, "Using a region of 25x25 as a fallback in order to proceed with tap location randomization.")
 			Pair(25, 25)
 		}
 
