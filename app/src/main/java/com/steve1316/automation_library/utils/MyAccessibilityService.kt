@@ -29,6 +29,7 @@ import java.io.FileNotFoundException
  *
  * AccessibilityService by itself has a native bug when force-stopped: https://stackoverflow.com/questions/67410929/accessibility-service-does-not-restart-when-manually-re-enabled-after-app-force
  */
+@SuppressLint("AccessibilityPolicy")
 class MyAccessibilityService : AccessibilityService() {
 	private var appName: String = ""
 	private lateinit var myContext: Context
