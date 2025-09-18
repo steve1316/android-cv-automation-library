@@ -46,8 +46,6 @@ open class ImageUtils(protected val context: Context) {
 	protected open var matchFilePath: String = ""
 	protected open val decimalFormat = DecimalFormat("#.###", DecimalFormatSymbols(Locale.US))
 
-	private var templatePathName = ""
-
 	// Coordinates for swipe behavior to generate new images.
 	private var oldXSwipe: Float = 500f
 	private var oldYSwipe: Float = 500f
@@ -114,18 +112,6 @@ open class ImageUtils(protected val context: Context) {
 	protected open fun wait(seconds: Double) {
 		runBlocking {
 			delay((seconds * 1000).toLong())
-		}
-	}
-
-	/**
-	 * Sets the path name of the subfolder(s) that will house the template images.
-	 *
-	 * @param subfolderPath Path name of the subfolder(s).
-	 */
-	protected open fun setTemplateSubfolderPath(subfolderPath: String) {
-		templatePathName = subfolderPath
-		if (subfolderPath.isNotEmpty() || subfolderPath.last() != '/') {
-			templatePathName += "/"
 		}
 	}
 
@@ -668,7 +654,7 @@ open class ImageUtils(protected val context: Context) {
 	 * @param templatePath Path name of the subfolder in /assets/ that the template image is in. Defaults to the default template subfolder path name.
 	 * @return A Pair of source and template Bitmaps.
 	 */
-	open fun getBitmaps(templateName: String, templatePath: String = templatePathName): Pair<Bitmap, Bitmap?> {
+	open fun getBitmaps(templateName: String, templatePath: String = SharedData.templateSubfolderPathName): Pair<Bitmap, Bitmap?> {
 		var sourceBitmap: Bitmap? = null
 
 		// Keep swiping a little bit up and down to trigger a new image for ImageReader to grab.

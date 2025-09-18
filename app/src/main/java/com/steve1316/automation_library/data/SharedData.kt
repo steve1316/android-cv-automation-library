@@ -8,6 +8,7 @@ class SharedData {
 	companion object {
 		const val loggerTag = "[AUTO_LIB]"
 
+		var templateSubfolderPathName = "/"
 		var templateImageExt = "png"
 
 		// These are set in the MediaProjectionService upon successful creation of the Virtual Display.
