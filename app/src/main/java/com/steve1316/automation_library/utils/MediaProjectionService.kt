@@ -223,7 +223,7 @@ class MediaProjectionService : Service() {
 		// Creates a temporary folder if it does not already exist to store source images.
 		val externalFilesDir: File? = getExternalFilesDir(null)
 		if (externalFilesDir != null) {
-			tempDirectory = externalFilesDir.absolutePath + "/temp/"
+			tempDirectory = myContext.getExternalFilesDir(null)?.absolutePath + "/temp/"
 			val newTempDirectory = File(tempDirectory)
 
 			// If the /files/temp/ folder does not exist, create it.
