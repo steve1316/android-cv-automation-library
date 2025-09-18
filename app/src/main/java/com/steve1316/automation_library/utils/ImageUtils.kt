@@ -324,8 +324,8 @@ open class ImageUtils(protected val context: Context) {
 
 				// If a custom region was specified, readjust the coordinates to reflect the fullscreen source screenshot.
 				if (!region.contentEquals(intArrayOf(0, 0, 0, 0))) {
-					matchLocation.x = sourceBitmap.width - (region[0] + matchLocation.x)
-					matchLocation.y = sourceBitmap.height - (region[1] + matchLocation.y)
+					matchLocation.x = sourceBitmap.width - (sourceBitmap.width - (region[0] + matchLocation.x))
+					matchLocation.y = sourceBitmap.height - (sourceBitmap.height - (region[1] + matchLocation.y))
 				}
 
 				return Pair(true, matchLocation)
@@ -459,8 +459,8 @@ open class ImageUtils(protected val context: Context) {
 
 				// If a custom region was specified, readjust the coordinates to reflect the fullscreen source screenshot.
 				if (!region.contentEquals(intArrayOf(0, 0, 0, 0))) {
-					matchLocation.x = region[0] + matchLocation.x
-					matchLocation.y = region[1] + matchLocation.y
+					matchLocation.x = sourceBitmap.width - (sourceBitmap.width - (region[0] + matchLocation.x))
+					matchLocation.y = sourceBitmap.height - (sourceBitmap.height - (region[1] + matchLocation.y))
 				}
 
 				matchLocations.add(matchLocation)
@@ -477,8 +477,8 @@ open class ImageUtils(protected val context: Context) {
 
 				// If a custom region was specified, readjust the coordinates to reflect the fullscreen source screenshot.
 				if (!region.contentEquals(intArrayOf(0, 0, 0, 0))) {
-					matchLocation.x = region[0] + matchLocation.x
-					matchLocation.y = region[1] + matchLocation.y
+					matchLocation.x = sourceBitmap.width - (sourceBitmap.width - (region[0] + matchLocation.x))
+					matchLocation.y = sourceBitmap.height - (sourceBitmap.height - (region[1] + matchLocation.y))
 				}
 
 				matchLocations.add(matchLocation)
@@ -516,8 +516,8 @@ open class ImageUtils(protected val context: Context) {
 
 				// If a custom region was specified, readjust the coordinates to reflect the fullscreen source screenshot.
 				if (!region.contentEquals(intArrayOf(0, 0, 0, 0))) {
-					tempMatchLocation.x = region[0] + tempMatchLocation.x
-					tempMatchLocation.y = region[1] + tempMatchLocation.y
+					tempMatchLocation.x = sourceBitmap.width - (sourceBitmap.width - (region[0] + tempMatchLocation.x))
+					tempMatchLocation.y = sourceBitmap.height - (sourceBitmap.height - (region[1] + tempMatchLocation.y))
 				}
 
 				if (!matchLocations.contains(tempMatchLocation) && !matchLocations.contains(Point(tempMatchLocation.x + 1.0, tempMatchLocation.y)) &&
@@ -545,8 +545,8 @@ open class ImageUtils(protected val context: Context) {
 
 				// If a custom region was specified, readjust the coordinates to reflect the fullscreen source screenshot.
 				if (!region.contentEquals(intArrayOf(0, 0, 0, 0))) {
-					tempMatchLocation.x = region[0] + tempMatchLocation.x
-					tempMatchLocation.y = region[1] + tempMatchLocation.y
+					tempMatchLocation.x = sourceBitmap.width - (sourceBitmap.width - (region[0] + tempMatchLocation.x))
+					tempMatchLocation.y = sourceBitmap.height - (sourceBitmap.height - (region[1] + tempMatchLocation.y))
 				}
 
 				if (!matchLocations.contains(tempMatchLocation) && !matchLocations.contains(Point(tempMatchLocation.x + 1.0, tempMatchLocation.y)) &&
