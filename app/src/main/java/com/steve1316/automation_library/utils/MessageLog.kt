@@ -148,12 +148,12 @@ class MessageLog {
 		}
 
 		/**
-		 * Returns a formatted string of the elapsed time since the bot started as HH:MM:SS format.
+		 * Returns a formatted string of the elapsed time since the bot started as HH:MM:SS.mmm format.
 		 *
 		 * Source is from https://stackoverflow.com/questions/9027317/how-to-convert-milliseconds-to-hhmmss-format/9027379
 		 *
 		 * @param skipPrintTime Flag to determine printing the timestamp.
-		 * @return String of HH:MM:SS format of the elapsed time.
+		 * @return String of HH:MM:SS.mmm format of the elapsed time.
 		 */
 		@SuppressLint("DefaultLocale")
 		private fun printTime(skipPrintTime: Boolean = false): String {
@@ -164,11 +164,17 @@ class MessageLog {
 			val elapsedMillis: Long = System.currentTimeMillis() - startTime
 
 			return if (!skipPrintTime) {
+				val hours = TimeUnit.MILLISECONDS.toHours(elapsedMillis)
+				val minutes = TimeUnit.MILLISECONDS.toMinutes(elapsedMillis) - TimeUnit.HOURS.toMinutes(hours)
+				val seconds = TimeUnit.MILLISECONDS.toSeconds(elapsedMillis) - TimeUnit.MINUTES.toSeconds(TimeUnit.MILLISECONDS.toMinutes(elapsedMillis))
+				val milliseconds = elapsedMillis % 1000
+				
 				String.format(
-					"%02d:%02d:%02d",
-					TimeUnit.MILLISECONDS.toHours(elapsedMillis),
-					TimeUnit.MILLISECONDS.toMinutes(elapsedMillis) - TimeUnit.HOURS.toMinutes(TimeUnit.MILLISECONDS.toHours(elapsedMillis)),
-					TimeUnit.MILLISECONDS.toSeconds(elapsedMillis) - TimeUnit.MINUTES.toSeconds(TimeUnit.MILLISECONDS.toMinutes(elapsedMillis))
+					"%02d:%02d:%02d.%03d",
+					hours,
+					minutes,
+					seconds,
+					milliseconds
 				)
 			} else {
 				""
