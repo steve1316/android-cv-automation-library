@@ -159,7 +159,6 @@ class BotService : Service() {
 
 									// Send start message to signal the developer's module to begin running their entry point. Execution will go to the developer's module until it is all done.
 									EventBus.getDefault().postSticky(StartEvent("Entry Point ON"))
-									performCleanUp()
 								} catch (e: Exception) {
 									if (e.toString() == "java.lang.InterruptedException") {
 										NotificationUtils.updateNotification(myContext, Class.forName(className), false, "Bot was manually stopped.")
