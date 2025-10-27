@@ -14,6 +14,9 @@ android {
 	defaultConfig {
 		minSdk = libs.versions.app.minSdk.get().toInt()
 		consumerProguardFiles("consumer-rules.pro")
+		
+		// Inject the version name from libs.versions.toml into the manifest.
+		manifestPlaceholders["versionName"] = libs.versions.app.versionName.get()
 	}
 
 	buildTypes {
@@ -28,6 +31,8 @@ android {
 		targetCompatibility = JavaVersion.VERSION_17
 	}
 }
+
+version = libs.versions.app.versionName.get()
 
 afterEvaluate {
 	publishing {

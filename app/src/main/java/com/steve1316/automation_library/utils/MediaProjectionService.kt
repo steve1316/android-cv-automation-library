@@ -390,7 +390,8 @@ class MediaProjectionService : Service() {
 		// Attach the MediaProjectionStopCallback to the MediaProjection object.
 		mediaProjection?.registerCallback(MediaProjectionStopCallback(), threadHandler)
 
-		Log.d(tag, "MediaProjection Service is now running.")
+		val versionName = SharedData.getVersionName(myContext)
+		Log.d(tag, "MediaProjection Service (v$versionName) is now running.")
 		Toast.makeText(myContext, "MediaProjection Service is now running.", Toast.LENGTH_SHORT).show()
 	}
 

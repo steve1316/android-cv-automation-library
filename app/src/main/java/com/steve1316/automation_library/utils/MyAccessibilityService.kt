@@ -112,7 +112,8 @@ class MyAccessibilityService : AccessibilityService() {
 		myContext = this
 		appName = myContext.getString(R.string.app_name)
 
-		Log.d(tag, "Accessibility Service for $appName is now running.")
+		val versionName = SharedData.getVersionName(myContext)
+		Log.d(tag, "Accessibility Service for $appName (v$versionName) is now running.")
 		Toast.makeText(myContext, "Accessibility Service for $appName is now running.", Toast.LENGTH_SHORT).show()
 	}
 
