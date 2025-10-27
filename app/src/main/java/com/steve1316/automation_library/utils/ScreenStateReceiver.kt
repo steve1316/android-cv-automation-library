@@ -17,13 +17,19 @@ class ScreenStateReceiver : BroadcastReceiver() {
 		when (intent?.action) {
 			Intent.ACTION_SCREEN_OFF -> {
 				Log.d(tag, "Screen turned off detected.")
+				Log.d(tag, "Current bot running state: ${BotService.isRunning}")
 				
 				// Check if the bot is currently running.
 				if (BotService.isRunning) {
-					Log.d(tag, "Bot is running. Interrupting bot thread due to device sleep.")
+					Log.d(tag, "Bot is running. Disabling gestures and interrupting bot thread due to device sleep.")
+					
+					// Disable gestures immediately to prevent any further dispatches.
+					MyAccessibilityService.disableGestures()
+					Log.d(tag, "Gestures disabled. isGestureAllowed = ${MyAccessibilityService.isGestureAllowed}")
 					
 					// Interrupt the bot thread to stop execution.
 					BotService.interruptBotThread()
+					Log.d(tag, "Bot thread interrupted.")
 					
 					// Log the reason for stopping.
 					MessageLog.printToLog("Bot stopped: Device went to sleep.", tag)
@@ -32,6 +38,8 @@ class ScreenStateReceiver : BroadcastReceiver() {
 					val contentIntent: Intent = context.packageManager.getLaunchIntentForPackage(context.packageName)!!
 					val className = contentIntent.component!!.className
 					NotificationUtils.updateNotification(context, Class.forName(className), false, "Bot stopped: Device went to sleep.")
+				} else {
+					Log.d(tag, "Bot is not running. No action needed.")
 				}
 			}
 			

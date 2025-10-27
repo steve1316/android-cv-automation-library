@@ -81,19 +81,16 @@ class BotService : Service() {
 
 		var isRunning = false
 
-	/**
-	 * Interrupt the bot thread if it's running. Used by ScreenStateReceiver when device goes to sleep.
-	 * First disables gestures to prevent any in-flight gesture dispatches from continuing.
-	 */
-	fun interruptBotThread() {
-		// Disable gestures first to prevent any in-flight dispatches from continuing.
-		MyAccessibilityService.disableGestures()
-		
-		// Then interrupt the thread.
-		if (::thread.isInitialized) {
-			thread.interrupt()
+		/**
+		 * Interrupt the bot thread if it's running. Used by ScreenStateReceiver when device goes to sleep.
+		 * Note: Gestures should be disabled BEFORE calling this method.
+		 */
+		fun interruptBotThread() {
+			// Interrupt the thread.
+			if (::thread.isInitialized) {
+				thread.interrupt()
+			}
 		}
-	}
 	}
 
 	@SuppressLint("ClickableViewAccessibility", "InflateParams")

@@ -69,7 +69,10 @@ class MyAccessibilityService : AccessibilityService() {
 		 */
 		fun disableGestures() {
 			isGestureAllowed = false
-			Log.d(tag, "Gestures have been disabled.")
+			// Force memory visibility by reading the value back.
+			val verify = isGestureAllowed
+			Log.d(tag, "Gestures have been disabled. Verification: $verify")
+			Log.d(tag, "Thread: ${Thread.currentThread().name}, Interrupted: ${Thread.currentThread().isInterrupted}")
 		}
 
 		/**
@@ -86,6 +89,7 @@ class MyAccessibilityService : AccessibilityService() {
 		 */
 		fun checkInterruption() {
 			if (Thread.currentThread().isInterrupted) {
+				Log.d(tag, "Thread interrupt detected. Throwing InterruptedException.")
 				throw InterruptedException("Thread was interrupted.")
 			}
 		}
@@ -246,11 +250,18 @@ class MyAccessibilityService : AccessibilityService() {
 	 */
 	fun tap(x: Double, y: Double, imageName: String = "", longPress: Boolean = false, taps: Int = 1): Boolean {
 		// Check if gestures are allowed and thread is not interrupted.
-		if (!isGestureAllowed) {
-			Log.d(tag, "Gestures disabled. Skipping tap.")
+		val allowed = isGestureAllowed // Make sure we read the latest value.
+		if (!allowed) {
+			Log.w(tag, "Gestures disabled. Skipping tap at ($x, $y). isGestureAllowed=$allowed")
+			Log.w(tag, "Thread: ${Thread.currentThread().name}, Interrupted: ${Thread.currentThread().isInterrupted}")
 			return false
 		}
-		checkInterruption()
+		
+		// Check if thread is interrupted.
+		if (Thread.currentThread().isInterrupted) {
+			Log.w(tag, "Thread interrupted detected. Skipping tap.")
+			throw InterruptedException("Thread was interrupted.")
+		}
 
 		// Randomize the tapping location.
 		val (newX, newY) = randomizeTapLocation(x, y, imageName)
@@ -307,11 +318,16 @@ class MyAccessibilityService : AccessibilityService() {
 	 */
 	fun scroll(scrollDown: Boolean = true, duration: Long = 500L): Boolean {
 		// Check if gestures are allowed and thread is not interrupted.
-		if (!isGestureAllowed) {
-			Log.d(tag, "Gestures disabled. Skipping scroll.")
+		val allowed = isGestureAllowed
+		if (!allowed) {
+			Log.w(tag, "Gestures disabled. Skipping scroll. isGestureAllowed=$allowed")
 			return false
 		}
-		checkInterruption()
+		
+		if (Thread.currentThread().isInterrupted) {
+			Log.w(tag, "Thread interrupted detected. Skipping scroll.")
+			throw InterruptedException("Thread was interrupted.")
+		}
 
 		val scrollPath = Path()
 
@@ -387,11 +403,16 @@ class MyAccessibilityService : AccessibilityService() {
 	 */
 	fun swipe(oldX: Float, oldY: Float, newX: Float, newY: Float, duration: Long = 500L): Boolean {
 		// Check if gestures are allowed and thread is not interrupted.
-		if (!isGestureAllowed) {
-			Log.d(tag, "Gestures disabled. Skipping swipe.")
+		val allowed = isGestureAllowed
+		if (!allowed) {
+			Log.w(tag, "Gestures disabled. Skipping swipe. isGestureAllowed=$allowed")
 			return false
 		}
-		checkInterruption()
+		
+		if (Thread.currentThread().isInterrupted) {
+			Log.w(tag, "Thread interrupted detected. Skipping swipe.")
+			throw InterruptedException("Thread was interrupted.")
+		}
 
 		// Set up the Path by swiping from the old position coordinates to the new position coordinates.
 		val swipePath = Path().apply {
