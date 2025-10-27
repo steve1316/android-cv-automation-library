@@ -249,6 +249,7 @@ class MyAccessibilityService : AccessibilityService() {
 	 */
 	fun tap(x: Double, y: Double, imageName: String = "", longPress: Boolean = false, taps: Int = 1): Boolean {
 		// Check if gestures are allowed and thread is not interrupted.
+		Log.d(tag, "isGestureAllowed=$isGestureAllowed, threadInterrupted=${Thread.currentThread().isInterrupted}")
 		val allowed = isGestureAllowed // Make sure we read the latest value.
 		if (!allowed) {
 			Log.w(tag, "Gestures disabled. Skipping tap at ($x, $y). isGestureAllowed=$allowed")
