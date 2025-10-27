@@ -20,8 +20,6 @@ import android.widget.EditText
 import android.widget.Toast
 import com.steve1316.automation_library.R
 import com.steve1316.automation_library.data.SharedData
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.runBlocking
 import java.io.FileNotFoundException
 
 /**
@@ -45,6 +43,13 @@ class MyAccessibilityService : AccessibilityService() {
 		var textToPaste: String = ""
 
 		/**
+		 * Flag to control whether gestures are allowed to be dispatched.
+		 * This prevents infinite input sending when the bot is interrupted.
+		 */
+		@Volatile
+		var isGestureAllowed: Boolean = true
+
+		/**
 		 * Returns a static reference to this class.
 		 *
 		 * @return Static reference to MyAccessibilityService.
@@ -57,6 +62,32 @@ class MyAccessibilityService : AccessibilityService() {
 				throw IllegalStateException("Accessibility Service is not running. Enable the Accessibility Service.")
 			}
 			return instance
+		}
+
+		/**
+		 * Disable gestures to prevent them from being dispatched. Called when interrupting the bot thread.
+		 */
+		fun disableGestures() {
+			isGestureAllowed = false
+			Log.d(tag, "Gestures have been disabled.")
+		}
+
+		/**
+		 * Re-enable gestures. Called when starting the bot.
+		 */
+		fun enableGestures() {
+			isGestureAllowed = true
+			Log.d(tag, "Gestures have been enabled.")
+		}
+
+		/**
+		 * Check if the current thread has been interrupted and throw InterruptedException if so.
+		 * This ensures gestures stop immediately when the thread is interrupted.
+		 */
+		fun checkInterruption() {
+			if (Thread.currentThread().isInterrupted) {
+				throw InterruptedException("Thread was interrupted.")
+			}
 		}
 
 		/**
@@ -138,11 +169,10 @@ class MyAccessibilityService : AccessibilityService() {
 
 	/**
 	 * This receiver will wait the specified seconds to account for ping or loading.
+	 * Uses Thread.sleep() which properly throws InterruptedException when the thread is interrupted.
 	 */
 	private fun Double.wait() {
-		runBlocking {
-			delay((this@wait * 1000).toLong())
-		}
+		Thread.sleep((this@wait * 1000).toLong())
 	}
 
 	/**
@@ -214,6 +244,13 @@ class MyAccessibilityService : AccessibilityService() {
 	 * @return True if the tap gesture was executed successfully. False otherwise.
 	 */
 	fun tap(x: Double, y: Double, imageName: String = "", longPress: Boolean = false, taps: Int = 1): Boolean {
+		// Check if gestures are allowed and thread is not interrupted.
+		if (!isGestureAllowed) {
+			Log.d(tag, "Gestures disabled. Skipping tap.")
+			return false
+		}
+		checkInterruption()
+
 		// Randomize the tapping location.
 		val (newX, newY) = randomizeTapLocation(x, y, imageName)
 		Log.d(tag, "Tapping $newX, $newY for image: ${imageName.uppercase()}")
@@ -242,6 +279,13 @@ class MyAccessibilityService : AccessibilityService() {
 		var tries = taps - 1
 
 		while (tries > 0) {
+			// Check interruption before each additional tap.
+			checkInterruption()
+			if (!isGestureAllowed) {
+				Log.d(tag, "Gestures disabled during tap loop. Stopping.")
+				break
+			}
+
 			dispatchGesture(gesture, null, null)
 			0.25.wait()
 
@@ -261,6 +305,13 @@ class MyAccessibilityService : AccessibilityService() {
 	 * @return True if the scroll gesture was executed successfully. False otherwise.
 	 */
 	fun scroll(scrollDown: Boolean = true, duration: Long = 500L): Boolean {
+		// Check if gestures are allowed and thread is not interrupted.
+		if (!isGestureAllowed) {
+			Log.d(tag, "Gestures disabled. Skipping scroll.")
+			return false
+		}
+		checkInterruption()
+
 		val scrollPath = Path()
 
 		// Get certain portions of the screen's dimensions.
@@ -334,6 +385,13 @@ class MyAccessibilityService : AccessibilityService() {
 	 * @return True if the swipe gesture was executed successfully. False otherwise.
 	 */
 	fun swipe(oldX: Float, oldY: Float, newX: Float, newY: Float, duration: Long = 500L): Boolean {
+		// Check if gestures are allowed and thread is not interrupted.
+		if (!isGestureAllowed) {
+			Log.d(tag, "Gestures disabled. Skipping swipe.")
+			return false
+		}
+		checkInterruption()
+
 		// Set up the Path by swiping from the old position coordinates to the new position coordinates.
 		val swipePath = Path().apply {
 			moveTo(oldX, oldY)
