@@ -148,9 +148,8 @@ class BotService : Service() {
 						val className = contentIntent.component!!.className
 
 						if (!isRunning) {
-							val versionName = SharedData.getVersionName(myContext)
-							Log.d(tag, "BotService for $appName (v$versionName) is now running.")
-							Toast.makeText(myContext, "BotService for $appName (v$versionName) is now running.", Toast.LENGTH_SHORT).show()
+							Log.d(tag, "BotService for $appName is now running.")
+							Toast.makeText(myContext, "BotService for $appName is now running.", Toast.LENGTH_SHORT).show()
 							overlayButton.setImageResource(R.drawable.stop_circle_filled)
 							isRunning = true
 

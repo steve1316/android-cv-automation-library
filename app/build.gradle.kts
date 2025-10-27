@@ -14,9 +14,6 @@ android {
 	defaultConfig {
 		minSdk = libs.versions.app.minSdk.get().toInt()
 		consumerProguardFiles("consumer-rules.pro")
-		
-		// Inject the version name from libs.versions.toml into the manifest.
-		manifestPlaceholders["versionName"] = libs.versions.app.versionName.get()
 	}
 
 	buildTypes {
