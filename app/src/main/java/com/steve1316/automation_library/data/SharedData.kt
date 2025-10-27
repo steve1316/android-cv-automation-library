@@ -28,7 +28,8 @@ class SharedData {
 		 */
 		fun getVersionName(context: Context): String {
 			return try {
-				val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
+				// Use the library's package name, not the consuming app's package name.
+				val packageInfo = context.packageManager.getPackageInfo("com.steve1316.automation_library", 0)
 				packageInfo.versionName ?: "Unknown"
 			} catch (_: PackageManager.NameNotFoundException) {
 				"Unknown"
