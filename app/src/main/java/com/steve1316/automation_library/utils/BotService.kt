@@ -2,10 +2,8 @@ package com.steve1316.automation_library.utils
 
 import android.annotation.SuppressLint
 import android.app.Service
-import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.content.IntentFilter
 import android.graphics.PixelFormat
 import android.os.Build
 import android.os.Handler
@@ -50,8 +48,6 @@ class BotService : Service() {
 	private lateinit var playButtonAnimationAlt: Animation
 	private lateinit var stopButtonAnimation: Animation
 	private var currentPlayButtonAnimationType = PlayButtonAnimationType.PULSE_FADE
-
-    private var screenStateReceiver: BroadcastReceiver? = null
 
 	/**
 	 * Enum to track which play button animation is currently active.
@@ -101,9 +97,6 @@ class BotService : Service() {
 		// Save a reference to the app's context and app name.
 		myContext = this
 		appName = myContext.getString(R.string.app_name)
-
-        // Register the ScreenStateReceiver to detect when device goes to sleep.
-		registerScreenStateReceiver()
 
 		// Initialize the animations for the floating overlay button.
 		initializeAnimations()
@@ -224,32 +217,6 @@ class BotService : Service() {
 		})
 	}
 
-    /**
-	 * Register the ScreenStateReceiver to listen for screen on/off events.
-	 */
-	private fun registerScreenStateReceiver() {
-		screenStateReceiver = ScreenStateReceiver()
-		val filter = IntentFilter().apply {
-			addAction(Intent.ACTION_SCREEN_OFF)
-			addAction(Intent.ACTION_SCREEN_ON)
-		}
-		registerReceiver(screenStateReceiver, filter)
-		Log.d(tag, "ScreenStateReceiver registered successfully.")
-	}
-
-	/**
-	 * Unregister the ScreenStateReceiver.
-	 */
-	private fun unregisterScreenStateReceiver() {
-		try {
-			screenStateReceiver?.let {
-				unregisterReceiver(it)
-				Log.d(tag, "ScreenStateReceiver unregistered successfully.")
-			}
-		} catch (e: Exception) {
-			Log.e(tag, "Failed to unregister ScreenStateReceiver: $e")
-		}
-	}
 
 	/**
 	 * Initialize the animations for the floating overlay button.
@@ -343,9 +310,6 @@ class BotService : Service() {
 	override fun onDestroy() {
 		super.onDestroy()
 		EventBus.getDefault().unregister(this)
-
-        // Unregister the ScreenStateReceiver.
-		unregisterScreenStateReceiver()
 
 		// Stop animations before removing the view.
 		overlayButton.clearAnimation()
