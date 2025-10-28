@@ -41,6 +41,11 @@ afterEvaluate {
 				version = libs.versions.app.versionName.get()
 			}
 		}
+		
+		// Add Maven Local repository for local testing without publishing to JitPack.
+		repositories {
+			mavenLocal()
+		}
 	}
 }
 
