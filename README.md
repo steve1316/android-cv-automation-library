@@ -9,6 +9,7 @@ This library serves to consolidate all necessary code to facilitate a backend fo
 -   Saves a text log of messages with `MessageLog`.
 -   Displays a persistent status notification informing the user via `NotificationUtils`.
 -   Any messages that needs to be sent from this library to the primary project can be done with the `EventBus` library using the `JSEvent` and `StartEvent` event classes.
+-   `ScreenStateReceiver` gracefully stops the bot when the device screen turns off to prevent gestures from being dispatched on a sleeping device.
 
 ## Local Testing (Before Publishing to JitPack)
 
