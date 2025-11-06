@@ -149,11 +149,11 @@ class MessageLog {
 		}
 
 		/**
-		* Returns a formatted string of the elapsed time since the bot started as HH:MM:SS format.
+		* Returns a formatted string of the elapsed time since the bot started as HH:MM:SS.mmm format.
 		*
 		* Source is from https://stackoverflow.com/questions/9027317/how-to-convert-milliseconds-to-hhmmss-format/9027379
 		*
-		* @return String of HH:MM:SS format of the elapsed time.
+		* @return String of HH:MM:SS.mmm format of the elapsed time.
 		*/
 		@SuppressLint("DefaultLocale")
 		fun getElapsedTimeString(): String {
@@ -177,11 +177,11 @@ class MessageLog {
 		}
 
 		/**
-		* Returns a formatted string of the current system time as HH:MM:SS format.
+		* Returns a formatted string of the current system time as HH:MM:SS.mmm format.
 		*
 		* Source is from https://stackoverflow.com/questions/9027317/how-to-convert-milliseconds-to-hhmmss-format/9027379
 		*
-		* @return String of HH:MM:SS formatted time.
+		* @return String of HH:MM:SS.mmm formatted time.
 		*/
 		@SuppressLint("DefaultLocale")
 		fun getSystemTimeString(): String {
@@ -204,7 +204,7 @@ class MessageLog {
 		/**
 		 * Print the specified message to debug console and then saves the message to the log.
 		 *
-		 * @param tag Distinguishes between messages for where they came from. Defaults to Game's TAG.
+		 * @param tag Distinguishes between messages for where they came from.
 		 * @param message Message to be saved.
 		 * @param level The log level of the message. String added to beginning of message in brackets.
 		 * @param skipPrintTime Flag to suppress adding the timestamp to the logged message.
