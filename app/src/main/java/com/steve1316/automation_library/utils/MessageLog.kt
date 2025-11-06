@@ -24,56 +24,6 @@ enum class LogLevel {
 }
 
 /**
- * Returns a formatted string of the elapsed time since the bot started as HH:MM:SS format.
- *
- * Source is from https://stackoverflow.com/questions/9027317/how-to-convert-milliseconds-to-hhmmss-format/9027379
- *
- * @return String of HH:MM:SS format of the elapsed time.
- */
-@SuppressLint("DefaultLocale")
-fun getElapsedTimeString(): String {
-	val elapsedMillis: Long = System.currentTimeMillis() - START_TIME_MS
-
-    val hours = TimeUnit.MILLISECONDS.toHours(elapsedMillis)
-    val minutes = TimeUnit.MILLISECONDS.toMinutes(elapsedMillis) - TimeUnit.HOURS.toMinutes(TimeUnit.MILLISECONDS.toHours(elapsedMillis))
-    val seconds = TimeUnit.MILLISECONDS.toSeconds(elapsedMillis) - TimeUnit.MINUTES.toSeconds(TimeUnit.MILLISECONDS.toMinutes(elapsedMillis))
-    val milliseconds = elapsedMillis % 1000
-
-	return String.format(
-		"%02d:%02d:%02d.%03d",
-		hours,
-        minutes,
-        seconds,
-        milliseconds,
-	)
-}
-
-/**
- * Returns a formatted string of the current system time as HH:MM:SS format.
- *
- * Source is from https://stackoverflow.com/questions/9027317/how-to-convert-milliseconds-to-hhmmss-format/9027379
- *
- * @return String of HH:MM:SS formatted time.
- */
-@SuppressLint("DefaultLocale")
-fun getSystemTimeString(): String {
-	val timeMs: Long = System.currentTimeMillis()
-
-    val hours = TimeUnit.MILLISECONDS.toHours(timeMs)
-    val minutes = TimeUnit.MILLISECONDS.toMinutes(timeMs) - TimeUnit.HOURS.toMinutes(TimeUnit.MILLISECONDS.toHours(timeMs))
-    val seconds = TimeUnit.MILLISECONDS.toSeconds(timeMs) - TimeUnit.MINUTES.toSeconds(TimeUnit.MILLISECONDS.toMinutes(timeMs))
-    val milliseconds = elapsedMillis % 1000
-
-	return String.format(
-		"%02d:%02d:%02d.%03d",
-		hours,
-        minutes,
-        seconds,
-        milliseconds,
-	)
-}
-
-/**
  * This class is in charge of holding the Message Log to which all logging messages from the bot goes to and also saves it all into a file when the bot has finished.
  */
 class MessageLog {
@@ -81,14 +31,14 @@ class MessageLog {
 		private const val TAG: String = "${SharedData.loggerTag}MessageLog"
 
 		private var messageLog = arrayListOf<String>()
-        private var startTime: Long = 0L
+        private var startTimeMs: Long = 0L
         private var saveCheck: Boolean = false
 
 		// Add synchronization object for thread-safe access
 		private val messageLogLock = Object()
 
         fun reset() {
-            startTime = 0L
+            startTimeMs = 0L
             saveCheck = false
             clearLog()
             Log.d(TAG, "MessageLog has now been reset and is ready for the next run.")
@@ -197,6 +147,59 @@ class MessageLog {
 			}
 		}
 
+        /**
+        * Returns a formatted string of the elapsed time since the bot started as HH:MM:SS format.
+        *
+        * Source is from https://stackoverflow.com/questions/9027317/how-to-convert-milliseconds-to-hhmmss-format/9027379
+        *
+        * @return String of HH:MM:SS format of the elapsed time.
+        */
+        @SuppressLint("DefaultLocale")
+        fun getElapsedTimeString(): String {
+            if (startTimeMs == 0L) {
+                startTimeMs = System.currentTimeMillis()
+            }
+            val elapsedMillis: Long = System.currentTimeMillis() - startTimeMs
+
+            val hours = TimeUnit.MILLISECONDS.toHours(elapsedMillis)
+            val minutes = TimeUnit.MILLISECONDS.toMinutes(elapsedMillis) - TimeUnit.HOURS.toMinutes(TimeUnit.MILLISECONDS.toHours(elapsedMillis))
+            val seconds = TimeUnit.MILLISECONDS.toSeconds(elapsedMillis) - TimeUnit.MINUTES.toSeconds(TimeUnit.MILLISECONDS.toMinutes(elapsedMillis))
+            val milliseconds = elapsedMillis % 1000
+
+            return String.format(
+                "%02d:%02d:%02d.%03d",
+                hours,
+                minutes,
+                seconds,
+                milliseconds,
+            )
+        }
+
+        /**
+        * Returns a formatted string of the current system time as HH:MM:SS format.
+        *
+        * Source is from https://stackoverflow.com/questions/9027317/how-to-convert-milliseconds-to-hhmmss-format/9027379
+        *
+        * @return String of HH:MM:SS formatted time.
+        */
+        @SuppressLint("DefaultLocale")
+        fun getSystemTimeString(): String {
+            val timeMs: Long = System.currentTimeMillis()
+
+            val hours = TimeUnit.MILLISECONDS.toHours(timeMs)
+            val minutes = TimeUnit.MILLISECONDS.toMinutes(timeMs) - TimeUnit.HOURS.toMinutes(TimeUnit.MILLISECONDS.toHours(timeMs))
+            val seconds = TimeUnit.MILLISECONDS.toSeconds(timeMs) - TimeUnit.MINUTES.toSeconds(TimeUnit.MILLISECONDS.toMinutes(timeMs))
+            val milliseconds = elapsedMillis % 1000
+
+            return String.format(
+                "%02d:%02d:%02d.%03d",
+                hours,
+                minutes,
+                seconds,
+                milliseconds,
+            )
+        }
+
 		/**
 		 * Print the specified message to debug console and then saves the message to the log.
 		 *
@@ -221,16 +224,17 @@ class MessageLog {
                 LogLevel.ERROR -> Log.e(tag, message)
             }
 
-            val timestamp = if (skipPrintTime) {
-                ""
-            } else {
-                getElapsedTimeString()
+            var prefix = ""
+            if (!skipPrintTime) {
+                prefix += "${getElapsedTimeString()} "
             }
 
+            prefix += "[${level.name}]"
+
             val msg = if (message.startsWith("\n")) {
-                "\n$timestamp " + message.removePrefix("\n")
+                "\n$prefix " + message.removePrefix("\n")
             } else {
-                "$timestamp $message"
+                "$prefix $message"
             }
 
             messageLog.add(msg)
@@ -270,7 +274,7 @@ class MessageLog {
 		 * @param skipPrintTime Flag to determine printing the timestamp in the message.
 		 */
 		fun printToLog(message: String, tag: String, isWarning: Boolean = false, isError: Boolean = false, skipPrintTime: Boolean = false) {
-            Log.w(tag, "WARNING: The printToLog function is deprecated and needs to be replaced.")
+            Log.w(tag, "[DEPRECATED] The printToLog function is deprecated and needs to be replaced.")
 
 			if (!isError && isWarning) {
 				w(tag, message)
