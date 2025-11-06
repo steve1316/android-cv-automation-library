@@ -240,24 +240,24 @@ class MessageLog {
 		}
 
         // Wrappers around the log() function.
-        fun v(tag: String = TAG, message: String, isOption: Boolean = false) {
-            log(tag, message, LogLevel.VERBOSE, isOption)
+        fun v(tag: String = TAG, message: String, isOption: Boolean = false, skipPrintTime: Boolean = false) {
+            log(tag, message, LogLevel.VERBOSE, isOption, skipPrintTime)
         }
 
-        fun d(tag: String = TAG, message: String, isOption: Boolean = false) {
-            log(tag, message, LogLevel.DEBUG, isOption)
+        fun d(tag: String = TAG, message: String, isOption: Boolean = false, skipPrintTime: Boolean = false) {
+            log(tag, message, LogLevel.DEBUG, isOption, skipPrintTime)
         }
 
-        fun i(tag: String = TAG, message: String, isOption: Boolean = false) {
-            log(tag, message, LogLevel.INFO, isOption)
+        fun i(tag: String = TAG, message: String, isOption: Boolean = false, skipPrintTime: Boolean = false) {
+            log(tag, message, LogLevel.INFO, isOption, skipPrintTime)
         }
 
-        fun w(tag: String = TAG, message: String, isOption: Boolean = false) {
-            log(tag, message, LogLevel.WARN, isOption)
+        fun w(tag: String = TAG, message: String, isOption: Boolean = false, skipPrintTime: Boolean = false) {
+            log(tag, message, LogLevel.WARN, isOption, skipPrintTime)
         }
 
-        fun e(tag: String = TAG, message: String, isOption: Boolean = false) {
-            log(tag, message, LogLevel.ERROR, isOption)
+        fun e(tag: String = TAG, message: String, isOption: Boolean = false, skipPrintTime: Boolean = false) {
+            log(tag, message, LogLevel.ERROR, isOption, skipPrintTime)
         }
 
         /**
