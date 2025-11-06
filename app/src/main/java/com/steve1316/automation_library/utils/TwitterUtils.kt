@@ -30,10 +30,10 @@ open class TwitterUtils(private val test: Boolean = false) {
 	 */
 	fun connect() {
 		if (!test) {
-			MessageLog.printToLog("\n[TWITTER] Authenticating provided consumer keys and access tokens with the Twitter API V1.1...", tag)
+			MessageLog.d(tag, "\n[TWITTER] Authenticating provided consumer keys and access tokens with the Twitter API V1.1...")
 			val result = testConnection()
 			if (result == "Test successfully completed.") {
-				MessageLog.printToLog("[TWITTER] Successfully connected to the Twitter API V1.1.", tag)
+				MessageLog.d(tag, "[TWITTER] Successfully connected to the Twitter API V1.1.")
 			} else {
 				throw Exception(result)
 			}
@@ -60,7 +60,7 @@ open class TwitterUtils(private val test: Boolean = false) {
 			val queryResult = oldTwitterClient.search().search(Query.of("Hello World"))
 			queryResult.count
 		} catch (_: Exception) {
-			MessageLog.printToLog("[ERROR] Cannot connect to Twitter API v1.1 due to keys and access tokens being incorrect.", tag, isError = true)
+			MessageLog.e(tag, "[ERROR] Cannot connect to Twitter API v1.1 due to keys and access tokens being incorrect.")
 			return "[ERROR] Cannot connect to Twitter API v1.1 due to keys and access tokens being incorrect."
 		}
 
