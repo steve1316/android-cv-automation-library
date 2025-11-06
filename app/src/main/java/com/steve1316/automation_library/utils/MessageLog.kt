@@ -16,11 +16,11 @@ import java.util.concurrent.TimeUnit
 import kotlin.Comparator
 
 enum class LogLevel {
-    VERBOSE,
-    DEBUG,
-    INFO,
-    WARN,
-    ERROR,
+	VERBOSE,
+	DEBUG,
+	INFO,
+	WARN,
+	ERROR,
 }
 
 /**
@@ -31,19 +31,19 @@ class MessageLog {
 		private const val TAG: String = "${SharedData.loggerTag}MessageLog"
 
 		private var messageLog = arrayListOf<String>()
-        private var startTimeMs: Long = 0L
-        private var saveCheck: Boolean = false
+		private var startTimeMs: Long = 0L
+		private var saveCheck: Boolean = false
 
 		// Add synchronization object for thread-safe access
 		private val messageLogLock = Object()
 
-        /** Resets state to prepare for the next run. */
-        fun reset() {
-            startTimeMs = 0L
-            saveCheck = false
-            clearLog()
-            Log.d(TAG, "MessageLog has now been reset and is ready for the next run.")
-        }
+		/** Resets state to prepare for the next run. */
+		fun reset() {
+			startTimeMs = 0L
+			saveCheck = false
+			clearLog()
+			Log.d(TAG, "MessageLog has now been reset and is ready for the next run.")
+		}
 
 		/**
 		 * Save the current Message Log into a new file inside internal storage's /logs/ folder.
@@ -52,7 +52,7 @@ class MessageLog {
 		 */
 		fun saveLogToFile(context: Context) {
 			if (!saveCheck) {
-                cleanLogsFolder(context)
+				cleanLogsFolder(context)
 
 				Log.d(TAG, "Now beginning process to save current Message Log to internal storage...")
 
@@ -74,10 +74,10 @@ class MessageLog {
 				}
 
 				// Now save the Message Log to the new text file.
-                val logString: String = "Now saving Message Log to file named \"$fileName\" at $path"
+				val logString: String = "Now saving Message Log to file named \"$fileName\" at $path"
 				Log.d(TAG, logString)
-                messageLog.add("\n$logString")
-                EventBus.getDefault().post(JSEvent("MessageLog", "\n$logString"))
+				messageLog.add("\n$logString")
+				EventBus.getDefault().post(JSEvent("MessageLog", "\n$logString"))
 
 				val file = File(path, "$fileName.txt")
 
@@ -134,136 +134,136 @@ class MessageLog {
 		 */
 		private fun cleanLogsFolder(context: Context, maxAmount: Int = 50) {
 			val directory = File(context.getExternalFilesDir(null)?.absolutePath + "/logs/")
-			
+
 			// Delete the oldest logs if the amount inside is greater than the given max amount.
 			val files = directory.listFiles()
 			if (files != null) {
-                Arrays.sort(files, Comparator.comparingLong(File::lastModified).reversed())
-                val diff = files.size - maxAmount
-                if (diff > 0) {
-                    for (i in 0..diff) {
-                        files[i].delete()
-                    }
-                }
+				Arrays.sort(files, Comparator.comparingLong(File::lastModified).reversed())
+				val diff = files.size - maxAmount
+				if (diff > 0) {
+					for (i in 0..diff) {
+						files[i].delete()
+					}
+				}
 			}
 		}
 
-        /**
-        * Returns a formatted string of the elapsed time since the bot started as HH:MM:SS format.
-        *
-        * Source is from https://stackoverflow.com/questions/9027317/how-to-convert-milliseconds-to-hhmmss-format/9027379
-        *
-        * @return String of HH:MM:SS format of the elapsed time.
-        */
-        @SuppressLint("DefaultLocale")
-        fun getElapsedTimeString(): String {
-            if (startTimeMs == 0L) {
-                startTimeMs = System.currentTimeMillis()
-            }
-            val elapsedMillis: Long = System.currentTimeMillis() - startTimeMs
+		/**
+		* Returns a formatted string of the elapsed time since the bot started as HH:MM:SS format.
+		*
+		* Source is from https://stackoverflow.com/questions/9027317/how-to-convert-milliseconds-to-hhmmss-format/9027379
+		*
+		* @return String of HH:MM:SS format of the elapsed time.
+		*/
+		@SuppressLint("DefaultLocale")
+		fun getElapsedTimeString(): String {
+			if (startTimeMs == 0L) {
+				startTimeMs = System.currentTimeMillis()
+			}
+			val elapsedMillis: Long = System.currentTimeMillis() - startTimeMs
 
-            val hours = TimeUnit.MILLISECONDS.toHours(elapsedMillis)
-            val minutes = TimeUnit.MILLISECONDS.toMinutes(elapsedMillis) - TimeUnit.HOURS.toMinutes(TimeUnit.MILLISECONDS.toHours(elapsedMillis))
-            val seconds = TimeUnit.MILLISECONDS.toSeconds(elapsedMillis) - TimeUnit.MINUTES.toSeconds(TimeUnit.MILLISECONDS.toMinutes(elapsedMillis))
-            val milliseconds = elapsedMillis % 1000
+			val hours = TimeUnit.MILLISECONDS.toHours(elapsedMillis)
+			val minutes = TimeUnit.MILLISECONDS.toMinutes(elapsedMillis) - TimeUnit.HOURS.toMinutes(TimeUnit.MILLISECONDS.toHours(elapsedMillis))
+			val seconds = TimeUnit.MILLISECONDS.toSeconds(elapsedMillis) - TimeUnit.MINUTES.toSeconds(TimeUnit.MILLISECONDS.toMinutes(elapsedMillis))
+			val milliseconds = elapsedMillis % 1000
 
-            return String.format(
-                "%02d:%02d:%02d.%03d",
-                hours,
-                minutes,
-                seconds,
-                milliseconds,
-            )
-        }
+			return String.format(
+				"%02d:%02d:%02d.%03d",
+				hours,
+				minutes,
+				seconds,
+				milliseconds,
+			)
+		}
 
-        /**
-        * Returns a formatted string of the current system time as HH:MM:SS format.
-        *
-        * Source is from https://stackoverflow.com/questions/9027317/how-to-convert-milliseconds-to-hhmmss-format/9027379
-        *
-        * @return String of HH:MM:SS formatted time.
-        */
-        @SuppressLint("DefaultLocale")
-        fun getSystemTimeString(): String {
-            val timeMs: Long = System.currentTimeMillis()
+		/**
+		* Returns a formatted string of the current system time as HH:MM:SS format.
+		*
+		* Source is from https://stackoverflow.com/questions/9027317/how-to-convert-milliseconds-to-hhmmss-format/9027379
+		*
+		* @return String of HH:MM:SS formatted time.
+		*/
+		@SuppressLint("DefaultLocale")
+		fun getSystemTimeString(): String {
+			val timeMs: Long = System.currentTimeMillis()
 
-            val hours = TimeUnit.MILLISECONDS.toHours(timeMs)
-            val minutes = TimeUnit.MILLISECONDS.toMinutes(timeMs) - TimeUnit.HOURS.toMinutes(TimeUnit.MILLISECONDS.toHours(timeMs))
-            val seconds = TimeUnit.MILLISECONDS.toSeconds(timeMs) - TimeUnit.MINUTES.toSeconds(TimeUnit.MILLISECONDS.toMinutes(timeMs))
-            val milliseconds = timeMs % 1000
+			val hours = TimeUnit.MILLISECONDS.toHours(timeMs)
+			val minutes = TimeUnit.MILLISECONDS.toMinutes(timeMs) - TimeUnit.HOURS.toMinutes(TimeUnit.MILLISECONDS.toHours(timeMs))
+			val seconds = TimeUnit.MILLISECONDS.toSeconds(timeMs) - TimeUnit.MINUTES.toSeconds(TimeUnit.MILLISECONDS.toMinutes(timeMs))
+			val milliseconds = timeMs % 1000
 
-            return String.format(
-                "%02d:%02d:%02d.%03d",
-                hours,
-                minutes,
-                seconds,
-                milliseconds,
-            )
-        }
+			return String.format(
+				"%02d:%02d:%02d.%03d",
+				hours,
+				minutes,
+				seconds,
+				milliseconds,
+			)
+		}
 
 		/**
 		 * Print the specified message to debug console and then saves the message to the log.
 		 *
-         * @param tag Distinguishes between messages for where they came from. Defaults to Game's TAG.
+		 * @param tag Distinguishes between messages for where they came from. Defaults to Game's TAG.
 		 * @param message Message to be saved.
-         * @param level The log level of the message. String added to beginning of message in brackets.
-         * @param skipPrintTime Flag to suppress adding the timestamp to the logged message.
+		 * @param level The log level of the message. String added to beginning of message in brackets.
+		 * @param skipPrintTime Flag to suppress adding the timestamp to the logged message.
 		 */
 		fun log(
-            tag: String = TAG,
-            message: String,
-            level: LogLevel = LogLevel.DEBUG,
-            skipPrintTime: Boolean = false,
-        ) {
-            when (level) {
-                LogLevel.VERBOSE -> Log.v(tag, message)
-                LogLevel.DEBUG -> Log.d(tag, message)
-                LogLevel.INFO -> Log.i(tag, message)
-                LogLevel.WARN -> Log.w(tag, message)
-                LogLevel.ERROR -> Log.e(tag, message)
-            }
+			tag: String = TAG,
+			message: String,
+			level: LogLevel = LogLevel.DEBUG,
+			skipPrintTime: Boolean = false,
+		) {
+			when (level) {
+				LogLevel.VERBOSE -> Log.v(tag, message)
+				LogLevel.DEBUG -> Log.d(tag, message)
+				LogLevel.INFO -> Log.i(tag, message)
+				LogLevel.WARN -> Log.w(tag, message)
+				LogLevel.ERROR -> Log.e(tag, message)
+			}
 
-            var prefix = ""
-            if (!skipPrintTime) {
-                prefix += "${getElapsedTimeString()} "
-            }
+			var prefix = ""
+			if (!skipPrintTime) {
+				prefix += "${getElapsedTimeString()} "
+			}
 
-            prefix += "[${level.name}]"
+			prefix += "[${level.name}]"
 
-            val msg = if (message.startsWith("\n")) {
-                "\n$prefix " + message.removePrefix("\n")
-            } else {
-                "$prefix $message"
-            }
+			val msg = if (message.startsWith("\n")) {
+				"\n$prefix " + message.removePrefix("\n")
+			} else {
+				"$prefix $message"
+			}
 
-            messageLog.add(msg)
+			messageLog.add(msg)
 
-            // Send the message to the frontend.
+			// Send the message to the frontend.
 			EventBus.getDefault().post(JSEvent("MessageLog", msg))
 		}
 
-        // Wrappers around the log() function.
-        fun v(tag: String = TAG, message: String, skipPrintTime: Boolean = false) {
-            log(tag, message, LogLevel.VERBOSE, skipPrintTime)
-        }
+		// Wrappers around the log() function.
+		fun v(tag: String = TAG, message: String, skipPrintTime: Boolean = false) {
+			log(tag, message, LogLevel.VERBOSE, skipPrintTime)
+		}
 
-        fun d(tag: String = TAG, message: String, skipPrintTime: Boolean = false) {
-            log(tag, message, LogLevel.DEBUG, skipPrintTime)
-        }
+		fun d(tag: String = TAG, message: String, skipPrintTime: Boolean = false) {
+			log(tag, message, LogLevel.DEBUG, skipPrintTime)
+		}
 
-        fun i(tag: String = TAG, message: String, skipPrintTime: Boolean = false) {
-            log(tag, message, LogLevel.INFO, skipPrintTime)
-        }
+		fun i(tag: String = TAG, message: String, skipPrintTime: Boolean = false) {
+			log(tag, message, LogLevel.INFO, skipPrintTime)
+		}
 
-        fun w(tag: String = TAG, message: String, skipPrintTime: Boolean = false) {
-            log(tag, message, LogLevel.WARN, skipPrintTime)
-        }
+		fun w(tag: String = TAG, message: String, skipPrintTime: Boolean = false) {
+			log(tag, message, LogLevel.WARN, skipPrintTime)
+		}
 
-        fun e(tag: String = TAG, message: String, skipPrintTime: Boolean = false) {
-            log(tag, message, LogLevel.ERROR, skipPrintTime)
-        }
+		fun e(tag: String = TAG, message: String, skipPrintTime: Boolean = false) {
+			log(tag, message, LogLevel.ERROR, skipPrintTime)
+		}
 
-        /**
+		/**
 		 * Print the specified message to debug console and then saves the message to the log.
 		 *
 		 * @param message Message to be saved.
@@ -273,7 +273,7 @@ class MessageLog {
 		 * @param skipPrintTime Flag to determine printing the timestamp in the message.
 		 */
 		fun printToLog(message: String, tag: String, isWarning: Boolean = false, isError: Boolean = false, skipPrintTime: Boolean = false) {
-            Log.w(tag, "[DEPRECATED] The printToLog function is deprecated and needs to be replaced.")
+			Log.w(tag, "[DEPRECATED] The printToLog function is deprecated and needs to be replaced.")
 
 			if (!isError && isWarning) {
 				w(tag, message)
