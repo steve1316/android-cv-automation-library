@@ -259,5 +259,26 @@ class MessageLog {
         fun e(tag: String = TAG, message: String, isOption: Boolean = false) {
             log(tag, message, LogLevel.ERROR, isOption)
         }
+
+        /**
+		 * Print the specified message to debug console and then saves the message to the log.
+		 *
+		 * @param message Message to be saved.
+		 * @param tag Distinguish between messages for where they came from.
+		 * @param isWarning Flag to determine whether to display log message in console as debug or warning.
+		 * @param isError Flag to determine whether to display log message in console as debug or error.
+		 * @param skipPrintTime Flag to determine printing the timestamp in the message.
+		 */
+		fun printToLog(message: String, tag: String, isWarning: Boolean = false, isError: Boolean = false, skipPrintTime: Boolean = false) {
+            Log.w(tag, "WARNING: The printToLog function is deprecated and needs to be replaced.")
+
+			if (!isError && isWarning) {
+				w(tag, message)
+			} else if (isError && !isWarning) {
+				e(tag, message)
+			} else {
+				d(tag, message)
+			}
+		}
 	}
 }
