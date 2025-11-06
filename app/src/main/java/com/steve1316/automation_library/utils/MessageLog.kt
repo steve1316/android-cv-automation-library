@@ -189,7 +189,7 @@ class MessageLog {
             val hours = TimeUnit.MILLISECONDS.toHours(timeMs)
             val minutes = TimeUnit.MILLISECONDS.toMinutes(timeMs) - TimeUnit.HOURS.toMinutes(TimeUnit.MILLISECONDS.toHours(timeMs))
             val seconds = TimeUnit.MILLISECONDS.toSeconds(timeMs) - TimeUnit.MINUTES.toSeconds(TimeUnit.MILLISECONDS.toMinutes(timeMs))
-            val milliseconds = elapsedMillis % 1000
+            val milliseconds = timeMs % 1000
 
             return String.format(
                 "%02d:%02d:%02d.%03d",
@@ -206,14 +206,12 @@ class MessageLog {
          * @param tag Distinguishes between messages for where they came from. Defaults to Game's TAG.
 		 * @param message Message to be saved.
          * @param level The log level of the message. String added to beginning of message in brackets.
-		 * @param isOption Flag to determine whether to append a newline right after the time in the string.
          * @param skipPrintTime Flag to suppress adding the timestamp to the logged message.
 		 */
 		fun log(
             tag: String = TAG,
             message: String,
             level: LogLevel = LogLevel.DEBUG,
-            isOption: Boolean = false,
             skipPrintTime: Boolean = false,
         ) {
             when (level) {
@@ -244,24 +242,24 @@ class MessageLog {
 		}
 
         // Wrappers around the log() function.
-        fun v(tag: String = TAG, message: String, isOption: Boolean = false, skipPrintTime: Boolean = false) {
-            log(tag, message, LogLevel.VERBOSE, isOption, skipPrintTime)
+        fun v(tag: String = TAG, message: String, skipPrintTime: Boolean = false) {
+            log(tag, message, LogLevel.VERBOSE, skipPrintTime)
         }
 
-        fun d(tag: String = TAG, message: String, isOption: Boolean = false, skipPrintTime: Boolean = false) {
-            log(tag, message, LogLevel.DEBUG, isOption, skipPrintTime)
+        fun d(tag: String = TAG, message: String, skipPrintTime: Boolean = false) {
+            log(tag, message, LogLevel.DEBUG, skipPrintTime)
         }
 
-        fun i(tag: String = TAG, message: String, isOption: Boolean = false, skipPrintTime: Boolean = false) {
-            log(tag, message, LogLevel.INFO, isOption, skipPrintTime)
+        fun i(tag: String = TAG, message: String, skipPrintTime: Boolean = false) {
+            log(tag, message, LogLevel.INFO, skipPrintTime)
         }
 
-        fun w(tag: String = TAG, message: String, isOption: Boolean = false, skipPrintTime: Boolean = false) {
-            log(tag, message, LogLevel.WARN, isOption, skipPrintTime)
+        fun w(tag: String = TAG, message: String, skipPrintTime: Boolean = false) {
+            log(tag, message, LogLevel.WARN, skipPrintTime)
         }
 
-        fun e(tag: String = TAG, message: String, isOption: Boolean = false, skipPrintTime: Boolean = false) {
-            log(tag, message, LogLevel.ERROR, isOption, skipPrintTime)
+        fun e(tag: String = TAG, message: String, skipPrintTime: Boolean = false) {
+            log(tag, message, LogLevel.ERROR, skipPrintTime)
         }
 
         /**
