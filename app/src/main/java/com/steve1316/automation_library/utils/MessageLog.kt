@@ -37,6 +37,7 @@ class MessageLog {
 		// Add synchronization object for thread-safe access
 		private val messageLogLock = Object()
 
+        /** Resets state to prepare for the next run. */
         fun reset() {
             startTimeMs = 0L
             saveCheck = false
