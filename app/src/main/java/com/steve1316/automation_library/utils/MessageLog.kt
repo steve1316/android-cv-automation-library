@@ -1,4 +1,4 @@
-package com.steve1316.uma_android_automation.utils
+package com.steve1316.automation_library.utils
 
 import android.annotation.SuppressLint
 import android.content.Context
