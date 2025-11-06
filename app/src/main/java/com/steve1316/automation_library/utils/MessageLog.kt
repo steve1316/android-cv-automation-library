@@ -91,8 +91,8 @@ class MessageLog {
 							}
 						}
 					}
-					saveCheck = true
 				}
+				saveCheck = true
 			}
 		}
 
