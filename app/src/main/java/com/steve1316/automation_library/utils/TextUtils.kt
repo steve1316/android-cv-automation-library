@@ -21,7 +21,7 @@ object TextUtils {
 
         val service = StringSimilarityServiceImpl(JaroWinklerStrategy())
         var bestMatch: String? = null
-        var bestScore: Float = 0.0
+        var bestScore: Double = 0.0
 
         // Generate all possible substrings
         for (i in 0..query.length) {
@@ -48,7 +48,7 @@ object TextUtils {
     *
     * @return The result string if score > threshold, else NULL.
     */
-    fun matchStringInList(query: String, choices: List<String>, threshold: Float = 0.8): String? {
+    fun matchStringInList(query: String, choices: List<String>, threshold: Double = 0.8): String? {
         // Return early if there is an exact match.
         if (choices.contains(query)) {
             return query
