@@ -237,23 +237,57 @@ class MessageLog {
 			EventBus.getDefault().post(JSEvent("MessageLog", msg))
 		}
 
-		// Wrappers around the log() function.
+		/**
+		 * Print to logcat and then saves to the message log with VERBOSE level.
+		 *
+		 * @param tag Distinguishes between messages for where they came from.
+		 * @param message Message to be saved.
+		 * @param skipPrintTime Flag to suppress adding the timestamp to the logged message.
+		 */
 		fun v(tag: String = TAG, message: String, skipPrintTime: Boolean = false) {
 			log(tag, message, LogLevel.VERBOSE, skipPrintTime)
 		}
 
+		/**
+		 * Print to logcat and then saves to the message log with DEBUG level.
+		 *
+		 * @param tag Distinguishes between messages for where they came from.
+		 * @param message Message to be saved.
+		 * @param skipPrintTime Flag to suppress adding the timestamp to the logged message.
+		 */
 		fun d(tag: String = TAG, message: String, skipPrintTime: Boolean = false) {
 			log(tag, message, LogLevel.DEBUG, skipPrintTime)
 		}
 
+		/**
+		 * Print to logcat and then saves to the message log with INFO level.
+		 *
+		 * @param tag Distinguishes between messages for where they came from.
+		 * @param message Message to be saved.
+		 * @param skipPrintTime Flag to suppress adding the timestamp to the logged message.
+		 */
 		fun i(tag: String = TAG, message: String, skipPrintTime: Boolean = false) {
 			log(tag, message, LogLevel.INFO, skipPrintTime)
 		}
 
+		/**
+		 * Print to logcat and then saves to the message log with WARN level.
+		 *
+		 * @param tag Distinguishes between messages for where they came from.
+		 * @param message Message to be saved.
+		 * @param skipPrintTime Flag to suppress adding the timestamp to the logged message.
+		 */
 		fun w(tag: String = TAG, message: String, skipPrintTime: Boolean = false) {
 			log(tag, message, LogLevel.WARN, skipPrintTime)
 		}
 
+		/**
+		 * Print to logcat and then saves to the message log with ERROR level.
+		 *
+		 * @param tag Distinguishes between messages for where they came from.
+		 * @param message Message to be saved.
+		 * @param skipPrintTime Flag to suppress adding the timestamp to the logged message.
+		 */
 		fun e(tag: String = TAG, message: String, skipPrintTime: Boolean = false) {
 			log(tag, message, LogLevel.ERROR, skipPrintTime)
 		}
