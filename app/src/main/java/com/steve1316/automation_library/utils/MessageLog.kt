@@ -301,6 +301,7 @@ class MessageLog {
 		 * @param isError Flag to determine whether to display log message in console as debug or error.
 		 * @param skipPrintTime Flag to determine printing the timestamp in the message.
 		 */
+        @Deprecated("This is a legacy function. Use log() and its log level wrappers.")
 		fun printToLog(message: String, tag: String, isWarning: Boolean = false, isError: Boolean = false, skipPrintTime: Boolean = false) {
 			Log.w(tag, "[DEPRECATED] The printToLog function is deprecated and needs to be replaced.")
 
