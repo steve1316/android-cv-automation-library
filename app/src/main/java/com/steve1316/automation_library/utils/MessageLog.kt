@@ -209,12 +209,7 @@ class MessageLog {
 		 * @param level The log level of the message. String added to beginning of message in brackets.
 		 * @param skipPrintTime Flag to suppress adding the timestamp to the logged message.
 		 */
-		fun log(
-			tag: String = TAG,
-			message: String,
-			level: LogLevel = LogLevel.DEBUG,
-			skipPrintTime: Boolean = false,
-		) {
+		fun log(tag: String = TAG, message: String, level: LogLevel = LogLevel.DEBUG, skipPrintTime: Boolean = false) {
 			when (level) {
 				LogLevel.VERBOSE -> Log.v(tag, message)
 				LogLevel.DEBUG -> Log.d(tag, message)
