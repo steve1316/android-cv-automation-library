@@ -3,7 +3,9 @@ package com.steve1316.automation_library.utils
 import net.ricecode.similarity.JaroWinklerStrategy
 import net.ricecode.similarity.StringSimilarityServiceImpl
 
-/** Helper functions for parsing text. */
+/**
+ * Helper functions for parsing text.
+ */
 object TextUtils {
     /** Finds the closest substring in a string.
     *
@@ -23,11 +25,11 @@ object TextUtils {
         var bestMatch: String? = null
         var bestScore: Double = 0.0
 
-        // Generate all possible substrings
+        // Generate all possible substrings.
         for (i in 0..query.length) {
             for (j in (i + 1)..query.length) {
                 val sub = query.substring(i, j)
-                // Only compare if the substring length is reasonably close to the source length
+                // Only compare if the substring length is reasonably close to the source length.
                 if (Math.abs(sub.length - source.length) <= 2) {
                     val score = service.score(sub, source)
                     if (score > bestScore && score >= threshold) {
