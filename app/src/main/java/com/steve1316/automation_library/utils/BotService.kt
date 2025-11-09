@@ -182,7 +182,7 @@ class BotService : Service() {
 										}
 									} else {
 										NotificationUtils.updateNotification(myContext, Class.forName(className), false, "Encountered an Exception: $e.\nTap me to see more details.")
-										MessageLog.printToLog("$appName encountered an Exception: ${e.stackTraceToString()}", tag, isError = true)
+										MessageLog.e(tag, "$appName encountered an Exception: ${e.stackTraceToString()}")
 									}
 								} finally {
 									performCleanUp()
@@ -391,7 +391,7 @@ class BotService : Service() {
 				displayBigText = true
 			)
 
-			MessageLog.printToLog("$appName encountered an Exception: ${event.exception.stackTraceToString()}", tag, isError = true)
+			MessageLog.e(tag, "$appName encountered an Exception: ${event.exception.stackTraceToString()}")
 
 			if (event.exception.stackTraceToString().length >= 2500) {
 				Log.d(tag, "Splitting up Discord message to avoid being cut off due to character limit.")

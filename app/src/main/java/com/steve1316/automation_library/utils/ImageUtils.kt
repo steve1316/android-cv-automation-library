@@ -143,7 +143,7 @@ open class ImageUtils(protected val context: Context) {
 			// First, try the default values of 1.0 for scale and 0.8 for confidence.
 			val (success, _) = match(sourceBitmap, templateBitmap!!, key, useSingleScale = true, customConfidence = defaultConfidence, testScale = 1.0)
 			if (success) {
-				MessageLog.printToLog("[TEST] Initial test for $key succeeded at the default values.", tag)
+				MessageLog.d(tag, "[TEST] Initial test for $key succeeded at the default values.")
 				mapping[key]?.add(ScaleConfidenceResult(1.0, defaultConfidence))
 				continue // If it works, skip to the next template.
 			}
@@ -162,7 +162,7 @@ open class ImageUtils(protected val context: Context) {
 					val formattedConfidence = testConfidenceDecimalFormat.format(confidence).toDouble()
 					val (testSuccess, _) = match(sourceBitmap, templateBitmap, key, useSingleScale = true, customConfidence = formattedConfidence, testScale = testScale)
 					if (testSuccess) {
-						MessageLog.printToLog("[TEST] Test for $key succeeded at scale $testScale and confidence $formattedConfidence.", tag)
+						MessageLog.d(tag, "[TEST] Test for $key succeeded at scale $testScale and confidence $formattedConfidence.")
 						mapping[key]?.add(ScaleConfidenceResult(testScale, formattedConfidence))
 					}
 					confidence += 0.1
@@ -289,20 +289,20 @@ open class ImageUtils(protected val context: Context) {
 				matchLocation = mmr.minLoc
 				matchCheck = true
 				if (debugMode) {
-					MessageLog.printToLog("[DEBUG] Match found for \"$templateName\" with $minVal <= ${1.0 - setConfidence} at Point $matchLocation using scale: $newScale.", tag)
+					MessageLog.d(tag, "Match found for \"$templateName\" with $minVal <= ${1.0 - setConfidence} at Point $matchLocation using scale: $newScale.")
 				}
 			} else if ((matchMethod != Imgproc.TM_SQDIFF && matchMethod != Imgproc.TM_SQDIFF_NORMED) && mmr.maxVal >= setConfidence) {
 				matchLocation = mmr.maxLoc
 				matchCheck = true
 				if (debugMode) {
-					MessageLog.printToLog("[DEBUG] Match found for \"$templateName\" with $maxVal >= $setConfidence at Point $matchLocation using scale: $newScale.", tag)
+					MessageLog.d(tag, "Match found for \"$templateName\" with $maxVal >= $setConfidence at Point $matchLocation using scale: $newScale.")
 				}
 			} else {
 				if (debugMode) {
 					if ((matchMethod != Imgproc.TM_SQDIFF && matchMethod != Imgproc.TM_SQDIFF_NORMED)) {
-						MessageLog.printToLog("[DEBUG] Match not found for \"$templateName\" with $maxVal not >= $setConfidence at Point ${mmr.maxLoc} using scale $newScale.", tag)
+						MessageLog.d(tag, "Match not found for \"$templateName\" with $maxVal not >= $setConfidence at Point ${mmr.maxLoc} using scale $newScale.")
 					} else {
-						MessageLog.printToLog("[DEBUG] Match not found for \"$templateName\" with $minVal not <= ${1.0 - setConfidence} at Point ${mmr.minLoc} using scale $newScale.", tag)
+						MessageLog.d(tag, "Match not found for \"$templateName\" with $minVal not <= ${1.0 - setConfidence} at Point ${mmr.minLoc} using scale $newScale.")
 					}
 				}
 			}
@@ -506,7 +506,7 @@ open class ImageUtils(protected val context: Context) {
 				Imgproc.rectangle(sourceMat, tempMatchLocation, Point(tempMatchLocation.x + clampedTemplateMat.cols(), tempMatchLocation.y + clampedTemplateMat.rows()), Scalar(0.0, 0.0, 0.0), 20)
 
 				if (debugMode) {
-					MessageLog.printToLog("[DEBUG] Match found with $minVal <= ${1.0 - setConfidence} at Point $tempMatchLocation with scale: $newScale.", tag)
+					MessageLog.d(tag, "Match found with $minVal <= ${1.0 - setConfidence} at Point $tempMatchLocation with scale: $newScale.")
 					Imgcodecs.imwrite("$matchFilePath/matchAll.png", sourceMat)
 				}
 
@@ -535,7 +535,7 @@ open class ImageUtils(protected val context: Context) {
 				Imgproc.rectangle(sourceMat, tempMatchLocation, Point(tempMatchLocation.x + clampedTemplateMat.cols(), tempMatchLocation.y + clampedTemplateMat.rows()), Scalar(0.0, 0.0, 0.0), 20)
 
 				if (debugMode) {
-					MessageLog.printToLog("[DEBUG] Match found with $maxVal >= $setConfidence at Point $tempMatchLocation with scale: $newScale.", tag)
+					MessageLog.d(tag, "Match found with $maxVal >= $setConfidence at Point $tempMatchLocation with scale: $newScale.")
 					Imgcodecs.imwrite("$matchFilePath/matchAll.png", sourceMat)
 				}
 
@@ -569,9 +569,9 @@ open class ImageUtils(protected val context: Context) {
 
 				if (debugMode) {
 					if ((matchMethod == Imgproc.TM_SQDIFF || matchMethod == Imgproc.TM_SQDIFF_NORMED) && mmr.minVal > (1.0 - setConfidence)) {
-						MessageLog.printToLog("[DEBUG] Match not found with ${mmr.minVal} > ${(1.0 - setConfidence)} at Point $tempMatchLocation with scale: $newScale.", tag)
+						MessageLog.d(tag, "Match not found with ${mmr.minVal} > ${(1.0 - setConfidence)} at Point $tempMatchLocation with scale: $newScale.")
 					} else if ((matchMethod != Imgproc.TM_SQDIFF && matchMethod != Imgproc.TM_SQDIFF_NORMED) && mmr.maxVal < setConfidence) {
-						MessageLog.printToLog("[DEBUG] Match not found with ${mmr.maxVal} < $setConfidence at Point $tempMatchLocation with scale: $newScale.", tag)
+						MessageLog.d(tag, "Match not found with ${mmr.maxVal} < $setConfidence at Point $tempMatchLocation with scale: $newScale.")
 					}
 
 					Imgcodecs.imwrite("$matchFilePath/matchAll.png", sourceMat)
@@ -686,7 +686,7 @@ open class ImageUtils(protected val context: Context) {
 			Pair(sourceBitmap, templateBitmap)
 		} else {
 			if (debugMode) {
-				MessageLog.printToLog("[ERROR] The template Bitmap is null.", tag, isError = true)
+				MessageLog.e(tag, "The template Bitmap is null.")
 			}
 
 			Pair(sourceBitmap, null)
@@ -714,13 +714,13 @@ open class ImageUtils(protected val context: Context) {
 
 		// Check if any dimensions were clamped and log a warning.
 		if (x != clampedX || y != clampedY || width != clampedWidth || height != clampedHeight) {
-			MessageLog.printToLog("[WARNING] Clamped bounds for $context: original(x=$x, y=$y, width=$width, height=$height) -> clamped(x=$clampedX, y=$clampedY, width=$clampedWidth, height=$clampedHeight), sourceBitmap=${sourceBitmap.width}x${sourceBitmap.height}", tag)
+			MessageLog.w(tag, "Clamped bounds for $context: original(x=$x, y=$y, width=$width, height=$height) -> clamped(x=$clampedX, y=$clampedY, width=$clampedWidth, height=$clampedHeight), sourceBitmap=${sourceBitmap.width}x${sourceBitmap.height}")
 		}
 
 		// Final validation to ensure the clamped dimensions are still valid.
 		if (clampedX < 0 || clampedY < 0 || clampedWidth <= 0 || clampedHeight <= 0 ||
 			clampedX + clampedWidth > sourceBitmap.width || clampedY + clampedHeight > sourceBitmap.height) {
-			MessageLog.printToLog("[ERROR] Invalid bounds for $context after clamping: x=$clampedX, y=$clampedY, width=$clampedWidth, height=$clampedHeight, sourceBitmap=${sourceBitmap.width}x${sourceBitmap.height}", tag, isError = true)
+			MessageLog.e(tag, "Invalid bounds for $context after clamping: x=$clampedX, y=$clampedY, width=$clampedWidth, height=$clampedHeight, sourceBitmap=${sourceBitmap.width}x${sourceBitmap.height}")
 			return null
 		}
 
@@ -755,7 +755,7 @@ open class ImageUtils(protected val context: Context) {
 			if (bitmap != null) {
 				return bitmap
 			} else {
-				if (debugMode) MessageLog.printToLog("[DEBUG] Source bitmap is null. Moving the screen a bit and waiting a second before trying again.", tag, isWarning = true)
+				if (debugMode) MessageLog.w(tag, "Source bitmap is null. Moving the screen a bit and waiting a second before trying again.")
 
 				MyAccessibilityService.getInstance().swipe(oldXSwipe, oldYSwipe, newXSwipe, newYSwipe, durationSwipe)
 				MyAccessibilityService.getInstance().swipe(oldXSwipe, newYSwipe, newXSwipe, oldYSwipe, durationSwipe)
@@ -771,7 +771,7 @@ open class ImageUtils(protected val context: Context) {
 	 */
 	protected open fun getBitmapFromURL(url: URL): Bitmap {
 		if (debugMode) {
-			MessageLog.printToLog("\n[DEBUG] Starting process to create a Bitmap from the image url: $url", tag)
+			MessageLog.d(tag, "\nStarting process to create a Bitmap from the image url: $url")
 		}
 
 		// Open up a HTTP connection to the URL.
@@ -808,7 +808,7 @@ open class ImageUtils(protected val context: Context) {
 		var numberOfTries = tries
 
 		if (debugMode) {
-			MessageLog.printToLog("\n[DEBUG] Starting process to find the ${templateName.uppercase()} image...", tag)
+			MessageLog.d(tag, "\nStarting process to find the ${templateName.uppercase()} image...")
 		}
 
 		// If Test Mode is enabled, prepare for it by setting initial scale.
@@ -832,7 +832,7 @@ open class ImageUtils(protected val context: Context) {
 					numberOfTries -= 1
 					if (numberOfTries <= 0) {
 						if (!suppressError) {
-							MessageLog.printToLog("[WARNING] Failed to find the ${templateName.uppercase()} image.", tag)
+							MessageLog.w(tag, "Failed to find the ${templateName.uppercase()} image.")
 						}
 
 						break
@@ -850,12 +850,12 @@ open class ImageUtils(protected val context: Context) {
 						val scale3: Double = decimalFormat.format(scale0 + 0.03).toDouble()
 						val scale4: Double = decimalFormat.format(scale0 + 0.04).toDouble()
 
-						MessageLog.printToLog(
+						MessageLog.i(
+                            tag,
 							"[SUCCESS] Found the ${templateName.uppercase()} at $matchLocation with scale $scale0.\n\nRecommended to use scale $scale1, $scale2, $scale3 or $scale4.",
-							tag
 						)
 					} else if (debugMode) {
-						MessageLog.printToLog("[SUCCESS] Found the ${templateName.uppercase()} at $matchLocation.", tag)
+						MessageLog.d(tag, "[SUCCESS] Found the ${templateName.uppercase()} at $matchLocation.")
 					}
 
 					return Pair(matchLocation, sourceBitmap)
@@ -876,7 +876,7 @@ open class ImageUtils(protected val context: Context) {
 	 */
 	open fun findAll(templateName: String, region: IntArray = intArrayOf(0, 0, 0, 0), confidence: Double = 0.0): ArrayList<Point> {
 		if (debugMode) {
-			MessageLog.printToLog("\n[DEBUG] Starting process to find all ${templateName.uppercase()} images...", tag)
+			MessageLog.d(tag, "\nStarting process to find all ${templateName.uppercase()} images...")
 		}
 
 		val (sourceBitmap, templateBitmap) = getBitmaps(templateName)
@@ -889,9 +889,9 @@ open class ImageUtils(protected val context: Context) {
 			matchLocations.sortBy { it.y }
 
 			if (debugMode) {
-				MessageLog.printToLog("[DEBUG] Found match locations for $templateName: $matchLocations.", tag)
+				MessageLog.d(tag, "Found match locations for $templateName: $matchLocations.")
 			} else {
-				Log.d(tag, "[DEBUG] Found match locations for $templateName: $matchLocations.")
+				Log.d(tag, "Found match locations for $templateName: $matchLocations.")
 			}
 
 			return matchLocations
@@ -910,7 +910,7 @@ open class ImageUtils(protected val context: Context) {
 	 * @return True if the specified image vanished from the screen. False otherwise.
 	 */
 	open fun waitVanish(templateName: String, timeout: Int = 5, region: IntArray = intArrayOf(0, 0, 0, 0), suppressError: Boolean = false): Boolean {
-		MessageLog.printToLog("[INFO] Now waiting for $templateName to vanish from the screen...", tag)
+		MessageLog.i(tag, "Now waiting for $templateName to vanish from the screen...")
 
 		var remaining = timeout
 		if (findImage(templateName, tries = 1, region = region, suppressError = suppressError).first == null) {
@@ -939,7 +939,7 @@ open class ImageUtils(protected val context: Context) {
 	 */
 	open fun pixelSearch(bitmap: Bitmap, red: Int, blue: Int, green: Int, suppressError: Boolean = false): Pair<Int, Int> {
 		if (debugMode) {
-			MessageLog.printToLog("\n[DEBUG] Starting process to find the specified pixel ($red, $blue, $green)...", tag)
+			MessageLog.d(tag, "\nStarting process to find the specified pixel ($red, $blue, $green)...")
 		}
 
 		var x = 0
@@ -952,7 +952,7 @@ open class ImageUtils(protected val context: Context) {
 
 				if (Color.red(pixel) == red && Color.blue(pixel) == blue && Color.green(pixel) == green) {
 					if (debugMode) {
-						MessageLog.printToLog("[DEBUG] Found matching pixel at ($x, $y).", tag)
+						MessageLog.d(tag, "Found matching pixel at ($x, $y).")
 					}
 
 					return Pair(x, y)
@@ -966,7 +966,7 @@ open class ImageUtils(protected val context: Context) {
 		}
 
 		if (!suppressError) {
-			MessageLog.printToLog("[WARNING] Failed to find the specified pixel ($red, $blue, $green).", tag, isWarning = true)
+			MessageLog.w(tag, "Failed to find the specified pixel ($red, $blue, $green).")
 		}
 
 		return Pair(-1, -1)
@@ -986,7 +986,7 @@ open class ImageUtils(protected val context: Context) {
 
 		// Check if coordinates are within bounds.
 		if (x < 0 || y < 0 || x >= sourceBitmap.width || y >= sourceBitmap.height) {
-			if (debugMode) MessageLog.printToLog("[WARNING] Coordinates ($x, $y) are out of bounds for bitmap size ${sourceBitmap.width}x${sourceBitmap.height}", tag)
+			if (debugMode) MessageLog.w(tag, "Coordinates ($x, $y) are out of bounds for bitmap size ${sourceBitmap.width}x${sourceBitmap.height}")
 			return false
 		}
 
@@ -1004,7 +1004,7 @@ open class ImageUtils(protected val context: Context) {
 		val blueMatch = abs(actualBlue - rgb[2]) <= tolerance
 
 		if (debugMode) {
-			MessageLog.printToLog("[DEBUG] Color check at ($x, $y): Expected RGB(${rgb[0]}, ${rgb[1]}, ${rgb[2]}), Actual RGB($actualRed, $actualGreen, $actualBlue), Match: ${redMatch && greenMatch && blueMatch}", tag)
+			MessageLog.d(tag, "Color check at ($x, $y): Expected RGB(${rgb[0]}, ${rgb[1]}, ${rgb[2]}), Actual RGB($actualRed, $actualGreen, $actualBlue), Match: ${redMatch && greenMatch && blueMatch}")
 		}
 
 		return redMatch && greenMatch && blueMatch
@@ -1022,7 +1022,7 @@ open class ImageUtils(protected val context: Context) {
 	 */
 	protected fun checkTesseractInitialization(traineddataFileName: String): Boolean {
 		return if (!this::tessBaseAPI.isInitialized || !this::tessDigitsBaseAPI.isInitialized) {
-			MessageLog.printToLog("[WARNING] Check failed for Tesseract initialization. Starting process to initialize Tesseract now...", tag)
+			MessageLog.w(tag, "Check failed for Tesseract initialization. Starting process to initialize Tesseract now...")
 			initTesseract(traineddataFileName)
 		} else {
 			true
@@ -1040,7 +1040,7 @@ open class ImageUtils(protected val context: Context) {
 		tessDigitsBaseAPI = TessBaseAPI()
 
 		val fileName = if (!traineddataFileName.contains(".traineddata")) {
-			MessageLog.printToLog("[TESSERACT] Developer did not include the correct extension when initializing Tesseract so appending it for them.", tag)
+			MessageLog.d(tag, "[TESSERACT] Developer did not include the correct extension when initializing Tesseract so appending it for them.")
 			"$traineddataFileName.traineddata"
 		} else traineddataFileName
 
@@ -1054,19 +1054,19 @@ open class ImageUtils(protected val context: Context) {
 
 			// If the folder was not able to be created for some reason, log the error and stop the MediaProjection Service.
 			if (!successfullyCreated) {
-				MessageLog.printToLog("[ERROR] Failed to create the /files/tesseract/tessdata/ folder.", tag, isError = true)
+				MessageLog.e(tag, "Failed to create the /files/tesseract/tessdata/ folder.")
 			} else {
-				MessageLog.printToLog("[TESSERACT] Successfully created /files/tesseract/tessdata/ folder.", tag)
+				MessageLog.d(tag, "[TESSERACT] Successfully created /files/tesseract/tessdata/ folder.")
 			}
 		} else {
-			MessageLog.printToLog("[TESSERACT] /files/tesseract/tessdata/ folder already exists.", tag)
+			MessageLog.d(tag, "[TESSERACT] /files/tesseract/tessdata/ folder already exists.")
 		}
 
 		// If the .traineddata is not in the application folder, copy it there from assets.
 		val trainedDataPath = File(tempDirectory, fileName)
 		if (!trainedDataPath.exists()) {
 			try {
-				MessageLog.printToLog("[TESSERACT] Starting Tesseract initialization.", tag)
+				MessageLog.d(tag, "[TESSERACT] Starting Tesseract initialization.")
 				val input = context.assets.open(fileName)
 
 				val output = FileOutputStream("$tempDirectory/$fileName")
@@ -1082,9 +1082,9 @@ open class ImageUtils(protected val context: Context) {
 				output.flush()
 				output.close()
 
-				MessageLog.printToLog("[TESSERACT] Finished Tesseract initialization.", tag)
+				MessageLog.d(tag, "[TESSERACT] Finished Tesseract initialization.")
 			} catch (e: IOException) {
-				MessageLog.printToLog("[ERROR] Tesseract I/O Exception: ${e.stackTraceToString()}", tag, isError = true)
+				MessageLog.e(tag, "Tesseract I/O Exception: ${e.stackTraceToString()}")
 			}
 		}
 
@@ -1126,7 +1126,7 @@ open class ImageUtils(protected val context: Context) {
 			tesseractSourceBitmap
 		}
 
-		if (debugMode) MessageLog.printToLog("\n[TEXT_DETECTION] Starting text detection now...", tag)
+		if (debugMode) MessageLog.d(tag, "\n[TEXT_DETECTION] Starting text detection now...")
 
 		// Crop and convert the source bitmap to Mat.
 		val (x, y, width, height) = cropRegion
@@ -1169,14 +1169,14 @@ open class ImageUtils(protected val context: Context) {
 			.addOnSuccessListener { text ->
 				if (text.textBlocks.isNotEmpty()) {
 					for (block in text.textBlocks) {
-						MessageLog.printToLog("[TEXT_DETECTION] Detected text with Google ML Kit: ${block.text}", tag)
+						MessageLog.d(tag, "[TEXT_DETECTION] Detected text with Google ML Kit: ${block.text}")
 						result = block.text
 					}
 				}
 				latch.countDown()
 			}
 			.addOnFailureListener {
-				MessageLog.printToLog("[ERROR] Failed to do text detection via Google's ML Kit. Falling back to Tesseract.", tag, isError = true)
+				MessageLog.e(tag, "Failed to do text detection via Google's ML Kit. Falling back to Tesseract.")
 				mlKitFailed = true
 				latch.countDown()
 			}
@@ -1185,7 +1185,7 @@ open class ImageUtils(protected val context: Context) {
 		try {
 			latch.await(5, TimeUnit.SECONDS)
 		} catch (_: InterruptedException) {
-			MessageLog.printToLog("[ERROR] Google ML Kit operation timed out.", tag, isError = true)
+			MessageLog.e(tag, "Google ML Kit operation timed out.")
 		}
 
 		// Fallback to Tesseract if ML Kit failed or didn't find result.
@@ -1204,9 +1204,9 @@ open class ImageUtils(protected val context: Context) {
 				} else {
 					tessBaseAPI.utF8Text
 				}
-				MessageLog.printToLog("[TEXT_DETECTION] Detected text with Tesseract: $result", tag)
+				MessageLog.d(tag, "[TEXT_DETECTION] Detected text with Tesseract: $result")
 			} catch (e: Exception) {
-				MessageLog.printToLog("[ERROR] Cannot perform OCR: ${e.stackTraceToString()}", tag, isError = true)
+				MessageLog.e(tag, "Cannot perform OCR: ${e.stackTraceToString()}")
 			}
 
 			// Stop Tesseract operations.
@@ -1225,7 +1225,7 @@ open class ImageUtils(protected val context: Context) {
 			tessDigitsBaseAPI.clear()
 		}
 
-		if (debugMode) MessageLog.printToLog("[TEXT_DETECTION] Text detection finished in ${System.currentTimeMillis() - startTime}ms.", tag)
+		if (debugMode) MessageLog.d(tag, "[TEXT_DETECTION] Text detection finished in ${System.currentTimeMillis() - startTime}ms.")
 
 		cvImage.release()
 		grayImage.release()

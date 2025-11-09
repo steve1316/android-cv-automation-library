@@ -88,7 +88,7 @@ class ScreenStateReceiver : BroadcastReceiver() {
 					Log.d(tag, "Bot thread interrupted.")
 					
 					// Log the reason for stopping.
-					MessageLog.printToLog("Bot stopped: Device went to sleep.", tag)
+					MessageLog.i(tag, "Bot stopped: Device went to sleep.")
 					
 					// Update notification with the reason.
 					val contentIntent: Intent = context.packageManager.getLaunchIntentForPackage(context.packageName)!!
