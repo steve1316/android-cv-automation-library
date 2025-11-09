@@ -2,6 +2,7 @@ package com.steve1316.automation_library.utils
 
 import net.ricecode.similarity.JaroWinklerStrategy
 import net.ricecode.similarity.StringSimilarityServiceImpl
+import kotlin.math.abs
 
 /**
  * Helper functions for parsing text.
@@ -30,7 +31,7 @@ object TextUtils {
             for (j in (i + 1)..query.length) {
                 val sub = query.substring(i, j)
                 // Only compare if the substring length is reasonably close to the source length.
-                if (Math.abs(sub.length - source.length) <= 2) {
+                if (abs(sub.length - source.length) <= 2) {
                     val score = service.score(sub, source)
                     if (score > bestScore && score >= threshold) {
                         bestScore = score
@@ -57,7 +58,7 @@ object TextUtils {
         }
 
         var result: String? = null
-        var bestScore: Double = 0.0
+        var bestScore = 0.0
         val service = StringSimilarityServiceImpl(JaroWinklerStrategy())
         choices.forEach { choice ->
             val score = service.score(query, choice)
