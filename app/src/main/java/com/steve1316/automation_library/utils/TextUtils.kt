@@ -11,7 +11,7 @@ object TextUtils {
     *
     * @param query The string to attempt to find inside the source string.
     * @param source The string within which we will search for the query string.
-    * @param threshold Threshold value for filtering the result.
+    * @param threshold Threshold value for filtering the result by similarity.
     *
     * @return The result string if score > threshold, else NULL.
     */
@@ -46,7 +46,7 @@ object TextUtils {
     *
     * @param query The string to find in the list.
     * @param choices The list of strings to search.
-    * @param threshold Threshold value for filtering the result.
+    * @param threshold Threshold value for filtering the result by similarity.
     *
     * @return The result string if score > threshold, else NULL.
     */
