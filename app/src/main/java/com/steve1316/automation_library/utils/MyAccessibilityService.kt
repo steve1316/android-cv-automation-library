@@ -184,12 +184,17 @@ class MyAccessibilityService : AccessibilityService() {
 	 *
 	 * @param x The original x location for the tap gesture.
 	 * @param y The original y location for the tap gesture.
-	 * @param imageName The name of the image to acquire its dimensions for tap location randomization. Defaults to an empty string which will then default to a region of 25x25.
+	 * @param imageName The name of the image to acquire its dimensions for tap location randomization. Defaults to null which will then default to a region of 25x25.
 	 * @return Pair of integers that represent the newly randomized tap location.
 	 */
-	private fun randomizeTapLocation(x: Double, y: Double, imageName: String = ""): Pair<Int, Int> {
+	private fun randomizeTapLocation(x: Double, y: Double, imageName: String? = null): Pair<Int, Int> {
 		// Get the Bitmap from the template image file inside the specified folder.
 		val templateBitmap: Bitmap
+
+        if (imageName == null) {
+            return Pair(25, 25)
+        }
+
 		val dimensions: Pair<Int, Int> = try {
 			val newImageSubFolder = if (SharedData.templateSubfolderPathName.last() != '/') {
 				"${SharedData.templateSubfolderPathName}/"
@@ -242,12 +247,12 @@ class MyAccessibilityService : AccessibilityService() {
 	 *
 	 * @param x The x coordinate of the point.
 	 * @param y The y coordinate of the point.
-	 * @param imageName The file name of the image to tap in order to extract its dimensions to perform tap randomization calculations. Defaults to an empty string.
+	 * @param imageName The file name of the image to tap in order to extract its dimensions to perform tap randomization calculations. Defaults to null.
 	 * @param longPress Whether or not to long press. Defaults to false.
 	 * @param taps How many taps to execute. Defaults to a single tap.
 	 * @return True if the tap gesture was executed successfully. False otherwise.
 	 */
-	fun tap(x: Double, y: Double, imageName: String = "", longPress: Boolean = false, taps: Int = 1): Boolean {
+	fun tap(x: Double, y: Double, imageName: String? = null, longPress: Boolean = false, taps: Int = 1): Boolean {
 		// Check if gestures are allowed and thread is not interrupted.
 		Log.d(tag, "isGestureAllowed=$isGestureAllowed, threadInterrupted=${Thread.currentThread().isInterrupted}")
 		val allowed = isGestureAllowed // Make sure we read the latest value.
@@ -265,7 +270,8 @@ class MyAccessibilityService : AccessibilityService() {
 
 		// Randomize the tapping location.
 		val (newX, newY) = randomizeTapLocation(x, y, imageName)
-		Log.d(tag, "Tapping $newX, $newY for image: ${imageName.uppercase()}")
+        val imageNameString: String = imageName ?: "NULL"
+		Log.d(tag, "Tapping $newX, $newY for image: $imageNameString")
 
 		// Construct the tap gesture.
 		val tapPath = Path().apply {
