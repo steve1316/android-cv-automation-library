@@ -15,27 +15,41 @@ This library serves to consolidate all necessary code to facilitate a backend fo
 
 To test changes to this library locally without publishing to JitPack:
 
-1. **Publish to Maven Local** (from the library root directory):
+1. **Change the versionName to include "-SNAPSHOT"** in `gradle/libs.versions.toml`:
+   - Update `app-versionName` to include "-SNAPSHOT" (e.g., `app-versionName = "2.1.1-SNAPSHOT"`).
+   - This will ensure gradle will always pull the latest version from the local repository for your app to use.
+
+2. **Publish to Maven Local** (from the library root directory):
 ```bash
 ./gradlew publishToMavenLocal
 # Or on Windows:
 gradlew.bat publishToMavenLocal
+# You can then confirm the local publication by looking in your local Maven repository (typically located at `C:\Users\username\.m2\repository`).
+# If we continue with the example from above, there will be 5 files generated in the 2.1.1-SNAPSHOT folder:
+# - automation_library-2.1.1-SNAPSHOT.aar
+# - automation_library-2.1.1-SNAPSHOT.module
+# - automation_library-2.1.1-SNAPSHOT.pom
+# - automation_library-2.1.1-SNAPSHOT-sources.jar
+# - maven-metadata-local.xml
 ```
 
-2. **In your app's `build.gradle.kts`, add Maven Local repository**:
+3. **In your app's `build.gradle.kts`, add Maven Local repository**:
 ```kotlin
 allprojects {
     repositories {
         maven { url "https://www.jitpack.io" }
-        mavenLocal() // Add this line for local testing.
+        mavenLocal() // Add this line for local testing. Make sure it is above every other repository.
+        google()
+        mavenCentral()
     }
 }
 ```
 
-3. **Keep the same dependency in your app**:
+4. **Add the dependency to your app**:
 ```kotlin
 dependencies {
-    implementation("com.github.steve1316:automation_library:Tag")
+    // If you are using a local version, you will need to use the -SNAPSHOT version here.
+    implementation("com.github.steve1316:automation_library:2.1.1-SNAPSHOT")
 }
 ```
 
