@@ -7,6 +7,7 @@ import android.graphics.Color
 import android.util.Log
 import androidx.core.graphics.createBitmap
 import androidx.core.graphics.scale
+import com.google.mlkit.common.MlKitException
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import com.googlecode.tesseract.android.TessBaseAPI
@@ -1175,8 +1176,21 @@ open class ImageUtils(protected val context: Context) {
 				}
 				latch.countDown()
 			}
-			.addOnFailureListener {
-				MessageLog.e(tag, "Failed to do text detection via Google's ML Kit. Falling back to Tesseract.")
+			.addOnFailureListener { exception ->
+				var errorMessage = "Failed to do text detection via Google's ML Kit."
+				
+				// Check if it's an MlKitException and extract error code information.
+				if (exception is MlKitException) {
+					val errorCode = exception.errorCode
+					errorMessage += " Error code: $errorCode."
+				}
+				
+				// Include the exception message if available.
+				exception.message?.let {
+					errorMessage += " Exception message: $it"
+				}
+				
+				MessageLog.e(tag, "$errorMessage Falling back to Tesseract.")
 				mlKitFailed = true
 				latch.countDown()
 			}
@@ -1192,8 +1206,10 @@ open class ImageUtils(protected val context: Context) {
 		if (mlKitFailed || result == "") {
 			// Use either the default Tesseract client or the Tesseract client geared towards digits to set the image to scan.
 			if (detectDigitsOnly) {
+                MessageLog.d(tag, "[TEXT_DETECTION] Setting Tesseract image for digits only.")
 				tessDigitsBaseAPI.setImage(resultBitmap)
 			} else {
+				MessageLog.d(tag, "[TEXT_DETECTION] Setting Tesseract image for text detection.")
 				tessBaseAPI.setImage(resultBitmap)
 			}
 
