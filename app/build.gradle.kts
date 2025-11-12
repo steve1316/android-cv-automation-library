@@ -11,8 +11,13 @@ android {
 	compileSdk = libs.versions.app.compileSdk.get().toInt()
 	buildToolsVersion = libs.versions.app.buildToolsVersion.get()
 
+	buildFeatures {
+		buildConfig = true
+	}
+
 	defaultConfig {
 		minSdk = libs.versions.app.minSdk.get().toInt()
+		buildConfigField("String", "VERSION_NAME", "\"${libs.versions.app.versionName.get()}\"")
 		consumerProguardFiles("consumer-rules.pro")
 	}
 

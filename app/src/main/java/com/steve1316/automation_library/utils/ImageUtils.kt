@@ -7,6 +7,7 @@ import android.graphics.Color
 import android.util.Log
 import androidx.core.graphics.createBitmap
 import androidx.core.graphics.scale
+import com.google.mlkit.common.MlKitException
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import com.googlecode.tesseract.android.TessBaseAPI
@@ -1106,6 +1107,7 @@ open class ImageUtils(protected val context: Context) {
 	 * Perform OCR text detection along with some image manipulation via thresholding to make the cropped screenshot black and white using OpenCV.
 	 *
 	 * @param cropRegion The region consisting of (x, y, width, height) of the cropped region.
+     * @param grayscale Performs grayscale conversion on the cropped region. Defaults to true.
 	 * @param thresh Performs thresholding on the cropped region. Defaults to true.
 	 * @param threshold Minimum threshold value. Defaults to 130.
 	 * @param thresholdMax Maximum threshold value. Defaults to 255.
@@ -1115,15 +1117,24 @@ open class ImageUtils(protected val context: Context) {
 	 * @return The detected String in the cropped region.
 	 */
 	open fun findText(
-		cropRegion: IntArray, thresh: Boolean = true, threshold: Double = 130.0, thresholdMax: Double = 255.0, reuseSourceBitmap: Boolean = false, detectDigitsOnly: Boolean = false
+		cropRegion: IntArray, grayscale: Boolean = true, thresh: Boolean = true, threshold: Double = 130.0, thresholdMax: Double = 255.0, reuseSourceBitmap: Boolean = false, detectDigitsOnly: Boolean = false
 	): String {
 		val startTime: Long = System.currentTimeMillis()
 		var result = "empty!"
 
 		val sourceBitmap: Bitmap = if (!reuseSourceBitmap) {
-			getSourceBitmap()
+			val newBitmap = getSourceBitmap()
+			tesseractSourceBitmap = newBitmap
+			newBitmap
 		} else {
-			tesseractSourceBitmap
+			if (!this::tesseractSourceBitmap.isInitialized) {
+				MessageLog.w(tag, "[TEXT_DETECTION] tesseractSourceBitmap was not initialized. Getting a new source bitmap instead.")
+				val newBitmap = getSourceBitmap()
+				tesseractSourceBitmap = newBitmap
+				newBitmap
+			} else {
+				tesseractSourceBitmap
+			}
 		}
 
 		if (debugMode) MessageLog.d(tag, "\n[TEXT_DETECTION] Starting text detection now...")
@@ -1141,13 +1152,18 @@ open class ImageUtils(protected val context: Context) {
 
 		// Grayscale the cropped image.
 		val grayImage = Mat()
-		Imgproc.cvtColor(cvImage, grayImage, Imgproc.COLOR_RGB2GRAY)
+		val imageForProcessing: Mat = if (grayscale) {
+			Imgproc.cvtColor(cvImage, grayImage, Imgproc.COLOR_RGB2GRAY)
+			grayImage
+		} else {
+			cvImage
+		}
 
 		// Thresh the grayscale cropped image to make black and white.
 		val resultBitmap: Bitmap = croppedBitmap
 		if (thresh) {
 			val bwImage = Mat()
-			Imgproc.threshold(grayImage, bwImage, threshold, thresholdMax, Imgproc.THRESH_BINARY)
+			Imgproc.threshold(imageForProcessing, bwImage, threshold, thresholdMax, Imgproc.THRESH_BINARY)
 			Utils.matToBitmap(bwImage, resultBitmap)
 
 			// Save the cropped image before converting it to black and white in order to troubleshoot issues related to differing device sizes and cropping.
@@ -1175,8 +1191,21 @@ open class ImageUtils(protected val context: Context) {
 				}
 				latch.countDown()
 			}
-			.addOnFailureListener {
-				MessageLog.e(tag, "Failed to do text detection via Google's ML Kit. Falling back to Tesseract.")
+			.addOnFailureListener { exception ->
+				var errorMessage = "Failed to do text detection via Google's ML Kit."
+				
+				// Check if it's an MlKitException and extract error code information.
+				if (exception is MlKitException) {
+					val errorCode = exception.errorCode
+					errorMessage += " Error code: $errorCode."
+				}
+				
+				// Include the exception message if available.
+				exception.message?.let {
+					errorMessage += " Exception message: $it"
+				}
+				
+				MessageLog.e(tag, "$errorMessage Falling back to Tesseract.")
 				mlKitFailed = true
 				latch.countDown()
 			}
@@ -1192,8 +1221,10 @@ open class ImageUtils(protected val context: Context) {
 		if (mlKitFailed || result == "") {
 			// Use either the default Tesseract client or the Tesseract client geared towards digits to set the image to scan.
 			if (detectDigitsOnly) {
+                MessageLog.d(tag, "[TEXT_DETECTION] Setting Tesseract image for digits only.")
 				tessDigitsBaseAPI.setImage(resultBitmap)
 			} else {
+				MessageLog.d(tag, "[TEXT_DETECTION] Setting Tesseract image for text detection.")
 				tessBaseAPI.setImage(resultBitmap)
 			}
 
@@ -1228,7 +1259,9 @@ open class ImageUtils(protected val context: Context) {
 		if (debugMode) MessageLog.d(tag, "[TEXT_DETECTION] Text detection finished in ${System.currentTimeMillis() - startTime}ms.")
 
 		cvImage.release()
-		grayImage.release()
+		if (grayscale) {
+			grayImage.release()
+		}
 
 		return result
 	}

@@ -6,7 +6,7 @@ app-buildToolsVersion = "36.0.0"
 app-minSdk = "24"
 #noinspection ExpiredTargetSdkVersion
 app-targetSdk = "30"
-app-versionName = "2.1.1"
+app-versionName = "2.1.2"
 app-jvm-toolchain = "17"
 
 
@@ -19,7 +19,7 @@ tesseract4android = "4.9.0"
 stringSimiliarity = "1.0.0"
 klaxon = "5.6"
 eventbus = "3.3.1"
-mlkitTextRecognition = "19.0.1"
+mlkitTextRecognition = "16.0.1"
 opencvAndroidSdk = "4.12.0"
 appUpdater = "2.7"
 twitter4jCore = "4.1.2"
@@ -34,7 +34,7 @@ tesseract4android = { group = "cz.adaptech.tesseract4android", name = "tesseract
 stringSimilarity = { group = "net.ricecode", name = "string-similarity", version.ref = "stringSimiliarity"}
 klaxon = { group = "com.beust", name = "klaxon", version.ref = "klaxon" }
 eventbus = { group = "org.greenrobot", name = "eventbus", version.ref = "eventbus" }
-mlkitTextRecognition = { group = "com.google.android.gms", name = "play-services-mlkit-text-recognition", version.ref = "mlkitTextRecognition"}
+mlkitTextRecognition = { group = "com.google.mlkit", name = "text-recognition", version.ref = "mlkitTextRecognition"}
 appUpdater = { group = "com.github.javiersantos", name = "AppUpdater", version.ref = "appUpdater" }
 opencv-android-sdk = { module = "com.github.steve1316:opencv-android-sdk", version.ref = "opencvAndroidSdk" }
 twitter4j-core = { module = "org.twitter4j:twitter4j-core", version.ref = "twitter4jCore" }
