@@ -1107,6 +1107,7 @@ open class ImageUtils(protected val context: Context) {
 	 * Perform OCR text detection along with some image manipulation via thresholding to make the cropped screenshot black and white using OpenCV.
 	 *
 	 * @param cropRegion The region consisting of (x, y, width, height) of the cropped region.
+     * @param grayscale Performs grayscale conversion on the cropped region. Defaults to true.
 	 * @param thresh Performs thresholding on the cropped region. Defaults to true.
 	 * @param threshold Minimum threshold value. Defaults to 130.
 	 * @param thresholdMax Maximum threshold value. Defaults to 255.
@@ -1116,7 +1117,7 @@ open class ImageUtils(protected val context: Context) {
 	 * @return The detected String in the cropped region.
 	 */
 	open fun findText(
-		cropRegion: IntArray, thresh: Boolean = true, threshold: Double = 130.0, thresholdMax: Double = 255.0, reuseSourceBitmap: Boolean = false, detectDigitsOnly: Boolean = false
+		cropRegion: IntArray, grayscale: Boolean = true, thresh: Boolean = true, threshold: Double = 130.0, thresholdMax: Double = 255.0, reuseSourceBitmap: Boolean = false, detectDigitsOnly: Boolean = false
 	): String {
 		val startTime: Long = System.currentTimeMillis()
 		var result = "empty!"
@@ -1142,13 +1143,18 @@ open class ImageUtils(protected val context: Context) {
 
 		// Grayscale the cropped image.
 		val grayImage = Mat()
-		Imgproc.cvtColor(cvImage, grayImage, Imgproc.COLOR_RGB2GRAY)
+		val imageForProcessing: Mat = if (grayscale) {
+			Imgproc.cvtColor(cvImage, grayImage, Imgproc.COLOR_RGB2GRAY)
+			grayImage
+		} else {
+			cvImage
+		}
 
 		// Thresh the grayscale cropped image to make black and white.
 		val resultBitmap: Bitmap = croppedBitmap
 		if (thresh) {
 			val bwImage = Mat()
-			Imgproc.threshold(grayImage, bwImage, threshold, thresholdMax, Imgproc.THRESH_BINARY)
+			Imgproc.threshold(imageForProcessing, bwImage, threshold, thresholdMax, Imgproc.THRESH_BINARY)
 			Utils.matToBitmap(bwImage, resultBitmap)
 
 			// Save the cropped image before converting it to black and white in order to troubleshoot issues related to differing device sizes and cropping.
@@ -1244,7 +1250,9 @@ open class ImageUtils(protected val context: Context) {
 		if (debugMode) MessageLog.d(tag, "[TEXT_DETECTION] Text detection finished in ${System.currentTimeMillis() - startTime}ms.")
 
 		cvImage.release()
-		grayImage.release()
+		if (grayscale) {
+			grayImage.release()
+		}
 
 		return result
 	}
