@@ -18,6 +18,7 @@ import android.view.animation.Animation
 import android.view.animation.AnimationUtils
 import android.widget.ImageButton
 import android.widget.Toast
+import com.steve1316.automation_library.BuildConfig
 import com.steve1316.automation_library.R
 import com.steve1316.automation_library.data.SharedData
 import com.steve1316.automation_library.events.ExceptionEvent
@@ -142,6 +143,7 @@ class BotService : Service() {
 
 						if (!isRunning) {
 							Log.d(tag, "BotService for $appName is now running.")
+                            Log.d(tag, "Automation Library version: ${BuildConfig.VERSION_NAME}")
 							Toast.makeText(myContext, "BotService for $appName is now running.", Toast.LENGTH_SHORT).show()
 							overlayButton.setImageResource(R.drawable.stop_circle_filled)
 							isRunning = true
