@@ -1111,13 +1111,14 @@ open class ImageUtils(protected val context: Context) {
 	 * @param thresh Performs thresholding on the cropped region. Defaults to true.
 	 * @param threshold Minimum threshold value. Defaults to 130.
 	 * @param thresholdMax Maximum threshold value. Defaults to 255.
+     * @param scale Scale factor to apply to the processed image. Values > 1 scale up, values < 1 scale down. Clamped to >= 0. Defaults to 1.0.
 	 * @param reuseSourceBitmap Reuses the source bitmap from the previous call. Defaults to false which will retake the source bitmap.
 	 * @param detectDigitsOnly True if detection should focus on digits only.
 	 *
 	 * @return The detected String in the cropped region.
 	 */
 	open fun findText(
-		cropRegion: IntArray, grayscale: Boolean = true, thresh: Boolean = true, threshold: Double = 130.0, thresholdMax: Double = 255.0, reuseSourceBitmap: Boolean = false, detectDigitsOnly: Boolean = false
+		cropRegion: IntArray, grayscale: Boolean = true, thresh: Boolean = true, threshold: Double = 130.0, thresholdMax: Double = 255.0, scale: Double = 1.0, reuseSourceBitmap: Boolean = false, detectDigitsOnly: Boolean = false
 	): String {
 		val startTime: Long = System.currentTimeMillis()
 		var result = "empty!"
@@ -1160,22 +1161,31 @@ open class ImageUtils(protected val context: Context) {
 		}
 
 		// Thresh the grayscale cropped image to make black and white.
-		val resultBitmap: Bitmap = croppedBitmap
-		if (thresh) {
+		val processedMat: Mat = if (thresh) {
 			val bwImage = Mat()
 			Imgproc.threshold(imageForProcessing, bwImage, threshold, thresholdMax, Imgproc.THRESH_BINARY)
-			Utils.matToBitmap(bwImage, resultBitmap)
 
 			// Save the cropped image before converting it to black and white in order to troubleshoot issues related to differing device sizes and cropping.
 			if (debugMode) {
 				Imgcodecs.imwrite("$matchFilePath/ocr_${mostRecent}_threshold.png", bwImage)
 			}
+			bwImage
+		} else {
+			imageForProcessing
+		}
+
+		// Convert the processed Mat to Bitmap and apply scaling if needed.
+		val clampedScale = max(0.0, scale)
+		val baseBitmap = createBitmap(processedMat.cols(), processedMat.rows())
+		Utils.matToBitmap(processedMat, baseBitmap)
+		val finalBitmap = if (clampedScale != 1.0) {
+			baseBitmap.scale((baseBitmap.width * clampedScale).toInt(), (baseBitmap.height * clampedScale).toInt())
+		} else {
+			baseBitmap
 		}
 
 		// Create a InputImage object for Google's ML OCR.
-		val googleInputImageBitmap = createBitmap(cvImage.cols(), cvImage.rows())
-		Utils.matToBitmap(cvImage, googleInputImageBitmap)
-		val inputImage: InputImage = InputImage.fromBitmap(googleInputImageBitmap, 0)
+		val inputImage: InputImage = InputImage.fromBitmap(finalBitmap, 0)
 
 		// Use CountDownLatch to make the async operation synchronous.
 		val latch = CountDownLatch(1)
@@ -1222,10 +1232,10 @@ open class ImageUtils(protected val context: Context) {
 			// Use either the default Tesseract client or the Tesseract client geared towards digits to set the image to scan.
 			if (detectDigitsOnly) {
                 MessageLog.d(tag, "[TEXT_DETECTION] Setting Tesseract image for digits only.")
-				tessDigitsBaseAPI.setImage(resultBitmap)
+				tessDigitsBaseAPI.setImage(finalBitmap)
 			} else {
 				MessageLog.d(tag, "[TEXT_DETECTION] Setting Tesseract image for text detection.")
-				tessBaseAPI.setImage(resultBitmap)
+				tessBaseAPI.setImage(finalBitmap)
 			}
 
 			try {
@@ -1259,9 +1269,8 @@ open class ImageUtils(protected val context: Context) {
 		if (debugMode) MessageLog.d(tag, "[TEXT_DETECTION] Text detection finished in ${System.currentTimeMillis() - startTime}ms.")
 
 		cvImage.release()
-		if (grayscale) {
-			grayImage.release()
-		}
+        grayImage.release()
+        processedMat.release()
 
 		return result
 	}
