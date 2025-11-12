@@ -1112,37 +1112,24 @@ open class ImageUtils(protected val context: Context) {
 	 * @param threshold Minimum threshold value. Defaults to 130.
 	 * @param thresholdMax Maximum threshold value. Defaults to 255.
      * @param scale Scale factor to apply to the processed image. Values > 1 scale up, values < 1 scale down. Clamped to >= 0. Defaults to 1.0.
-	 * @param reuseSourceBitmap Reuses the source bitmap from the previous call. Defaults to false which will retake the source bitmap.
+	 * @param sourceBitmap The source bitmap to use for OCR. If null, a new source bitmap will be obtained. Defaults to null.
 	 * @param detectDigitsOnly True if detection should focus on digits only.
 	 *
 	 * @return The detected String in the cropped region.
 	 */
 	open fun findText(
-		cropRegion: IntArray, grayscale: Boolean = true, thresh: Boolean = true, threshold: Double = 130.0, thresholdMax: Double = 255.0, scale: Double = 1.0, reuseSourceBitmap: Boolean = false, detectDigitsOnly: Boolean = false
+		cropRegion: IntArray, grayscale: Boolean = true, thresh: Boolean = true, threshold: Double = 130.0, thresholdMax: Double = 255.0, scale: Double = 1.0, sourceBitmap: Bitmap? = null, detectDigitsOnly: Boolean = false
 	): String {
 		val startTime: Long = System.currentTimeMillis()
 		var result = "empty!"
 
-		val sourceBitmap: Bitmap = if (!reuseSourceBitmap) {
-			val newBitmap = getSourceBitmap()
-			tesseractSourceBitmap = newBitmap
-			newBitmap
-		} else {
-			if (!this::tesseractSourceBitmap.isInitialized) {
-				MessageLog.w(tag, "[TEXT_DETECTION] tesseractSourceBitmap was not initialized. Getting a new source bitmap instead.")
-				val newBitmap = getSourceBitmap()
-				tesseractSourceBitmap = newBitmap
-				newBitmap
-			} else {
-				tesseractSourceBitmap
-			}
-		}
+		val finalSourceBitmap: Bitmap = sourceBitmap ?: getSourceBitmap()
 
 		if (debugMode) MessageLog.d(tag, "\n[TEXT_DETECTION] Starting text detection now...")
 
 		// Crop and convert the source bitmap to Mat.
 		val (x, y, width, height) = cropRegion
-		val croppedBitmap = Bitmap.createBitmap(sourceBitmap, x, y, width, height)
+		val croppedBitmap = Bitmap.createBitmap(finalSourceBitmap, x, y, width, height)
 		val cvImage = Mat()
 		Utils.bitmapToMat(croppedBitmap, cvImage)
 
