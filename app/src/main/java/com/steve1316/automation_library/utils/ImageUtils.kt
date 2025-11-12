@@ -1123,9 +1123,18 @@ open class ImageUtils(protected val context: Context) {
 		var result = "empty!"
 
 		val sourceBitmap: Bitmap = if (!reuseSourceBitmap) {
-			getSourceBitmap()
+			val newBitmap = getSourceBitmap()
+			tesseractSourceBitmap = newBitmap
+			newBitmap
 		} else {
-			tesseractSourceBitmap
+			if (!this::tesseractSourceBitmap.isInitialized) {
+				MessageLog.w(tag, "[TEXT_DETECTION] tesseractSourceBitmap was not initialized. Getting a new source bitmap instead.")
+				val newBitmap = getSourceBitmap()
+				tesseractSourceBitmap = newBitmap
+				newBitmap
+			} else {
+				tesseractSourceBitmap
+			}
 		}
 
 		if (debugMode) MessageLog.d(tag, "\n[TEXT_DETECTION] Starting text detection now...")
