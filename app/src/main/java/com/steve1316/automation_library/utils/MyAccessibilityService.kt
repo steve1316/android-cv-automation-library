@@ -284,12 +284,13 @@ class MyAccessibilityService : AccessibilityService() {
 		}
 
 		val gesture: GestureDescription = if (longPress) {
-			// Long press for 1000ms.
+			// Long press for the specified duration.
+			val durationMs = (pressDuration * 1000).toLong()
 			GestureDescription.Builder().apply {
 				if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-					addStroke(GestureDescription.StrokeDescription(tapPath, 0, 1000, true))
+					addStroke(GestureDescription.StrokeDescription(tapPath, 0, durationMs, false))
 				} else {
-					addStroke(GestureDescription.StrokeDescription(tapPath, 0, 1000))
+					addStroke(GestureDescription.StrokeDescription(tapPath, 0, durationMs))
 				}
 			}.build()
 		} else {
@@ -299,6 +300,14 @@ class MyAccessibilityService : AccessibilityService() {
 		}
 
 		val dispatchResult = dispatchGesture(gesture, null, null)
+		
+		// Wait for the gesture to complete. For long press, wait for the full duration.
+		if (longPress) {
+			pressDuration.wait()
+		} else {
+			0.25.wait()
+		}
+		
 		var tries = taps - 1
 
 		while (tries > 0) {
@@ -310,7 +319,13 @@ class MyAccessibilityService : AccessibilityService() {
 			}
 
 			dispatchGesture(gesture, null, null)
-			0.25.wait()
+			
+			// Wait for the gesture to complete. For long press, wait for the full duration.
+			if (longPress) {
+				pressDuration.wait()
+			} else {
+				0.25.wait()
+			}
 
 			tries -= 1
 		}
