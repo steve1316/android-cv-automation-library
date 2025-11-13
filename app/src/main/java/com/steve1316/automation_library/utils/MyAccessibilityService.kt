@@ -249,10 +249,11 @@ class MyAccessibilityService : AccessibilityService() {
 	 * @param y The y coordinate of the point.
 	 * @param imageName The file name of the image to tap in order to extract its dimensions to perform tap randomization calculations. Defaults to null.
 	 * @param longPress Whether or not to long press. Defaults to false.
+	 * @param pressDuration How long to hold the press in seconds. Only used when longPress is true. Defaults to 1.0 seconds.
 	 * @param taps How many taps to execute. Defaults to a single tap.
 	 * @return True if the tap gesture was executed successfully. False otherwise.
 	 */
-	fun tap(x: Double, y: Double, imageName: String? = null, longPress: Boolean = false, taps: Int = 1): Boolean {
+	fun tap(x: Double, y: Double, imageName: String? = null, longPress: Boolean = false, pressDuration: Double = 1.0, taps: Int = 1): Boolean {
 		// Check if gestures are allowed and thread is not interrupted.
 		Log.d(tag, "isGestureAllowed=$isGestureAllowed, threadInterrupted=${Thread.currentThread().isInterrupted}")
 		val allowed = isGestureAllowed // Make sure we read the latest value.
