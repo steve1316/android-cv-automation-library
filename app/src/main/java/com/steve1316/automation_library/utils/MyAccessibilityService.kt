@@ -192,7 +192,7 @@ class MyAccessibilityService : AccessibilityService() {
 		val templateBitmap: Bitmap
 
         if (imageName == null) {
-            return Pair(25, 25)
+            return Pair(x.toInt(), y.toInt())
         }
 
 		val dimensions: Pair<Int, Int> = try {
@@ -249,10 +249,11 @@ class MyAccessibilityService : AccessibilityService() {
 	 * @param y The y coordinate of the point.
 	 * @param imageName The file name of the image to tap in order to extract its dimensions to perform tap randomization calculations. Defaults to null.
 	 * @param longPress Whether or not to long press. Defaults to false.
+	 * @param pressDuration How long to hold the press in seconds. Only used when longPress is true. Defaults to 1.0 seconds.
 	 * @param taps How many taps to execute. Defaults to a single tap.
 	 * @return True if the tap gesture was executed successfully. False otherwise.
 	 */
-	fun tap(x: Double, y: Double, imageName: String? = null, longPress: Boolean = false, taps: Int = 1): Boolean {
+	fun tap(x: Double, y: Double, imageName: String? = null, longPress: Boolean = false, pressDuration: Double = 1.0, taps: Int = 1): Boolean {
 		// Check if gestures are allowed and thread is not interrupted.
 		Log.d(tag, "isGestureAllowed=$isGestureAllowed, threadInterrupted=${Thread.currentThread().isInterrupted}")
 		val allowed = isGestureAllowed // Make sure we read the latest value.
@@ -271,7 +272,11 @@ class MyAccessibilityService : AccessibilityService() {
 		// Randomize the tapping location.
 		val (newX, newY) = randomizeTapLocation(x, y, imageName)
         val imageNameString: String = imageName ?: "NULL"
-		Log.d(tag, "Tapping $newX, $newY for image: $imageNameString")
+		if (longPress) {
+			Log.d(tag, "Long pressing $newX, $newY for image: $imageNameString for $pressDuration seconds")
+		} else {
+			Log.d(tag, "Tapping $newX, $newY for image: $imageNameString")
+		}
 
 		// Construct the tap gesture.
 		val tapPath = Path().apply {
@@ -279,12 +284,13 @@ class MyAccessibilityService : AccessibilityService() {
 		}
 
 		val gesture: GestureDescription = if (longPress) {
-			// Long press for 1000ms.
+			// Long press for the specified duration.
+			val durationMs = (pressDuration * 1000).toLong()
 			GestureDescription.Builder().apply {
 				if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-					addStroke(GestureDescription.StrokeDescription(tapPath, 0, 1000, true))
+					addStroke(GestureDescription.StrokeDescription(tapPath, 0, durationMs, false))
 				} else {
-					addStroke(GestureDescription.StrokeDescription(tapPath, 0, 1000))
+					addStroke(GestureDescription.StrokeDescription(tapPath, 0, durationMs))
 				}
 			}.build()
 		} else {
@@ -294,6 +300,14 @@ class MyAccessibilityService : AccessibilityService() {
 		}
 
 		val dispatchResult = dispatchGesture(gesture, null, null)
+		
+		// Wait for the gesture to complete. For long press, wait for the full duration.
+		if (longPress) {
+			pressDuration.wait()
+		} else {
+			0.25.wait()
+		}
+		
 		var tries = taps - 1
 
 		while (tries > 0) {
@@ -305,7 +319,13 @@ class MyAccessibilityService : AccessibilityService() {
 			}
 
 			dispatchGesture(gesture, null, null)
-			0.25.wait()
+			
+			// Wait for the gesture to complete. For long press, wait for the full duration.
+			if (longPress) {
+				pressDuration.wait()
+			} else {
+				0.25.wait()
+			}
 
 			tries -= 1
 		}
