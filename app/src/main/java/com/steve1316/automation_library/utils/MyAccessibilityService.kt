@@ -272,7 +272,11 @@ class MyAccessibilityService : AccessibilityService() {
 		// Randomize the tapping location.
 		val (newX, newY) = randomizeTapLocation(x, y, imageName)
         val imageNameString: String = imageName ?: "NULL"
-		Log.d(tag, "Tapping $newX, $newY for image: $imageNameString")
+		if (longPress) {
+			Log.d(tag, "Long pressing $newX, $newY for image: $imageNameString for $pressDuration seconds")
+		} else {
+			Log.d(tag, "Tapping $newX, $newY for image: $imageNameString")
+		}
 
 		// Construct the tap gesture.
 		val tapPath = Path().apply {
