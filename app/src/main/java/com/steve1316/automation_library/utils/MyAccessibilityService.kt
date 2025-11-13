@@ -192,7 +192,7 @@ class MyAccessibilityService : AccessibilityService() {
 		val templateBitmap: Bitmap
 
         if (imageName == null) {
-            return Pair(25, 25)
+            return Pair(x.toInt(), y.toInt())
         }
 
 		val dimensions: Pair<Int, Int> = try {
