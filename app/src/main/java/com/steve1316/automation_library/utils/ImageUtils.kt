@@ -95,7 +95,6 @@ open class ImageUtils(protected val context: Context) {
 	protected val googleTextRecognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
 	protected lateinit var tessBaseAPI: TessBaseAPI
 	protected lateinit var tessDigitsBaseAPI: TessBaseAPI
-	protected var mostRecent = 1
 	protected lateinit var tesseractSourceBitmap: Bitmap
 
 	init {
@@ -1251,11 +1250,6 @@ open class ImageUtils(protected val context: Context) {
 				tessDigitsBaseAPI.stop()
 			} else {
 				tessBaseAPI.stop()
-			}
-
-			mostRecent++
-			if (mostRecent > 10) {
-				mostRecent = 1
 			}
 
 			tessBaseAPI.clear()
