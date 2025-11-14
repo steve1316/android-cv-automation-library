@@ -691,6 +691,36 @@ open class ImageUtils(protected val context: Context) {
 	}
 
 	/**
+	 * Loads only the template bitmap from assets without any side effects (no screenshots, no swipes).
+	 * Useful for getting template dimensions for calculating object positions.
+	 *
+	 * @param templateName File name of the template image.
+	 * @param templatePath Path name of the subfolder in /assets/ that the template image is in. Defaults to the default template subfolder path name.
+	 * @return The template Bitmap, or null if loading fails.
+	 */
+	open fun getTemplateBitmap(templateName: String, templatePath: String = SharedData.templateSubfolderPathName): Bitmap? {
+		val newTemplatePath = if (templatePath.last() != '/') {
+			"$templatePath/"
+		} else {
+			templatePath
+		}
+
+		// Get the Bitmap from the template image file inside the specified folder.
+		val assetFilePath = "${newTemplatePath}$templateName.${SharedData.templateImageExt}"
+		var templateBitmap: Bitmap? = null
+		context.assets?.open(assetFilePath).use { inputStream ->
+			// Get the Bitmap from the template image file.
+			templateBitmap = BitmapFactory.decodeStream(inputStream)
+		}
+
+		if (templateBitmap == null) {
+			Log.e(tag, "The template Bitmap is null.")
+		}
+
+		return templateBitmap
+	}
+
+	/**
 	 * Safely creates a bitmap with bounds checking to prevent IllegalArgumentException.
 	 * Clamps individual dimensions to source bitmap bounds if they exceed limits.
 	 *
