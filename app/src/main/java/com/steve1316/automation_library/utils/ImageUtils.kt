@@ -685,10 +685,7 @@ open class ImageUtils(protected val context: Context) {
 		return if (templateBitmap != null) {
 			Pair(sourceBitmap, templateBitmap)
 		} else {
-			if (debugMode) {
-				MessageLog.e(tag, "The template Bitmap is null.")
-			}
-
+			Log.e(tag, "The template Bitmap is null.")
 			Pair(sourceBitmap, null)
 		}
 	}
@@ -714,13 +711,13 @@ open class ImageUtils(protected val context: Context) {
 
 		// Check if any dimensions were clamped and log a warning.
 		if (x != clampedX || y != clampedY || width != clampedWidth || height != clampedHeight) {
-			MessageLog.w(tag, "Clamped bounds for $context: original(x=$x, y=$y, width=$width, height=$height) -> clamped(x=$clampedX, y=$clampedY, width=$clampedWidth, height=$clampedHeight), sourceBitmap=${sourceBitmap.width}x${sourceBitmap.height}")
+			Log.w(tag, "Clamped bounds for $context: original(x=$x, y=$y, width=$width, height=$height) -> clamped(x=$clampedX, y=$clampedY, width=$clampedWidth, height=$clampedHeight), sourceBitmap=${sourceBitmap.width}x${sourceBitmap.height}")
 		}
 
 		// Final validation to ensure the clamped dimensions are still valid.
 		if (clampedX < 0 || clampedY < 0 || clampedWidth <= 0 || clampedHeight <= 0 ||
 			clampedX + clampedWidth > sourceBitmap.width || clampedY + clampedHeight > sourceBitmap.height) {
-			MessageLog.e(tag, "Invalid bounds for $context after clamping: x=$clampedX, y=$clampedY, width=$clampedWidth, height=$clampedHeight, sourceBitmap=${sourceBitmap.width}x${sourceBitmap.height}")
+			Log.e(tag, "Invalid bounds for $context after clamping: x=$clampedX, y=$clampedY, width=$clampedWidth, height=$clampedHeight, sourceBitmap=${sourceBitmap.width}x${sourceBitmap.height}")
 			return null
 		}
 
@@ -776,9 +773,7 @@ open class ImageUtils(protected val context: Context) {
 	 * @return A new Bitmap.
 	 */
 	protected open fun getBitmapFromURL(url: URL): Bitmap {
-		if (debugMode) {
-			MessageLog.d(tag, "\nStarting process to create a Bitmap from the image url: $url")
-		}
+		Log.d(tag, "\nStarting process to create a Bitmap from the image url: $url")
 
 		// Open up a HTTP connection to the URL.
 		val connection: HttpURLConnection = url.openConnection() as HttpURLConnection
