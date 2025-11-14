@@ -95,7 +95,6 @@ open class ImageUtils(protected val context: Context) {
 	protected val googleTextRecognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
 	protected lateinit var tessBaseAPI: TessBaseAPI
 	protected lateinit var tessDigitsBaseAPI: TessBaseAPI
-	protected var mostRecent = 1
 	protected lateinit var tesseractSourceBitmap: Bitmap
 
 	init {
@@ -1114,11 +1113,20 @@ open class ImageUtils(protected val context: Context) {
      * @param scale Scale factor to apply to the processed image. Values > 1 scale up, values < 1 scale down. Clamped to >= 0. Defaults to 1.0.
 	 * @param sourceBitmap The source bitmap to use for OCR. If null, a new source bitmap will be obtained. Defaults to null.
 	 * @param detectDigitsOnly True if detection should focus on digits only.
+     * @param debugName Optional name for debug image saving. Defaults to "ocr".
 	 *
 	 * @return The detected String in the cropped region.
 	 */
 	open fun findText(
-		cropRegion: IntArray, grayscale: Boolean = true, thresh: Boolean = true, threshold: Double = 130.0, thresholdMax: Double = 255.0, scale: Double = 1.0, sourceBitmap: Bitmap? = null, detectDigitsOnly: Boolean = false
+		cropRegion: IntArray,
+        grayscale: Boolean = true,
+        thresh: Boolean = true,
+        threshold: Double = 130.0,
+        thresholdMax: Double = 255.0,
+        scale: Double = 1.0,
+        sourceBitmap: Bitmap? = null,
+        detectDigitsOnly: Boolean = false,
+        debugName: String = "ocr"
 	): String {
 		val startTime: Long = System.currentTimeMillis()
 		var result = "empty!"
@@ -1135,7 +1143,7 @@ open class ImageUtils(protected val context: Context) {
 
 		// Save the cropped image before converting it to black and white in order to troubleshoot issues related to differing device sizes and cropping.
 		if (debugMode) {
-			Imgcodecs.imwrite("$matchFilePath/ocr_${mostRecent}_cropped.png", cvImage)
+			Imgcodecs.imwrite("$matchFilePath/debug_$debugName_cropped.png", cvImage)
 		}
 
 		// Grayscale the cropped image.
@@ -1154,7 +1162,7 @@ open class ImageUtils(protected val context: Context) {
 
 			// Save the cropped image before converting it to black and white in order to troubleshoot issues related to differing device sizes and cropping.
 			if (debugMode) {
-				Imgcodecs.imwrite("$matchFilePath/ocr_${mostRecent}_threshold.png", bwImage)
+				Imgcodecs.imwrite("$matchFilePath/debug_$debugName_threshold.png", bwImage)
 			}
 			bwImage
 		} else {
@@ -1242,11 +1250,6 @@ open class ImageUtils(protected val context: Context) {
 				tessDigitsBaseAPI.stop()
 			} else {
 				tessBaseAPI.stop()
-			}
-
-			mostRecent++
-			if (mostRecent > 10) {
-				mostRecent = 1
 			}
 
 			tessBaseAPI.clear()
