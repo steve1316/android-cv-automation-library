@@ -685,12 +685,39 @@ open class ImageUtils(protected val context: Context) {
 		return if (templateBitmap != null) {
 			Pair(sourceBitmap, templateBitmap)
 		} else {
-			if (debugMode) {
-				MessageLog.e(tag, "The template Bitmap is null.")
-			}
-
+			Log.e(tag, "The template Bitmap is null.")
 			Pair(sourceBitmap, null)
 		}
+	}
+
+	/**
+	 * Loads only the template bitmap from assets without any side effects (no screenshots, no swipes).
+	 * Useful for getting template dimensions for calculating object positions.
+	 *
+	 * @param templateName File name of the template image.
+	 * @param templatePath Path name of the subfolder in /assets/ that the template image is in. Defaults to the default template subfolder path name.
+	 * @return The template Bitmap, or null if loading fails.
+	 */
+	open fun getTemplateBitmap(templateName: String, templatePath: String = SharedData.templateSubfolderPathName): Bitmap? {
+		val newTemplatePath = if (templatePath.last() != '/') {
+			"$templatePath/"
+		} else {
+			templatePath
+		}
+
+		// Get the Bitmap from the template image file inside the specified folder.
+		val assetFilePath = "${newTemplatePath}$templateName.${SharedData.templateImageExt}"
+		var templateBitmap: Bitmap? = null
+		context.assets?.open(assetFilePath).use { inputStream ->
+			// Get the Bitmap from the template image file.
+			templateBitmap = BitmapFactory.decodeStream(inputStream)
+		}
+
+		if (templateBitmap == null) {
+			Log.e(tag, "The template Bitmap is null.")
+		}
+
+		return templateBitmap
 	}
 
 	/**
@@ -714,13 +741,13 @@ open class ImageUtils(protected val context: Context) {
 
 		// Check if any dimensions were clamped and log a warning.
 		if (x != clampedX || y != clampedY || width != clampedWidth || height != clampedHeight) {
-			MessageLog.w(tag, "Clamped bounds for $context: original(x=$x, y=$y, width=$width, height=$height) -> clamped(x=$clampedX, y=$clampedY, width=$clampedWidth, height=$clampedHeight), sourceBitmap=${sourceBitmap.width}x${sourceBitmap.height}")
+			Log.w(tag, "Clamped bounds for $context: original(x=$x, y=$y, width=$width, height=$height) -> clamped(x=$clampedX, y=$clampedY, width=$clampedWidth, height=$clampedHeight), sourceBitmap=${sourceBitmap.width}x${sourceBitmap.height}")
 		}
 
 		// Final validation to ensure the clamped dimensions are still valid.
 		if (clampedX < 0 || clampedY < 0 || clampedWidth <= 0 || clampedHeight <= 0 ||
 			clampedX + clampedWidth > sourceBitmap.width || clampedY + clampedHeight > sourceBitmap.height) {
-			MessageLog.e(tag, "Invalid bounds for $context after clamping: x=$clampedX, y=$clampedY, width=$clampedWidth, height=$clampedHeight, sourceBitmap=${sourceBitmap.width}x${sourceBitmap.height}")
+			Log.e(tag, "Invalid bounds for $context after clamping: x=$clampedX, y=$clampedY, width=$clampedWidth, height=$clampedHeight, sourceBitmap=${sourceBitmap.width}x${sourceBitmap.height}")
 			return null
 		}
 
@@ -745,17 +772,23 @@ open class ImageUtils(protected val context: Context) {
 	}
 
 	/**
-	 * Acquire the Bitmap for only the source screenshot.
+	 * Acquire the Bitmap for only the source screenshot. Note that it will keep swiping the screen a bit to generate a new image for ImageReader to grab.
 	 *
-	 * @return Bitmap of the source screenshot.
+	 * @param skipSwipe If true, attempts to get a screenshot once without swiping and returns null if unavailable. If false, loops until a screenshot is acquired. Defaults to false.
+	 * @return Bitmap of the source screenshot, or null if skipSwipe is true and no screenshot is available.
 	 */
-	protected open fun getSourceBitmap(): Bitmap {
+	protected open fun getSourceBitmap(skipSwipe: Boolean = false): Bitmap? {
 		while (true) {
 			val bitmap = MediaProjectionService.takeScreenshotNow(saveImage = debugMode)
 			if (bitmap != null) {
 				return bitmap
 			} else {
-				if (debugMode) MessageLog.w(tag, "Source bitmap is null. Moving the screen a bit and waiting a second before trying again.")
+				if (skipSwipe) {
+					Log.w(tag, "Source bitmap is null and skipSwipe is enabled. Returning null.")
+					return null
+				}
+
+				Log.w(tag, "Source bitmap is null. Moving the screen a bit and waiting a second before trying again.")
 
 				MyAccessibilityService.getInstance().swipe(oldXSwipe, oldYSwipe, newXSwipe, newYSwipe, durationSwipe)
 				MyAccessibilityService.getInstance().swipe(oldXSwipe, newYSwipe, newXSwipe, oldYSwipe, durationSwipe)
@@ -770,9 +803,7 @@ open class ImageUtils(protected val context: Context) {
 	 * @return A new Bitmap.
 	 */
 	protected open fun getBitmapFromURL(url: URL): Bitmap {
-		if (debugMode) {
-			MessageLog.d(tag, "\nStarting process to create a Bitmap from the image url: $url")
-		}
+		Log.d(tag, "\nStarting process to create a Bitmap from the image url: $url")
 
 		// Open up a HTTP connection to the URL.
 		val connection: HttpURLConnection = url.openConnection() as HttpURLConnection
@@ -982,7 +1013,7 @@ open class ImageUtils(protected val context: Context) {
 	 * @return True if the color at the coordinates matches the expected RGB values within tolerance, false otherwise.
 	 */
 	open fun checkColorAtCoordinates(x: Int, y: Int, rgb: IntArray, tolerance: Int = 0): Boolean {
-		val sourceBitmap = getSourceBitmap()
+		val sourceBitmap = getSourceBitmap() ?: return false
 
 		// Check if coordinates are within bounds.
 		if (x < 0 || y < 0 || x >= sourceBitmap.width || y >= sourceBitmap.height) {
@@ -1131,7 +1162,7 @@ open class ImageUtils(protected val context: Context) {
 		val startTime: Long = System.currentTimeMillis()
 		var result = "empty!"
 
-		val finalSourceBitmap: Bitmap = sourceBitmap ?: getSourceBitmap()
+		val finalSourceBitmap: Bitmap = sourceBitmap ?: getSourceBitmap() ?: return result
 
 		if (debugMode) MessageLog.d(tag, "\n[TEXT_DETECTION] Starting text detection now...")
 
