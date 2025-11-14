@@ -776,7 +776,7 @@ open class ImageUtils(protected val context: Context) {
 	 *
 	 * @return Bitmap of the source screenshot.
 	 */
-	protected open fun getSourceBitmap(): Bitmap {
+	open fun getSourceBitmap(): Bitmap {
 		while (true) {
 			val bitmap = MediaProjectionService.takeScreenshotNow(saveImage = debugMode)
 			if (bitmap != null) {
