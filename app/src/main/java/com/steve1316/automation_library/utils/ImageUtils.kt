@@ -1143,7 +1143,7 @@ open class ImageUtils(protected val context: Context) {
 
 		// Save the cropped image before converting it to black and white in order to troubleshoot issues related to differing device sizes and cropping.
 		if (debugMode) {
-			Imgcodecs.imwrite("$matchFilePath/debug_$debugName_cropped.png", cvImage)
+			Imgcodecs.imwrite("$matchFilePath/debug_${debugName}_cropped.png", cvImage)
 		}
 
 		// Grayscale the cropped image.
@@ -1162,7 +1162,7 @@ open class ImageUtils(protected val context: Context) {
 
 			// Save the cropped image before converting it to black and white in order to troubleshoot issues related to differing device sizes and cropping.
 			if (debugMode) {
-				Imgcodecs.imwrite("$matchFilePath/debug_$debugName_threshold.png", bwImage)
+				Imgcodecs.imwrite("$matchFilePath/debug_${debugName}_threshold.png", bwImage)
 			}
 			bwImage
 		} else {
