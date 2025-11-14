@@ -263,22 +263,6 @@ class MediaProjectionService : Service() {
 				}
 			} else {
 				Log.d(tag, "/files/temp/ folder already exists.")
-
-				// Clear all contents from the /files/temp/ folder to start fresh.
-				val files = newTempDirectory.listFiles()
-				if (files != null) {
-					var deletedCount = 0
-					for (file in files) {
-						if (file.delete()) {
-							deletedCount++
-						} else {
-							Log.w(tag, "Failed to delete file: ${file.name}")
-						}
-					}
-					if (deletedCount > 0) {
-						Log.d(tag, "Cleared $deletedCount file(s) from /files/temp/ folder.")
-					}
-				}
 			}
 		}
 
