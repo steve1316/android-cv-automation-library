@@ -745,17 +745,23 @@ open class ImageUtils(protected val context: Context) {
 	}
 
 	/**
-	 * Acquire the Bitmap for only the source screenshot.
+	 * Acquire the Bitmap for only the source screenshot. Note that it will keep swiping the screen a bit to generate a new image for ImageReader to grab.
 	 *
-	 * @return Bitmap of the source screenshot.
+	 * @param skipSwipe If true, attempts to get a screenshot once without swiping and returns null if unavailable. If false, loops until a screenshot is acquired. Defaults to false.
+	 * @return Bitmap of the source screenshot, or null if skipSwipe is true and no screenshot is available.
 	 */
-	protected open fun getSourceBitmap(): Bitmap {
+	protected open fun getSourceBitmap(skipSwipe: Boolean = false): Bitmap? {
 		while (true) {
 			val bitmap = MediaProjectionService.takeScreenshotNow(saveImage = debugMode)
 			if (bitmap != null) {
 				return bitmap
 			} else {
-				if (debugMode) MessageLog.w(tag, "Source bitmap is null. Moving the screen a bit and waiting a second before trying again.")
+				if (skipSwipe) {
+					Log.w(tag, "Source bitmap is null and skipSwipe is enabled. Returning null.")
+					return null
+				}
+
+				Log.w(tag, "Source bitmap is null. Moving the screen a bit and waiting a second before trying again.")
 
 				MyAccessibilityService.getInstance().swipe(oldXSwipe, oldYSwipe, newXSwipe, newYSwipe, durationSwipe)
 				MyAccessibilityService.getInstance().swipe(oldXSwipe, newYSwipe, newXSwipe, oldYSwipe, durationSwipe)
@@ -982,7 +988,7 @@ open class ImageUtils(protected val context: Context) {
 	 * @return True if the color at the coordinates matches the expected RGB values within tolerance, false otherwise.
 	 */
 	open fun checkColorAtCoordinates(x: Int, y: Int, rgb: IntArray, tolerance: Int = 0): Boolean {
-		val sourceBitmap = getSourceBitmap()
+		val sourceBitmap = getSourceBitmap() ?: return false
 
 		// Check if coordinates are within bounds.
 		if (x < 0 || y < 0 || x >= sourceBitmap.width || y >= sourceBitmap.height) {
@@ -1131,7 +1137,7 @@ open class ImageUtils(protected val context: Context) {
 		val startTime: Long = System.currentTimeMillis()
 		var result = "empty!"
 
-		val finalSourceBitmap: Bitmap = sourceBitmap ?: getSourceBitmap()
+		val finalSourceBitmap: Bitmap = sourceBitmap ?: getSourceBitmap() ?: return result
 
 		if (debugMode) MessageLog.d(tag, "\n[TEXT_DETECTION] Starting text detection now...")
 
