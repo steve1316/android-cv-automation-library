@@ -1153,7 +1153,7 @@ open class ImageUtils(protected val context: Context) {
         debugName: String = "ocr"
 	): String {
 		val startTime: Long = System.currentTimeMillis()
-		var result = "empty!"
+		var result = ""
 
 		val finalSourceBitmap: Bitmap = sourceBitmap ?: getSourceBitmap()
 
