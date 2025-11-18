@@ -256,9 +256,8 @@ class MyAccessibilityService : AccessibilityService() {
 	fun tap(x: Double, y: Double, imageName: String? = null, longPress: Boolean = false, pressDuration: Double = 1.0, taps: Int = 1): Boolean {
 		// Check if gestures are allowed and thread is not interrupted.
 		Log.d(tag, "isGestureAllowed=$isGestureAllowed, threadInterrupted=${Thread.currentThread().isInterrupted}")
-		val allowed = isGestureAllowed // Make sure we read the latest value.
-		if (!allowed) {
-			Log.w(tag, "Gestures disabled. Skipping tap at ($x, $y). isGestureAllowed=$allowed")
+		if (!isGestureAllowed) {
+			Log.w(tag, "Gestures disabled. Skipping tap at ($x, $y). isGestureAllowed=false")
 			Log.w(tag, "Thread: ${Thread.currentThread().name}, Interrupted: ${Thread.currentThread().isInterrupted}")
 			return false
 		}
@@ -344,9 +343,8 @@ class MyAccessibilityService : AccessibilityService() {
 	 */
 	fun scroll(scrollDown: Boolean = true, duration: Long = 500L): Boolean {
 		// Check if gestures are allowed and thread is not interrupted.
-		val allowed = isGestureAllowed
-		if (!allowed) {
-			Log.w(tag, "Gestures disabled. Skipping scroll. isGestureAllowed=$allowed")
+		if (!isGestureAllowed) {
+			Log.w(tag, "Gestures disabled. Skipping scroll. isGestureAllowed=false")
 			return false
 		}
 		
@@ -429,9 +427,8 @@ class MyAccessibilityService : AccessibilityService() {
 	 */
 	fun swipe(oldX: Float, oldY: Float, newX: Float, newY: Float, duration: Long = 500L): Boolean {
 		// Check if gestures are allowed and thread is not interrupted.
-		val allowed = isGestureAllowed
-		if (!allowed) {
-			Log.w(tag, "Gestures disabled. Skipping swipe. isGestureAllowed=$allowed")
+		if (!isGestureAllowed) {
+			Log.w(tag, "Gestures disabled. Skipping swipe. isGestureAllowed=false")
 			return false
 		}
 		
