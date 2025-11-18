@@ -95,7 +95,6 @@ open class ImageUtils(protected val context: Context) {
 	protected val googleTextRecognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
 	protected lateinit var tessBaseAPI: TessBaseAPI
 	protected lateinit var tessDigitsBaseAPI: TessBaseAPI
-	protected lateinit var tesseractSourceBitmap: Bitmap
 
 	init {
 		// Set the file path to the /files/temp/ folder.
