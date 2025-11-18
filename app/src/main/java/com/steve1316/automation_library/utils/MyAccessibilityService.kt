@@ -304,7 +304,7 @@ class MyAccessibilityService : AccessibilityService() {
 		if (longPress) {
 			pressDuration.wait()
 		} else {
-			0.25.wait()
+			0.10.wait()
 		}
 		
 		var tries = taps - 1
@@ -323,13 +323,11 @@ class MyAccessibilityService : AccessibilityService() {
 			if (longPress) {
 				pressDuration.wait()
 			} else {
-				0.25.wait()
+				0.10.wait()
 			}
 
 			tries -= 1
 		}
-
-		0.25.wait()
 
 		return dispatchResult
 	}
