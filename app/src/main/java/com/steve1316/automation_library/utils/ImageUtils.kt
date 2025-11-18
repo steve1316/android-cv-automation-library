@@ -95,7 +95,6 @@ open class ImageUtils(protected val context: Context) {
 	protected val googleTextRecognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
 	protected lateinit var tessBaseAPI: TessBaseAPI
 	protected lateinit var tessDigitsBaseAPI: TessBaseAPI
-	protected lateinit var tesseractSourceBitmap: Bitmap
 
 	init {
 		// Set the file path to the /files/temp/ folder.
@@ -664,7 +663,6 @@ open class ImageUtils(protected val context: Context) {
 			if (sourceBitmap == null) {
 				MyAccessibilityService.getInstance().swipe(oldXSwipe, oldYSwipe, newXSwipe, newYSwipe, durationSwipe)
 				MyAccessibilityService.getInstance().swipe(oldXSwipe, newYSwipe, newXSwipe, oldYSwipe, durationSwipe)
-				wait(0.25)
 			}
 		}
 
@@ -785,7 +783,6 @@ open class ImageUtils(protected val context: Context) {
 				Log.w(tag, "Source bitmap is null. Moving the screen a bit and waiting a second before trying again.")
 				MyAccessibilityService.getInstance().swipe(oldXSwipe, oldYSwipe, newXSwipe, newYSwipe, durationSwipe)
 				MyAccessibilityService.getInstance().swipe(oldXSwipe, newYSwipe, newXSwipe, oldYSwipe, durationSwipe)
-				wait(0.25)
 			}
 		}
 	}
@@ -860,10 +857,6 @@ open class ImageUtils(protected val context: Context) {
 						}
 
 						break
-					}
-
-					if (!testMode) {
-						wait(0.1)
 					}
 				} else {
 					if (testMode) {
