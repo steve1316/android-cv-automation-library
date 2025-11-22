@@ -13,6 +13,7 @@ import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.*
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.Comparator
 
 enum class LogLevel {
@@ -32,7 +33,7 @@ class MessageLog {
 
 		private var messageLog = arrayListOf<String>()
 		private var startTimeMs: Long = 0L
-		private var saveCheck: Boolean = false
+		private var saveCheck = AtomicBoolean(false)
 
 		// Add synchronization object for thread-safe access
 		private val messageLogLock = Object()
@@ -40,9 +41,13 @@ class MessageLog {
 		/** Resets state to prepare for the next run. */
 		fun reset() {
 			startTimeMs = 0L
-			saveCheck = false
 			clearLog()
 			Log.d(TAG, "MessageLog has now been reset and is ready for the next run.")
+		}
+		
+		/** Resets the save check flag to allow saving again. Should only be called when starting a new run. */
+		fun resetSaveCheck() {
+			saveCheck.set(false)
 		}
 
 		/**
@@ -51,7 +56,8 @@ class MessageLog {
 		 * @param context The context for the application.
 		 */
 		fun saveLogToFile(context: Context) {
-			if (!saveCheck) {
+            // Atomically check if saveCheck is false and set it to true. If it was already true, another thread is already saving.
+			if (!saveCheck.compareAndSet(false, true)) {
 				cleanLogsFolder(context)
 
 				Log.d(TAG, "Now beginning process to save current Message Log to internal storage...")
@@ -92,7 +98,6 @@ class MessageLog {
 						}
 					}
 				}
-				saveCheck = true
 			}
 		}
 

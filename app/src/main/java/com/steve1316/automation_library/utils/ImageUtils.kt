@@ -1150,7 +1150,7 @@ open class ImageUtils(protected val context: Context) {
 
 		val finalSourceBitmap: Bitmap = sourceBitmap ?: getSourceBitmap()
 
-		if (debugMode) MessageLog.d(tag, "\n[TEXT_DETECTION] Starting text detection now...")
+		if (debugMode) Log.d(tag, "\n[TEXT_DETECTION] Starting text detection now...")
 
 		// Crop and convert the source bitmap to Mat.
 		val (x, y, width, height) = cropRegion
@@ -1202,20 +1202,18 @@ open class ImageUtils(protected val context: Context) {
 		// Use CountDownLatch to make the async operation synchronous.
 		val latch = CountDownLatch(1)
 		var mlKitFailed = false
+		var errorMessage = "Google ML Kit failed to do text detection."
 
 		googleTextRecognizer.process(inputImage)
 			.addOnSuccessListener { text ->
 				if (text.textBlocks.isNotEmpty()) {
 					for (block in text.textBlocks) {
-						MessageLog.d(tag, "[TEXT_DETECTION] Detected text with Google ML Kit: ${block.text}")
 						result = block.text
 					}
 				}
 				latch.countDown()
 			}
 			.addOnFailureListener { exception ->
-				var errorMessage = "Failed to do text detection via Google's ML Kit."
-				
 				// Check if it's an MlKitException and extract error code information.
 				if (exception is MlKitException) {
 					val errorCode = exception.errorCode
@@ -1227,7 +1225,6 @@ open class ImageUtils(protected val context: Context) {
 					errorMessage += " Exception message: $it"
 				}
 				
-				MessageLog.e(tag, "$errorMessage Falling back to Tesseract.")
 				mlKitFailed = true
 				latch.countDown()
 			}
@@ -1236,17 +1233,18 @@ open class ImageUtils(protected val context: Context) {
 		try {
 			latch.await(5, TimeUnit.SECONDS)
 		} catch (_: InterruptedException) {
-			MessageLog.e(tag, "Google ML Kit operation timed out.")
+			Log.e(tag, "Google ML Kit operation timed out.")
 		}
 
 		// Fallback to Tesseract if ML Kit failed or didn't find result.
 		if (mlKitFailed || result == "") {
 			// Use either the default Tesseract client or the Tesseract client geared towards digits to set the image to scan.
+            Log.e(tag, errorMessage)
 			if (detectDigitsOnly) {
-                MessageLog.d(tag, "[TEXT_DETECTION] Setting Tesseract image for digits only.")
+                Log.d(tag, "[TEXT_DETECTION] Setting Tesseract image for digits only.")
 				tessDigitsBaseAPI.setImage(finalBitmap)
 			} else {
-				MessageLog.d(tag, "[TEXT_DETECTION] Setting Tesseract image for text detection.")
+				Log.d(tag, "[TEXT_DETECTION] Setting Tesseract image for text detection.")
 				tessBaseAPI.setImage(finalBitmap)
 			}
 
@@ -1257,9 +1255,9 @@ open class ImageUtils(protected val context: Context) {
 				} else {
 					tessBaseAPI.utF8Text
 				}
-				MessageLog.d(tag, "[TEXT_DETECTION] Detected text with Tesseract: $result")
+				Log.d(tag, "[TEXT_DETECTION] Detected text with Tesseract: $result")
 			} catch (e: Exception) {
-				MessageLog.e(tag, "Cannot perform OCR: ${e.stackTraceToString()}")
+				Log.e(tag, "Cannot perform OCR: ${e.stackTraceToString()}")
 			}
 
 			// Stop Tesseract operations.
@@ -1271,9 +1269,11 @@ open class ImageUtils(protected val context: Context) {
 
 			tessBaseAPI.clear()
 			tessDigitsBaseAPI.clear()
-		}
+		} else {
+            Log.d(tag, "[TEXT_DETECTION] Detected text with Google ML Kit: $result")
+        }
 
-		if (debugMode) MessageLog.d(tag, "[TEXT_DETECTION] Text detection finished in ${System.currentTimeMillis() - startTime}ms.")
+		if (debugMode) Log.d(tag, "[TEXT_DETECTION] Text detection finished in ${System.currentTimeMillis() - startTime}ms.")
 
 		cvImage.release()
         grayImage.release()
