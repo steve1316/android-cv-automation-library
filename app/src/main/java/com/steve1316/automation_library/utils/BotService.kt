@@ -181,6 +181,9 @@ class BotService : Service() {
 								}
 							}
 
+							// Reset the save check flag for the MessageLog.
+							MessageLog.resetSaveCheck()
+
 							thread = thread {
 								try {
 									// Clear the message log in the frontend.
