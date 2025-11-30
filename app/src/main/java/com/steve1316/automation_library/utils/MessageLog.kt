@@ -56,45 +56,47 @@ class MessageLog {
 		 * @param context The context for the application.
 		 */
 		fun saveLogToFile(context: Context) {
-            // Atomically check if saveCheck is false and set it to true. If it was already true, another thread is already saving.
+			// Atomically check if saveCheck is false and set it to true. If it was already true, another thread is already saving, so return early.
 			if (!saveCheck.compareAndSet(false, true)) {
-				cleanLogsFolder(context)
+				return
+			}
+			
+			cleanLogsFolder(context)
 
-				Log.d(TAG, "Now beginning process to save current Message Log to internal storage...")
+			Log.d(TAG, "Now beginning process to save current Message Log to internal storage...")
 
-				// Generate file path to save to. All message logs will be saved to the /logs/ folder inside internal storage. Create the /logs/ folder if needed.
-				val path = File(context.getExternalFilesDir(null)?.absolutePath + "/logs/")
-				if (!path.exists()) {
-					path.mkdirs()
-				}
+			// Generate file path to save to. All message logs will be saved to the /logs/ folder inside internal storage. Create the /logs/ folder if needed.
+			val path = File(context.getExternalFilesDir(null)?.absolutePath + "/logs/")
+			if (!path.exists()) {
+				path.mkdirs()
+			}
 
-				// Generate the file name.
-				val fileName = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-					val current = LocalDateTime.now()
-					val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH_mm_ss")
-					"log @ ${current.format(formatter)}"
-				} else {
-					val current = SimpleDateFormat("HH_mm_ss", Locale.getDefault()).format(Date())
-					val sdf = SimpleDateFormat("yyyy-MM-dd HH_mm_ss", Locale.getDefault())
-					"log @ ${current.format(sdf)}"
-				}
+			// Generate the file name.
+			val fileName = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+				val current = LocalDateTime.now()
+				val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH_mm_ss")
+				"log @ ${current.format(formatter)}"
+			} else {
+				val current = SimpleDateFormat("HH_mm_ss", Locale.getDefault()).format(Date())
+				val sdf = SimpleDateFormat("yyyy-MM-dd HH_mm_ss", Locale.getDefault())
+				"log @ ${current.format(sdf)}"
+			}
 
-				// Now save the Message Log to the new text file.
-				val logString: String = "Now saving Message Log to file named \"$fileName\" at $path"
-				Log.d(TAG, logString)
-				messageLog.add("\n$logString")
-				EventBus.getDefault().post(JSEvent("MessageLog", "\n$logString"))
+			// Now save the Message Log to the new text file.
+			val logString: String = "Now saving Message Log to file named \"$fileName\" at $path"
+			Log.d(TAG, logString)
+			messageLog.add("\n$logString")
+			EventBus.getDefault().post(JSEvent("MessageLog", "\n$logString"))
 
-				val file = File(path, "$fileName.txt")
+			val file = File(path, "$fileName.txt")
 
-				if (!file.exists()) {
-					file.createNewFile()
-					file.printWriter().use { out ->
-						// Synchronize access to messageLog to prevent concurrent modification
-						synchronized(messageLogLock) {
-							messageLog.forEach {
-								out.println(it)
-							}
+			if (!file.exists()) {
+				file.createNewFile()
+				file.printWriter().use { out ->
+					// Synchronize access to messageLog to prevent concurrent modification
+					synchronized(messageLogLock) {
+						messageLog.forEach {
+							out.println(it)
 						}
 					}
 				}
