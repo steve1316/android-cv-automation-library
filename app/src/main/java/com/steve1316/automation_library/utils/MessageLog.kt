@@ -39,6 +39,10 @@ class MessageLog {
 		// Add synchronization object for thread-safe access
 		private val messageLogLock = Object()
 
+        // Allow for temporary disabling of the output to the frontend.
+        // Particularly useful when parallel processing is being done to avoid log messages being sent to the frontend out of order.
+        var disableOutput = false
+
 		/** Resets state to prepare for the next run. */
 		fun reset() {
 			startTimeMs = 0L
@@ -252,7 +256,9 @@ class MessageLog {
 			messageLog.add(msg)
 
 			// Send the message to the frontend.
-			EventBus.getDefault().post(JSEvent("MessageLog", msg))
+			if (!disableOutput) {
+				EventBus.getDefault().post(JSEvent("MessageLog", msg))
+			}
 		}
 
 		/**
