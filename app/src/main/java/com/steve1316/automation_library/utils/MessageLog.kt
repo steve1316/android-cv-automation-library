@@ -10,6 +10,7 @@ import org.greenrobot.eventbus.EventBus
 import java.io.File
 import java.text.SimpleDateFormat
 import java.time.LocalDateTime
+import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.util.*
 import java.util.concurrent.TimeUnit
@@ -37,6 +38,10 @@ class MessageLog {
 
 		// Add synchronization object for thread-safe access
 		private val messageLogLock = Object()
+
+        // Allow for temporary disabling of the output to the frontend.
+        // Particularly useful when parallel processing is being done to avoid log messages being sent to the frontend out of order.
+        var disableOutput = false
 
 		/** Resets state to prepare for the next run. */
 		fun reset() {
@@ -183,6 +188,23 @@ class MessageLog {
 			)
 		}
 
+        /**
+         * Formats the elapsed time between the start and end times into a string in HH:MM:SS.mmm format.
+         *
+         * @param startTimeMs The start time in milliseconds.
+         * @param endTimeMs The end time in milliseconds.
+         * @return String of HH:MM:SS.mmm formatted time.
+         */
+         @SuppressLint("DefaultLocale")
+        fun formatElapsedTime(startTimeMs: Long, endTimeMs: Long): String {
+            val elapsedMillis: Long = endTimeMs - startTimeMs
+            val hours = TimeUnit.MILLISECONDS.toHours(elapsedMillis)
+            val minutes = TimeUnit.MILLISECONDS.toMinutes(elapsedMillis) - TimeUnit.HOURS.toMinutes(TimeUnit.MILLISECONDS.toHours(elapsedMillis))
+            val seconds = TimeUnit.MILLISECONDS.toSeconds(elapsedMillis) - TimeUnit.MINUTES.toSeconds(TimeUnit.MILLISECONDS.toMinutes(elapsedMillis))
+            val milliseconds = elapsedMillis % 1000
+            return String.format("%02d:%02d:%02d.%03d", hours, minutes, seconds, milliseconds)
+        }
+
 		/**
 		* Returns a formatted string of the current system time as HH:MM:SS.mmm format.
 		*
@@ -192,20 +214,13 @@ class MessageLog {
 		*/
 		@SuppressLint("DefaultLocale")
 		fun getSystemTimeString(): String {
-			val timeMs: Long = System.currentTimeMillis()
-
-			val hours = TimeUnit.MILLISECONDS.toHours(timeMs)
-			val minutes = TimeUnit.MILLISECONDS.toMinutes(timeMs) - TimeUnit.HOURS.toMinutes(TimeUnit.MILLISECONDS.toHours(timeMs))
-			val seconds = TimeUnit.MILLISECONDS.toSeconds(timeMs) - TimeUnit.MINUTES.toSeconds(TimeUnit.MILLISECONDS.toMinutes(timeMs))
-			val milliseconds = timeMs % 1000
-
-			return String.format(
-				"%02d:%02d:%02d.%03d",
-				hours,
-				minutes,
-				seconds,
-				milliseconds,
-			)
+            return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val now = LocalTime.now()
+                now.format(DateTimeFormatter.ofPattern("HH:mm:ss.SSS"))
+            } else {
+                val sdf = SimpleDateFormat("HH:mm:ss.SSS", Locale.getDefault())
+                sdf.format(Date())
+            }
 		}
 
 		/**
@@ -241,7 +256,9 @@ class MessageLog {
 			messageLog.add(msg)
 
 			// Send the message to the frontend.
-			EventBus.getDefault().post(JSEvent("MessageLog", msg))
+			if (!disableOutput) {
+				EventBus.getDefault().post(JSEvent("MessageLog", msg))
+			}
 		}
 
 		/**
