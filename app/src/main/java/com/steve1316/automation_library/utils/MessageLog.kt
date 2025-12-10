@@ -184,6 +184,23 @@ class MessageLog {
 			)
 		}
 
+        /**
+         * Formats the elapsed time between the start and end times into a string in HH:MM:SS.mmm format.
+         *
+         * @param startTimeMs The start time in milliseconds.
+         * @param endTimeMs The end time in milliseconds.
+         * @return String of HH:MM:SS.mmm formatted time.
+         */
+         @SuppressLint("DefaultLocale")
+        fun formatElapsedTime(startTimeMs: Long, endTimeMs: Long): String {
+            val elapsedMillis: Long = endTimeMs - startTimeMs
+            val hours = TimeUnit.MILLISECONDS.toHours(elapsedMillis)
+            val minutes = TimeUnit.MILLISECONDS.toMinutes(elapsedMillis) - TimeUnit.HOURS.toMinutes(TimeUnit.MILLISECONDS.toHours(elapsedMillis))
+            val seconds = TimeUnit.MILLISECONDS.toSeconds(elapsedMillis) - TimeUnit.MINUTES.toSeconds(TimeUnit.MILLISECONDS.toMinutes(elapsedMillis))
+            val milliseconds = elapsedMillis % 1000
+            return String.format("%02d:%02d:%02d.%03d", hours, minutes, seconds, milliseconds)
+        }
+
 		/**
 		* Returns a formatted string of the current system time as HH:MM:SS.mmm format.
 		*
