@@ -10,6 +10,7 @@ import org.greenrobot.eventbus.EventBus
 import java.io.File
 import java.text.SimpleDateFormat
 import java.time.LocalDateTime
+import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.util.*
 import java.util.concurrent.TimeUnit
@@ -192,20 +193,13 @@ class MessageLog {
 		*/
 		@SuppressLint("DefaultLocale")
 		fun getSystemTimeString(): String {
-			val timeMs: Long = System.currentTimeMillis()
-
-			val hours = TimeUnit.MILLISECONDS.toHours(timeMs)
-			val minutes = TimeUnit.MILLISECONDS.toMinutes(timeMs) - TimeUnit.HOURS.toMinutes(TimeUnit.MILLISECONDS.toHours(timeMs))
-			val seconds = TimeUnit.MILLISECONDS.toSeconds(timeMs) - TimeUnit.MINUTES.toSeconds(TimeUnit.MILLISECONDS.toMinutes(timeMs))
-			val milliseconds = timeMs % 1000
-
-			return String.format(
-				"%02d:%02d:%02d.%03d",
-				hours,
-				minutes,
-				seconds,
-				milliseconds,
-			)
+            return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val now = LocalTime.now()
+                now.format(DateTimeFormatter.ofPattern("HH:mm:ss.SSS"))
+            } else {
+                val sdf = SimpleDateFormat("HH:mm:ss.SSS", Locale.getDefault())
+                sdf.format(Date())
+            }
 		}
 
 		/**
