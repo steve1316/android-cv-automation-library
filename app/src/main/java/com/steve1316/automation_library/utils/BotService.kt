@@ -111,6 +111,12 @@ class BotService : Service() {
 		// This button is able to be moved around the screen and clicking it will start/stop the game automation.
 		overlayButton = overlayView.findViewById(R.id.bot_actions_overlay_button)
 
+		// Convert dp to pixels and set button size programmatically.
+		val buttonSizePx = (SharedData.overlayButtonSizeDP * SharedData.displayDensity).toInt()
+		overlayButton.layoutParams.width = buttonSizePx
+		overlayButton.layoutParams.height = buttonSizePx
+		overlayButton.requestLayout()
+
 		// Start the initial animations for the floating overlay button.
 		startAnimations()
 
