@@ -16,5 +16,9 @@ class SharedData {
 		var displayWidth: Int = 0
 		var displayHeight: Int = 0
 		var displayDPI: Int = 0
+        var displayDensity: Float = 0F
+
+        // Adjust this value to control the floating overlay button size in dp (density-independent pixels).
+		var overlayButtonSizeDP: Float = if (displayDPI >= 400) 35f else 50f
 	}
 }
