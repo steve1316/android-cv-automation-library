@@ -95,8 +95,9 @@ class MediaProjectionService : Service() {
 			SharedData.displayWidth = metrics.widthPixels
 			SharedData.displayHeight = metrics.heightPixels
 			SharedData.displayDPI = metrics.densityDpi
+			SharedData.displayDensity = metrics.density
 
-			Log.d(tag, "Current Virtual Display at ${SharedData.displayWidth}x${SharedData.displayHeight}, DPI: ${SharedData.displayDPI}")
+			Log.d(tag, "Current Virtual Display at ${SharedData.displayWidth}x${SharedData.displayHeight}, DPI: ${SharedData.displayDPI}, Density: ${SharedData.displayDensity}")
 
 			// Start the ImageReader.
 			imageReader = ImageReader.newInstance(SharedData.displayWidth, SharedData.displayHeight, PixelFormat.RGBA_8888, 2)
