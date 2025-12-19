@@ -11,6 +11,10 @@ class SharedData {
 		var templateSubfolderPathName = "/"
 		var templateImageExt = "png"
 
+        // This is the baseline device configuration that the framework is based off of.
+        val baselineWidth = 1080f
+        val baselineHeight = 2340f
+
 		// These are set in the MediaProjectionService upon successful creation of the Virtual Display.
 		var mainPackagePath: String = ""
 		var displayWidth: Int = 0
