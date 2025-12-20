@@ -85,7 +85,6 @@ class FloatingOverlayButton(
     private val handler = Handler(Looper.getMainLooper())
     private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
 
-
     init {
         createOverlayButton()
         initializeAnimations()
