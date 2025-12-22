@@ -25,6 +25,14 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 
 /**
+ * Configuration for overlay features.
+ */
+object OverlayConfig {
+    const val ENABLE_GUIDANCE_OVERLAYS = true
+    const val ENABLE_DISMISS_DRAG = true
+}
+
+/**
  * Helper to convert dp to pixels using SharedData density or system density.
  *
  * @param dp The dp value to convert.
@@ -472,7 +480,7 @@ private class GuidanceOverlays(
         val screenHeight = if (SharedData.displayHeight > 0) SharedData.displayHeight else context.resources.displayMetrics.heightPixels
 
         val rawRegions = SharedData.guidanceRegions
-        if (rawRegions.isEmpty()) {
+        if (rawRegions.isEmpty() || !OverlayConfig.ENABLE_GUIDANCE_OVERLAYS) {
             // If no guidance regions are defined, allow placement anywhere.
             guidanceRegions = emptyList()
             isFullScreenGuidance = true
@@ -517,6 +525,8 @@ private class GuidanceOverlays(
      */
     @SuppressLint("SetTextI18n")
     private fun createRegionGuidanceOverlays() {
+        if (!OverlayConfig.ENABLE_GUIDANCE_OVERLAYS) return
+
         // Create the full-screen region highlights view.
         regionHighlightsView = RegionHighlightsView(context, guidanceRegions).apply {
             visibility = View.GONE
@@ -578,6 +588,7 @@ private class GuidanceOverlays(
      * @return True if the button is within any guidance region, false otherwise.
      */
     fun isInsideGuidanceRegion(centerX: Int, centerY: Int): Boolean {
+        if (!OverlayConfig.ENABLE_GUIDANCE_OVERLAYS) return true
         if (isFullScreenGuidance || guidanceRegions.isEmpty()) {
             return true
         }
@@ -588,6 +599,8 @@ private class GuidanceOverlays(
      * Shows the guidance overlays.
      */
     fun showGuidance() {
+        if (!OverlayConfig.ENABLE_GUIDANCE_OVERLAYS) return
+
         // Return early if the button is allowed to be placed anywhere.
         if (isFullScreenGuidance || guidanceRegions.isEmpty()) {
             return
@@ -668,7 +681,9 @@ private class DragToDismiss(
         private set
 
     init {
-        createDismissTargetOverlay()
+        if (OverlayConfig.ENABLE_DISMISS_DRAG) {
+            createDismissTargetOverlay()
+        }
     }
 
     /**
@@ -734,6 +749,7 @@ private class DragToDismiss(
      * Shows the dismiss target with an animation.
      */
     fun show() {
+        if (!OverlayConfig.ENABLE_DISMISS_DRAG) return
         if (::dismissTargetView.isInitialized && ::dismissCircleView.isInitialized) {
             dismissTargetView.visibility = View.VISIBLE
             dismissCircleView.animate().scaleX(1f).scaleY(1f).setDuration(120L).start()
@@ -759,6 +775,7 @@ private class DragToDismiss(
      * @param isHoveringParam True if the button is hovered over, false otherwise.
      */
     fun updateHover(isHoveringParam: Boolean) {
+        if (!OverlayConfig.ENABLE_DISMISS_DRAG) return
         if (isHovering == isHoveringParam) return
         
         if (::dismissCircleView.isInitialized) {
@@ -776,6 +793,7 @@ private class DragToDismiss(
      * @return True if the button center is within the dismiss target's bounds, false otherwise.
      */
     fun isInside(centerX: Int, centerY: Int): Boolean {
+        if (!OverlayConfig.ENABLE_DISMISS_DRAG) return false
         if (!::dismissTargetView.isInitialized || !::dismissCircleView.isInitialized || !::dismissLayoutParams.isInitialized || dismissTargetView.visibility != View.VISIBLE) {
             return false
         }
