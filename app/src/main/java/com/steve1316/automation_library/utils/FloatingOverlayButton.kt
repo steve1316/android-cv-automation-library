@@ -448,17 +448,25 @@ private class GuidanceOverlays(
             isAntiAlias = true
         }
 
-        @SuppressLint("DrawAllocation")
+        // Pre-allocate RectF objects to avoid allocations during onDraw.
+        private val regionRects: List<android.graphics.RectF> = regions.map { region ->
+            android.graphics.RectF(
+                region.x.toFloat(),
+                region.y.toFloat(),
+                (region.x + region.width).toFloat(),
+                (region.y + region.height).toFloat()
+            )
+        }
+
+        init {
+            // Use hardware layer for better rendering performance when visibility changes.
+            setLayerType(LAYER_TYPE_HARDWARE, null)
+        }
+
         override fun onDraw(canvas: android.graphics.Canvas) {
             super.onDraw(canvas)
-            // Draw all guidance regions.
-            for (region in regions) {
-                val rect = android.graphics.RectF(
-                    region.x.toFloat(),
-                    region.y.toFloat(),
-                    (region.x + region.width).toFloat(),
-                    (region.y + region.height).toFloat()
-                )
+            // Draw all guidance regions using pre-allocated rects.
+            for (rect in regionRects) {
                 canvas.drawRoundRect(rect, cornerRadius, cornerRadius, paintFill)
                 canvas.drawRoundRect(rect, cornerRadius, cornerRadius, paintStroke)
             }
@@ -529,7 +537,8 @@ private class GuidanceOverlays(
 
         // Create the full-screen region highlights view.
         regionHighlightsView = RegionHighlightsView(context, guidanceRegions).apply {
-            visibility = View.GONE
+            // Use INVISIBLE instead of GONE so the view is pre-measured and ready.
+            visibility = View.INVISIBLE
         }
 
         val screenWidth = if (SharedData.displayWidth > 0) SharedData.displayWidth else context.resources.displayMetrics.widthPixels
@@ -551,7 +560,8 @@ private class GuidanceOverlays(
 
         // Create the tooltip view.
         tooltipView = TextView(context).apply {
-            visibility = View.GONE
+            // Use INVISIBLE instead of GONE so the view is pre-measured and ready.
+            visibility = View.INVISIBLE
             text = "Recommended to place the button inside the highlighted area(s)."
             setTextColor(Color.WHITE)
             textSize = 14f
@@ -621,12 +631,12 @@ private class GuidanceOverlays(
      * Hides the guidance overlays.
      */
     fun hideGuidance() {
-        // Hide the region highlight and tooltip views.
+        // Hide the region highlight and tooltip views using INVISIBLE to stay pre-measured.
         if (::regionHighlightsView.isInitialized) {
-            regionHighlightsView.visibility = View.GONE
+            regionHighlightsView.visibility = View.INVISIBLE
         }
         if (::tooltipView.isInitialized) {
-            tooltipView.visibility = View.GONE
+            tooltipView.visibility = View.INVISIBLE
         }
     }
 
@@ -698,7 +708,10 @@ private class DragToDismiss(
         val bottomMargin = context.dpToPx(32f) + if (SharedData.displayDPI >= 400) 150 else 50
 
         dismissTargetView = FrameLayout(context).apply {
-            visibility = View.GONE
+            // Use INVISIBLE instead of GONE so the view is pre-measured and ready.
+            visibility = View.INVISIBLE
+            // Use hardware layer for better rendering performance when visibility changes.
+            setLayerType(View.LAYER_TYPE_HARDWARE, null)
         }
 
         // Create the dismiss circle view.
@@ -762,7 +775,8 @@ private class DragToDismiss(
     fun hide() {
         if (::dismissTargetView.isInitialized && ::dismissCircleView.isInitialized) {
             dismissCircleView.animate().cancel()
-            dismissTargetView.visibility = View.GONE
+            // Use INVISIBLE instead of GONE to stay pre-measured.
+            dismissTargetView.visibility = View.INVISIBLE
             dismissCircleView.scaleX = 1f
             dismissCircleView.scaleY = 1f
         }
