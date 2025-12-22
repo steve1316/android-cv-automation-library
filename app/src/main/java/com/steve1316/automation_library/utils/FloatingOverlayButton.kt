@@ -680,7 +680,7 @@ private class DragToDismiss(
 
         val screenWidth = if (SharedData.displayWidth > 0) SharedData.displayWidth else context.resources.displayMetrics.widthPixels
         val screenHeight = if (SharedData.displayHeight > 0) SharedData.displayHeight else context.resources.displayMetrics.heightPixels
-        val bottomMargin = context.dpToPx(32f) + if (SharedData.displayDensity >= 400) 100 else 50
+        val bottomMargin = context.dpToPx(32f) + if (SharedData.displayDPI >= 400) 100 else 50
 
         dismissTargetView = FrameLayout(context).apply {
             visibility = View.GONE
