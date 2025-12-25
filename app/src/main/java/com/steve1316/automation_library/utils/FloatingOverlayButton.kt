@@ -44,6 +44,30 @@ private fun Context.dpToPx(dp: Float): Int {
 }
 
 /**
+ * Helper to get the device's notch (display cutout) height programmatically.
+ * Returns 0 if there is no notch or on older Android versions.
+ *
+ * @param windowManager The WindowManager instance.
+ * @return The notch height in pixels, or 0 if not applicable.
+ */
+private fun getNotchHeight(windowManager: WindowManager): Int {
+    return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+        // Android R (API 30) and above: use WindowMetrics.
+        val windowInsets = windowManager.currentWindowMetrics.windowInsets
+        val displayCutout = windowInsets.displayCutout
+        displayCutout?.safeInsetTop ?: 0
+    } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        // Android Q (API 29): use Display.getCutout().
+        @Suppress("DEPRECATION")
+        val displayCutout = windowManager.defaultDisplay.cutout
+        displayCutout?.safeInsetTop ?: 0
+    } else {
+        // Android P and below: no reliable way to get cutout from a Service context.
+        0
+    }
+}
+
+/**
  * Manages the floating overlay button, including:
  * - Rendering the button and animations.
  * - Handling drag placement and "Guidance Overlays".
@@ -500,27 +524,38 @@ private class GuidanceOverlays(
         val scaleY = screenHeight.toFloat() / SharedData.baselineHeight
 
         val processed = mutableListOf<GuidanceRegion>()
+        val notchHeight = getNotchHeight(windowManager)
+        
         for (raw in rawRegions) {
             if (raw.size < 4) continue
 
-            // Scale and map the inputs
+            // Scale and map the inputs.
             val scaledX = (raw[0] * scaleX).roundToInt()
-            val scaledY = (raw[1] * scaleY).roundToInt()
+            // Offset by the notch height to account for display cutouts.
+            val scaledY = (raw[1] * scaleY).roundToInt() + notchHeight
             val scaledW = (raw[2] * scaleX).roundToInt()
             val scaledH = (raw[3] * scaleY).roundToInt()
 
             val x = scaledX.coerceIn(0, screenWidth)
-            val y = scaledY.coerceIn(0, screenHeight)
-            val maxWidth = (screenWidth - x).coerceAtLeast(0)
-            val maxHeight = (screenHeight - y).coerceAtLeast(0)
             
             // For width/height, if 0 or less was provided in raw, it usually meant "rest of screen" or "full".
-            // Logic here: if raw[2] <= 0 we take maxWidth. If it was positive, we use the scaled width clamped to maxWidth.
-            val width = if (raw[2] <= 0) maxWidth else scaledW.coerceAtMost(maxWidth)
-            val height = if (raw[3] <= 0) maxHeight else scaledH.coerceAtMost(maxHeight)
+            // Logic here: if raw[2] <= 0 we take remaining width. If it was positive, we use the scaled width.
+            val width = if (raw[2] <= 0) (screenWidth - x).coerceAtLeast(0) else scaledW.coerceAtMost(screenWidth - x)
+            val height = if (raw[3] <= 0) (screenHeight - scaledY).coerceAtLeast(0) else scaledH
             
-            if (width > 0 && height > 0) {
-                processed.add(GuidanceRegion(x, y, width, height))
+            // Adjust y-coordinate if the container would extend past the bottom of the screen.
+            val y = if (scaledY + height > screenHeight) {
+                // Move y up so that the full height fits within the screen.
+                (screenHeight - height).coerceAtLeast(0)
+            } else {
+                scaledY.coerceIn(0, screenHeight)
+            }
+            
+            // Recalculate height based on final y position.
+            val finalHeight = height.coerceAtMost(screenHeight - y)
+            
+            if (width > 0 && finalHeight > 0) {
+                processed.add(GuidanceRegion(x, y, width, finalHeight))
             }
         }
 
