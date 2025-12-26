@@ -140,6 +140,9 @@ class FloatingOverlayButton(
         windowManager.addView(overlayView, overlayLayoutParams)
 
         setupTouchListener()
+
+        // Flash the guidance overlays briefly to indicate that the button can be moved.
+        guidanceOverlays.flashGuidance()
     }
 
     /**
@@ -425,6 +428,10 @@ private class GuidanceOverlays(
     private lateinit var tooltipView: TextView
     private lateinit var tooltipLayoutParams: WindowManager.LayoutParams
 
+    // Handler for scheduling the flash hide callback.
+    private val flashHandler = Handler(Looper.getMainLooper())
+    private var flashHideRunnable: Runnable? = null
+
     private var guidanceRegions: List<GuidanceRegion> = emptyList()
 
     var isFullScreenGuidance: Boolean = true
@@ -676,6 +683,93 @@ private class GuidanceOverlays(
     }
 
     /**
+     * Flashes the guidance overlays on and off with smooth fade animations to indicate
+     * to the user that the overlay button can be moved.
+     *
+     * @param flashCount The number of times to flash the guidance overlays.
+     * @param blinkIntervalMs The interval in milliseconds for each blink cycle (fade in + visible + fade out).
+     */
+    fun flashGuidance(flashCount: Int = 3, blinkIntervalMs: Long = 1000L) {
+        if (!OverlayConfig.ENABLE_GUIDANCE_OVERLAYS) return
+
+        // Return early if the button is allowed to be placed anywhere.
+        if (isFullScreenGuidance || guidanceRegions.isEmpty()) {
+            return
+        }
+
+        // Cancel any existing flash callbacks.
+        cancelFlashCallback()
+
+        // The fade duration in milliseconds is the same for both fade in and fade out.
+        val fadeDuration = 250L
+        var remainingFlashes = flashCount
+
+        // Create a runnable that performs smooth fade animations.
+        val blinkRunnable = object : Runnable {
+            override fun run() {
+                if (remainingFlashes <= 0) {
+                    // All flashes completed, fade out and stop.
+                    fadeOutGuidance(fadeDuration)
+                    return
+                }
+
+                remainingFlashes--
+
+                // Fade in, then schedule fade out.
+                fadeInGuidance(fadeDuration)
+
+                // Schedule fade out after the visible period.
+                flashHandler.postDelayed({
+                    fadeOutGuidance(fadeDuration)
+                }, blinkIntervalMs - fadeDuration)
+
+                // Schedule the next blink cycle if there are more flashes.
+                if (remainingFlashes > 0) {
+                    flashHandler.postDelayed(this, blinkIntervalMs)
+                }
+            }
+        }
+
+        // Store reference for cleanup and start the blinking.
+        flashHideRunnable = blinkRunnable
+        flashHandler.post(blinkRunnable)
+    }
+
+    /**
+     * Fades in the guidance overlays with an animation.
+     *
+     * @param duration The duration of the fade animation in milliseconds.
+     */
+    private fun fadeInGuidance(duration: Long) {
+        if (::regionHighlightsView.isInitialized) {
+            regionHighlightsView.visibility = View.VISIBLE
+            regionHighlightsView.animate().alpha(1f).setDuration(duration).start()
+        }
+        if (::tooltipView.isInitialized) {
+            tooltipView.visibility = View.VISIBLE
+            tooltipView.animate().alpha(1f).setDuration(duration).start()
+        }
+    }
+
+    /**
+     * Fades out the guidance overlays with an animation.
+     *
+     * @param duration The duration of the fade animation in milliseconds.
+     */
+    private fun fadeOutGuidance(duration: Long) {
+        if (::regionHighlightsView.isInitialized) {
+            regionHighlightsView.animate().alpha(0f).setDuration(duration).withEndAction {
+                regionHighlightsView.visibility = View.INVISIBLE
+            }.start()
+        }
+        if (::tooltipView.isInitialized) {
+            tooltipView.animate().alpha(0f).setDuration(duration).withEndAction {
+                tooltipView.visibility = View.INVISIBLE
+            }.start()
+        }
+    }
+
+    /**
      * Returns the first valid region, useful for initial placement.
      *
      * @return The first valid region, or null if there are no regions.
@@ -685,9 +779,20 @@ private class GuidanceOverlays(
     }
 
     /**
+     * Cancels any pending flash hide callback.
+     */
+    private fun cancelFlashCallback() {
+        flashHideRunnable?.let { flashHandler.removeCallbacks(it) }
+        flashHideRunnable = null
+    }
+
+    /**
      * Removes overlays from the WindowManager.
      */
     fun cleanup() {
+        // Cancel any pending flash callbacks.
+        cancelFlashCallback()
+
         // Remove the region highlight and tooltip views.
         if (::regionHighlightsView.isInitialized) {
             runCatching { windowManager.removeView(regionHighlightsView) }
