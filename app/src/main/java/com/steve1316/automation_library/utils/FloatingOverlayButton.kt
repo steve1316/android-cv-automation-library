@@ -25,6 +25,14 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 
 /**
+ * Configuration for overlay features.
+ */
+object OverlayConfig {
+    const val ENABLE_GUIDANCE_OVERLAYS = true
+    const val ENABLE_DISMISS_DRAG = true
+}
+
+/**
  * Helper to convert dp to pixels using SharedData density or system density.
  *
  * @param dp The dp value to convert.
@@ -33,6 +41,30 @@ import kotlin.math.roundToInt
 private fun Context.dpToPx(dp: Float): Int {
     val density = if (SharedData.displayDensity > 0F) SharedData.displayDensity else this.resources.displayMetrics.density
     return (dp * density).roundToInt()
+}
+
+/**
+ * Helper to get the device's notch (display cutout) height programmatically.
+ * Returns 0 if there is no notch or on older Android versions.
+ *
+ * @param windowManager The WindowManager instance.
+ * @return The notch height in pixels, or 0 if not applicable.
+ */
+private fun getNotchHeight(windowManager: WindowManager): Int {
+    return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+        // Android R (API 30) and above: use WindowMetrics.
+        val windowInsets = windowManager.currentWindowMetrics.windowInsets
+        val displayCutout = windowInsets.displayCutout
+        displayCutout?.safeInsetTop ?: 0
+    } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        // Android Q (API 29): use Display.getCutout().
+        @Suppress("DEPRECATION")
+        val displayCutout = windowManager.defaultDisplay.cutout
+        displayCutout?.safeInsetTop ?: 0
+    } else {
+        // Android P and below: no reliable way to get cutout from a Service context.
+        0
+    }
 }
 
 /**
@@ -108,6 +140,9 @@ class FloatingOverlayButton(
         windowManager.addView(overlayView, overlayLayoutParams)
 
         setupTouchListener()
+
+        // Flash the guidance overlays briefly to indicate that the button can be moved.
+        guidanceOverlays.flashGuidance()
     }
 
     /**
@@ -393,6 +428,10 @@ private class GuidanceOverlays(
     private lateinit var tooltipView: TextView
     private lateinit var tooltipLayoutParams: WindowManager.LayoutParams
 
+    // Handler for scheduling the flash hide callback.
+    private val flashHandler = Handler(Looper.getMainLooper())
+    private var flashHideRunnable: Runnable? = null
+
     private var guidanceRegions: List<GuidanceRegion> = emptyList()
 
     var isFullScreenGuidance: Boolean = true
@@ -440,17 +479,25 @@ private class GuidanceOverlays(
             isAntiAlias = true
         }
 
-        @SuppressLint("DrawAllocation")
+        // Pre-allocate RectF objects to avoid allocations during onDraw.
+        private val regionRects: List<android.graphics.RectF> = regions.map { region ->
+            android.graphics.RectF(
+                region.x.toFloat(),
+                region.y.toFloat(),
+                (region.x + region.width).toFloat(),
+                (region.y + region.height).toFloat()
+            )
+        }
+
+        init {
+            // Use hardware layer for better rendering performance when visibility changes.
+            setLayerType(LAYER_TYPE_HARDWARE, null)
+        }
+
         override fun onDraw(canvas: android.graphics.Canvas) {
             super.onDraw(canvas)
-            // Draw all guidance regions.
-            for (region in regions) {
-                val rect = android.graphics.RectF(
-                    region.x.toFloat(),
-                    region.y.toFloat(),
-                    (region.x + region.width).toFloat(),
-                    (region.y + region.height).toFloat()
-                )
+            // Draw all guidance regions using pre-allocated rects.
+            for (rect in regionRects) {
                 canvas.drawRoundRect(rect, cornerRadius, cornerRadius, paintFill)
                 canvas.drawRoundRect(rect, cornerRadius, cornerRadius, paintStroke)
             }
@@ -472,7 +519,7 @@ private class GuidanceOverlays(
         val screenHeight = if (SharedData.displayHeight > 0) SharedData.displayHeight else context.resources.displayMetrics.heightPixels
 
         val rawRegions = SharedData.guidanceRegions
-        if (rawRegions.isEmpty()) {
+        if (rawRegions.isEmpty() || !OverlayConfig.ENABLE_GUIDANCE_OVERLAYS) {
             // If no guidance regions are defined, allow placement anywhere.
             guidanceRegions = emptyList()
             isFullScreenGuidance = true
@@ -484,27 +531,38 @@ private class GuidanceOverlays(
         val scaleY = screenHeight.toFloat() / SharedData.baselineHeight
 
         val processed = mutableListOf<GuidanceRegion>()
+        val notchHeight = getNotchHeight(windowManager)
+        
         for (raw in rawRegions) {
             if (raw.size < 4) continue
 
-            // Scale and map the inputs
+            // Scale and map the inputs.
             val scaledX = (raw[0] * scaleX).roundToInt()
-            val scaledY = (raw[1] * scaleY).roundToInt()
+            // Offset by the notch height to account for display cutouts.
+            val scaledY = (raw[1] * scaleY).roundToInt() + notchHeight
             val scaledW = (raw[2] * scaleX).roundToInt()
             val scaledH = (raw[3] * scaleY).roundToInt()
 
             val x = scaledX.coerceIn(0, screenWidth)
-            val y = scaledY.coerceIn(0, screenHeight)
-            val maxWidth = (screenWidth - x).coerceAtLeast(0)
-            val maxHeight = (screenHeight - y).coerceAtLeast(0)
             
             // For width/height, if 0 or less was provided in raw, it usually meant "rest of screen" or "full".
-            // Logic here: if raw[2] <= 0 we take maxWidth. If it was positive, we use the scaled width clamped to maxWidth.
-            val width = if (raw[2] <= 0) maxWidth else scaledW.coerceAtMost(maxWidth)
-            val height = if (raw[3] <= 0) maxHeight else scaledH.coerceAtMost(maxHeight)
+            // Logic here: if raw[2] <= 0 we take remaining width. If it was positive, we use the scaled width.
+            val width = if (raw[2] <= 0) (screenWidth - x).coerceAtLeast(0) else scaledW.coerceAtMost(screenWidth - x)
+            val height = if (raw[3] <= 0) (screenHeight - scaledY).coerceAtLeast(0) else scaledH
             
-            if (width > 0 && height > 0) {
-                processed.add(GuidanceRegion(x, y, width, height))
+            // Adjust y-coordinate if the container would extend past the bottom of the screen.
+            val y = if (scaledY + height > screenHeight) {
+                // Move y up so that the full height fits within the screen.
+                (screenHeight - height).coerceAtLeast(0)
+            } else {
+                scaledY.coerceIn(0, screenHeight)
+            }
+            
+            // Recalculate height based on final y position.
+            val finalHeight = height.coerceAtMost(screenHeight - y)
+            
+            if (width > 0 && finalHeight > 0) {
+                processed.add(GuidanceRegion(x, y, width, finalHeight))
             }
         }
 
@@ -517,9 +575,12 @@ private class GuidanceOverlays(
      */
     @SuppressLint("SetTextI18n")
     private fun createRegionGuidanceOverlays() {
+        if (!OverlayConfig.ENABLE_GUIDANCE_OVERLAYS) return
+
         // Create the full-screen region highlights view.
         regionHighlightsView = RegionHighlightsView(context, guidanceRegions).apply {
-            visibility = View.GONE
+            // Use INVISIBLE instead of GONE so the view is pre-measured and ready.
+            visibility = View.INVISIBLE
         }
 
         val screenWidth = if (SharedData.displayWidth > 0) SharedData.displayWidth else context.resources.displayMetrics.widthPixels
@@ -541,7 +602,8 @@ private class GuidanceOverlays(
 
         // Create the tooltip view.
         tooltipView = TextView(context).apply {
-            visibility = View.GONE
+            // Use INVISIBLE instead of GONE so the view is pre-measured and ready.
+            visibility = View.INVISIBLE
             text = "Recommended to place the button inside the highlighted area(s)."
             setTextColor(Color.WHITE)
             textSize = 14f
@@ -578,6 +640,7 @@ private class GuidanceOverlays(
      * @return True if the button is within any guidance region, false otherwise.
      */
     fun isInsideGuidanceRegion(centerX: Int, centerY: Int): Boolean {
+        if (!OverlayConfig.ENABLE_GUIDANCE_OVERLAYS) return true
         if (isFullScreenGuidance || guidanceRegions.isEmpty()) {
             return true
         }
@@ -588,6 +651,8 @@ private class GuidanceOverlays(
      * Shows the guidance overlays.
      */
     fun showGuidance() {
+        if (!OverlayConfig.ENABLE_GUIDANCE_OVERLAYS) return
+
         // Return early if the button is allowed to be placed anywhere.
         if (isFullScreenGuidance || guidanceRegions.isEmpty()) {
             return
@@ -595,11 +660,13 @@ private class GuidanceOverlays(
 
         // Show the highlights view.
         if (::regionHighlightsView.isInitialized) {
+            regionHighlightsView.alpha = 1f
             regionHighlightsView.visibility = View.VISIBLE
         }
 
         // Show the tooltip view.
         if (::tooltipView.isInitialized) {
+            tooltipView.alpha = 1f
             tooltipView.visibility = View.VISIBLE
         }
     }
@@ -608,12 +675,102 @@ private class GuidanceOverlays(
      * Hides the guidance overlays.
      */
     fun hideGuidance() {
-        // Hide the region highlight and tooltip views.
+        // Hide the region highlight and tooltip views using INVISIBLE to stay pre-measured.
+        // Also reset alpha to 1 so showGuidance() works correctly.
         if (::regionHighlightsView.isInitialized) {
-            regionHighlightsView.visibility = View.GONE
+            regionHighlightsView.alpha = 1f
+            regionHighlightsView.visibility = View.INVISIBLE
         }
         if (::tooltipView.isInitialized) {
-            tooltipView.visibility = View.GONE
+            tooltipView.alpha = 1f
+            tooltipView.visibility = View.INVISIBLE
+        }
+    }
+
+    /**
+     * Flashes the guidance overlays on and off with smooth fade animations to indicate
+     * to the user that the overlay button can be moved.
+     *
+     * @param flashCount The number of times to flash the guidance overlays.
+     * @param blinkIntervalMs The interval in milliseconds for each blink cycle (fade in + visible + fade out).
+     */
+    fun flashGuidance(flashCount: Int = 3, blinkIntervalMs: Long = 1000L) {
+        if (!OverlayConfig.ENABLE_GUIDANCE_OVERLAYS) return
+
+        // Return early if the button is allowed to be placed anywhere.
+        if (isFullScreenGuidance || guidanceRegions.isEmpty()) {
+            return
+        }
+
+        // Cancel any existing flash callbacks.
+        cancelFlashCallback()
+
+        // The fade duration in milliseconds is the same for both fade in and fade out.
+        val fadeDuration = 250L
+        var remainingFlashes = flashCount
+
+        // Create a runnable that performs smooth fade animations.
+        val blinkRunnable = object : Runnable {
+            override fun run() {
+                if (remainingFlashes <= 0) {
+                    // All flashes completed, fade out and stop.
+                    fadeOutGuidance(fadeDuration)
+                    return
+                }
+
+                remainingFlashes--
+
+                // Fade in, then schedule fade out.
+                fadeInGuidance(fadeDuration)
+
+                // Schedule fade out after the visible period.
+                flashHandler.postDelayed({
+                    fadeOutGuidance(fadeDuration)
+                }, blinkIntervalMs - fadeDuration)
+
+                // Schedule the next blink cycle if there are more flashes.
+                if (remainingFlashes > 0) {
+                    flashHandler.postDelayed(this, blinkIntervalMs)
+                }
+            }
+        }
+
+        // Store reference for cleanup and start the blinking.
+        flashHideRunnable = blinkRunnable
+        flashHandler.post(blinkRunnable)
+    }
+
+    /**
+     * Fades in the guidance overlays with an animation.
+     *
+     * @param duration The duration of the fade animation in milliseconds.
+     */
+    private fun fadeInGuidance(duration: Long) {
+        if (::regionHighlightsView.isInitialized) {
+            regionHighlightsView.visibility = View.VISIBLE
+            regionHighlightsView.animate().alpha(1f).setDuration(duration).start()
+        }
+        if (::tooltipView.isInitialized) {
+            tooltipView.visibility = View.VISIBLE
+            tooltipView.animate().alpha(1f).setDuration(duration).start()
+        }
+    }
+
+    /**
+     * Fades out the guidance overlays with an animation.
+     *
+     * @param duration The duration of the fade animation in milliseconds.
+     */
+    private fun fadeOutGuidance(duration: Long) {
+        if (::regionHighlightsView.isInitialized) {
+            regionHighlightsView.animate().alpha(0f).setDuration(duration).withEndAction {
+                regionHighlightsView.visibility = View.INVISIBLE
+            }.start()
+        }
+        if (::tooltipView.isInitialized) {
+            tooltipView.animate().alpha(0f).setDuration(duration).withEndAction {
+                tooltipView.visibility = View.INVISIBLE
+            }.start()
         }
     }
 
@@ -627,9 +784,20 @@ private class GuidanceOverlays(
     }
 
     /**
+     * Cancels any pending flash hide callback.
+     */
+    private fun cancelFlashCallback() {
+        flashHideRunnable?.let { flashHandler.removeCallbacks(it) }
+        flashHideRunnable = null
+    }
+
+    /**
      * Removes overlays from the WindowManager.
      */
     fun cleanup() {
+        // Cancel any pending flash callbacks.
+        cancelFlashCallback()
+
         // Remove the region highlight and tooltip views.
         if (::regionHighlightsView.isInitialized) {
             runCatching { windowManager.removeView(regionHighlightsView) }
@@ -668,7 +836,9 @@ private class DragToDismiss(
         private set
 
     init {
-        createDismissTargetOverlay()
+        if (OverlayConfig.ENABLE_DISMISS_DRAG) {
+            createDismissTargetOverlay()
+        }
     }
 
     /**
@@ -680,10 +850,13 @@ private class DragToDismiss(
 
         val screenWidth = if (SharedData.displayWidth > 0) SharedData.displayWidth else context.resources.displayMetrics.widthPixels
         val screenHeight = if (SharedData.displayHeight > 0) SharedData.displayHeight else context.resources.displayMetrics.heightPixels
-        val bottomMargin = context.dpToPx(32f) + if (SharedData.displayDensity >= 400) 100 else 50
+        val bottomMargin = context.dpToPx(32f) + if (SharedData.displayDPI >= 400) 150 else 50
 
         dismissTargetView = FrameLayout(context).apply {
-            visibility = View.GONE
+            // Use INVISIBLE instead of GONE so the view is pre-measured and ready.
+            visibility = View.INVISIBLE
+            // Use hardware layer for better rendering performance when visibility changes.
+            setLayerType(View.LAYER_TYPE_HARDWARE, null)
         }
 
         // Create the dismiss circle view.
@@ -734,6 +907,7 @@ private class DragToDismiss(
      * Shows the dismiss target with an animation.
      */
     fun show() {
+        if (!OverlayConfig.ENABLE_DISMISS_DRAG) return
         if (::dismissTargetView.isInitialized && ::dismissCircleView.isInitialized) {
             dismissTargetView.visibility = View.VISIBLE
             dismissCircleView.animate().scaleX(1f).scaleY(1f).setDuration(120L).start()
@@ -746,7 +920,8 @@ private class DragToDismiss(
     fun hide() {
         if (::dismissTargetView.isInitialized && ::dismissCircleView.isInitialized) {
             dismissCircleView.animate().cancel()
-            dismissTargetView.visibility = View.GONE
+            // Use INVISIBLE instead of GONE to stay pre-measured.
+            dismissTargetView.visibility = View.INVISIBLE
             dismissCircleView.scaleX = 1f
             dismissCircleView.scaleY = 1f
         }
@@ -759,6 +934,7 @@ private class DragToDismiss(
      * @param isHoveringParam True if the button is hovered over, false otherwise.
      */
     fun updateHover(isHoveringParam: Boolean) {
+        if (!OverlayConfig.ENABLE_DISMISS_DRAG) return
         if (isHovering == isHoveringParam) return
         
         if (::dismissCircleView.isInitialized) {
@@ -776,6 +952,7 @@ private class DragToDismiss(
      * @return True if the button center is within the dismiss target's bounds, false otherwise.
      */
     fun isInside(centerX: Int, centerY: Int): Boolean {
+        if (!OverlayConfig.ENABLE_DISMISS_DRAG) return false
         if (!::dismissTargetView.isInitialized || !::dismissCircleView.isInitialized || !::dismissLayoutParams.isInitialized || dismissTargetView.visibility != View.VISIBLE) {
             return false
         }
