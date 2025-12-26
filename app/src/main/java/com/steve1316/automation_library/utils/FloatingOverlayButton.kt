@@ -229,6 +229,9 @@ class FloatingOverlayButton(
                         isDragging = false
                         isLongPressTriggered = false
 
+                        // Stop any ongoing flashing animation immediately when touched.
+                        guidanceOverlays.stopFlashing()
+
                         // Schedule the long-press check.
                         handler.postDelayed(longPressRunnable, ViewConfiguration.getLongPressTimeout().toLong())
                         return false
@@ -805,6 +808,25 @@ private class GuidanceOverlays(
     private fun cancelFlashCallback() {
         flashHideRunnable?.let { flashHandler.removeCallbacks(it) }
         flashHideRunnable = null
+    }
+
+    /**
+     * Stops any ongoing flash animation immediately and hides the overlays.
+     * Called when the user interacts with the overlay button.
+     */
+    fun stopFlashing() {
+        cancelFlashCallback()
+        // Cancel any ongoing animations and hide immediately.
+        if (::regionHighlightsView.isInitialized) {
+            regionHighlightsView.animate().cancel()
+            regionHighlightsView.alpha = 1f
+            regionHighlightsView.visibility = View.INVISIBLE
+        }
+        if (::tooltipView.isInitialized) {
+            tooltipView.animate().cancel()
+            tooltipView.alpha = 1f
+            tooltipView.visibility = View.INVISIBLE
+        }
     }
 
     /**
