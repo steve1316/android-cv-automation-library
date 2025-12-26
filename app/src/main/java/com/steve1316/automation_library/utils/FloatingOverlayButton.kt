@@ -2,8 +2,11 @@ package com.steve1316.automation_library.utils
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Paint
 import android.graphics.PixelFormat
+import android.graphics.RectF
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.view.Gravity
@@ -20,6 +23,7 @@ import com.steve1316.automation_library.R
 import com.steve1316.automation_library.data.SharedData
 import android.os.Handler
 import android.os.Looper
+import android.util.TypedValue
 import android.view.ViewConfiguration
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -462,26 +466,26 @@ private class GuidanceOverlays(
      * Custom View to draw all guidance regions simultaneously.
      */
     @SuppressLint("ViewConstructor")
-    private class RegionHighlightsView(context: Context, private val regions: List<GuidanceRegion>) : View(context) {
+    private class RegionHighlightsView(context: Context, regions: List<GuidanceRegion>) : View(context) {
         private val density = context.resources.displayMetrics.density
         private val cornerRadius = density * 8
 
-        private val paintFill = android.graphics.Paint().apply {
+        private val paintFill = Paint().apply {
             color = 0x80444444.toInt()
-            style = android.graphics.Paint.Style.FILL
+            style = Paint.Style.FILL
             isAntiAlias = true
         }
 
-        private val paintStroke = android.graphics.Paint().apply {
+        private val paintStroke = Paint().apply {
             color = 0x66FFFFFF
-            style = android.graphics.Paint.Style.STROKE
+            style = Paint.Style.STROKE
             strokeWidth = density * 2
             isAntiAlias = true
         }
 
         // Pre-allocate RectF objects to avoid allocations during onDraw.
-        private val regionRects: List<android.graphics.RectF> = regions.map { region ->
-            android.graphics.RectF(
+        private val regionRects: List<RectF> = regions.map { region ->
+            RectF(
                 region.x.toFloat(),
                 region.y.toFloat(),
                 (region.x + region.width).toFloat(),
@@ -494,7 +498,7 @@ private class GuidanceOverlays(
             setLayerType(LAYER_TYPE_HARDWARE, null)
         }
 
-        override fun onDraw(canvas: android.graphics.Canvas) {
+        override fun onDraw(canvas: Canvas) {
             super.onDraw(canvas)
             // Draw all guidance regions using pre-allocated rects.
             for (rect in regionRects) {
@@ -871,7 +875,7 @@ private class DragToDismiss(
                 text = "✕"
                 setTextColor(Color.WHITE)
                 // Limit text size to 40% of the circle size to ensure it fits well.
-                setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, targetSizePx * 0.4f)
+                setTextSize(TypedValue.COMPLEX_UNIT_PX, targetSizePx * 0.4f)
                 gravity = Gravity.CENTER
                 includeFontPadding = false
             }
