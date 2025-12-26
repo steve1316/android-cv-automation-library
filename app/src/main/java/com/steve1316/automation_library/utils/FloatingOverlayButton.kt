@@ -496,7 +496,16 @@ private class GuidanceOverlays(
         init {
             // Use hardware layer for better rendering performance when visibility changes.
             setLayerType(LAYER_TYPE_HARDWARE, null)
+            // Ensure touches pass through to views below.
+            isClickable = false
+            isFocusable = false
         }
+
+        /**
+         * Override onTouchEvent to ensure all touches pass through to underlying views.
+         */
+        @SuppressLint("ClickableViewAccessibility")
+        override fun onTouchEvent(event: MotionEvent?): Boolean = false
 
         override fun onDraw(canvas: Canvas) {
             super.onDraw(canvas)
@@ -619,6 +628,9 @@ private class GuidanceOverlays(
                 cornerRadius = context.dpToPx(8f).toFloat()
             }
             textAlignment = View.TEXT_ALIGNMENT_CENTER
+            // Ensure touches pass through to views below.
+            isClickable = false
+            isFocusable = false
         }
 
         tooltipLayoutParams = WindowManager.LayoutParams(
