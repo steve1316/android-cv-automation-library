@@ -50,13 +50,14 @@ class MessageLog {
 			Log.d(TAG, "MessageLog has now been reset and is ready for the next run.")
 		}
 		
-		/** Resets the save check flag to allow saving again. Should only be called when starting a new run. */
-		fun resetSaveCheck() {
-			saveCheck.set(false)
+		/** Resets the save check flag to allow saving again and initializes the start time for elapsed time tracking. Should only be called when starting a new run. */
+		fun start() {
+            saveCheck.set(false)
+			startTimeMs = System.currentTimeMillis()
 		}
 
 		/**
-		 * Save the current Message Log into a new file inside internal storage's /logs/ folder.
+		 * Save the current Message Log into a new file inside internal storage's /logs/ folder and then reset the MessageLog.
 		 *
 		 * @param context The context for the application.
 		 */
@@ -88,7 +89,7 @@ class MessageLog {
 			}
 
 			// Now save the Message Log to the new text file.
-			val logString: String = "Now saving Message Log to file named \"$fileName\" at $path"
+			val logString: String = "${getElapsedTimeString()} Now saving Message Log to file named \"$fileName\" at $path"
 			Log.d(TAG, logString)
 			messageLog.add("\n$logString")
 			EventBus.getDefault().post(JSEvent("MessageLog", "\n$logString"))
@@ -98,7 +99,7 @@ class MessageLog {
 			if (!file.exists()) {
 				file.createNewFile()
 				file.printWriter().use { out ->
-					// Synchronize access to messageLog to prevent concurrent modification
+					// Synchronize access to messageLog to prevent concurrent modification.
 					synchronized(messageLogLock) {
 						messageLog.forEach {
 							out.println(it)
@@ -106,6 +107,9 @@ class MessageLog {
 					}
 				}
 			}
+
+            // Finally, reset the MessageLog.
+            reset()
 		}
 
 		/**
@@ -169,8 +173,9 @@ class MessageLog {
 		*/
 		@SuppressLint("DefaultLocale")
 		fun getElapsedTimeString(): String {
+			// Return a placeholder if the timer hasn't been started yet.
 			if (startTimeMs == 0L) {
-				startTimeMs = System.currentTimeMillis()
+				return "--:--:--.---"
 			}
 			val elapsedMillis: Long = System.currentTimeMillis() - startTimeMs
 

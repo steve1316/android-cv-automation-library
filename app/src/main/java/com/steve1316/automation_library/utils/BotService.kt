@@ -113,8 +113,8 @@ class BotService : Service() {
 					}
 				}
 
-				// Reset the save check flag for the MessageLog.
-				MessageLog.resetSaveCheck()
+				// Reset the save check flag and start the timer for the MessageLog.
+				MessageLog.start()
 
 				thread = thread {
 					try {
@@ -219,7 +219,6 @@ class BotService : Service() {
 
 			// Save the message log and reset MessageLog.
 			MessageLog.saveLogToFile(myContext)
-			MessageLog.reset()
 
 			// Update the app's notification with the status.
 			if (!isException) {
