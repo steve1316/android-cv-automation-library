@@ -660,11 +660,13 @@ private class GuidanceOverlays(
 
         // Show the highlights view.
         if (::regionHighlightsView.isInitialized) {
+            regionHighlightsView.alpha = 1f
             regionHighlightsView.visibility = View.VISIBLE
         }
 
         // Show the tooltip view.
         if (::tooltipView.isInitialized) {
+            tooltipView.alpha = 1f
             tooltipView.visibility = View.VISIBLE
         }
     }
@@ -674,10 +676,13 @@ private class GuidanceOverlays(
      */
     fun hideGuidance() {
         // Hide the region highlight and tooltip views using INVISIBLE to stay pre-measured.
+        // Also reset alpha to 1 so showGuidance() works correctly.
         if (::regionHighlightsView.isInitialized) {
+            regionHighlightsView.alpha = 1f
             regionHighlightsView.visibility = View.INVISIBLE
         }
         if (::tooltipView.isInitialized) {
+            tooltipView.alpha = 1f
             tooltipView.visibility = View.INVISIBLE
         }
     }
