@@ -43,21 +43,27 @@ class MessageLog {
         // Particularly useful when parallel processing is being done to avoid log messages being sent to the frontend out of order.
         var disableOutput = false
 
-		/** Resets state to prepare for the next run. */
+		/**
+		 * Resets state to prepare for the next run.
+		 * Clears the message log but keeps the startTimeMs so that any cleanup logging still has valid timestamps.
+		 */
 		fun reset() {
-			startTimeMs = 0L
 			clearLog()
 			Log.d(TAG, "MessageLog has now been reset and is ready for the next run.")
 		}
 		
-		/** Resets the save check flag to allow saving again and initializes the start time for elapsed time tracking. Should only be called when starting a new run. */
+		/**
+		 * Resets the save check flag to allow saving again and initializes the start time for elapsed time tracking.
+		 * Should only be called when starting a new run. Also resets the message log from the previous run.
+		 */
 		fun start() {
-            saveCheck.set(false)
+			reset()
+			saveCheck.set(false)
 			startTimeMs = System.currentTimeMillis()
 		}
 
 		/**
-		 * Save the current Message Log into a new file inside internal storage's /logs/ folder and then reset the MessageLog.
+		 * Save the current Message Log into a new file inside internal storage's /logs/ folder.
 		 *
 		 * @param context The context for the application.
 		 */
@@ -89,11 +95,6 @@ class MessageLog {
 			}
 
 			// Now save the Message Log to the new text file.
-			val logString: String = "${getElapsedTimeString()} Now saving Message Log to file named \"$fileName\" at $path"
-			Log.d(TAG, logString)
-			messageLog.add("\n$logString")
-			EventBus.getDefault().post(JSEvent("MessageLog", "\n$logString"))
-
 			val file = File(path, "$fileName.txt")
 
 			if (!file.exists()) {
@@ -101,15 +102,18 @@ class MessageLog {
 				file.printWriter().use { out ->
 					// Synchronize access to messageLog to prevent concurrent modification.
 					synchronized(messageLogLock) {
+						// Add the save message last, within the lock to ensure it appears at the end and is written to the file.
+						val logString: String = "${getElapsedTimeString()} Now saving Message Log to file named \"$fileName\" at $path"
+						Log.d(TAG, logString)
+						messageLog.add("\n$logString")
+						EventBus.getDefault().post(JSEvent("MessageLog", "\n$logString"))
+
 						messageLog.forEach {
 							out.println(it)
 						}
 					}
 				}
 			}
-
-            // Finally, reset the MessageLog.
-            reset()
 		}
 
 		/**
@@ -258,11 +262,14 @@ class MessageLog {
 				"$prefix $message"
 			}
 
-			messageLog.add(msg)
+			// Synchronize access to messageLog and EventBus posting to prevent race conditions.
+			synchronized(messageLogLock) {
+				messageLog.add(msg)
 
-			// Send the message to the frontend.
-			if (!disableOutput) {
-				EventBus.getDefault().post(JSEvent("MessageLog", msg))
+				// Send the message to the frontend.
+				if (!disableOutput) {
+					EventBus.getDefault().post(JSEvent("MessageLog", msg))
+				}
 			}
 		}
 
