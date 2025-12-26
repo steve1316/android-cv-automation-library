@@ -13,6 +13,7 @@ import android.media.Image
 import android.media.Image.Plane
 import android.media.ImageReader
 import android.media.projection.MediaProjection
+import android.media.projection.MediaProjectionConfig
 import android.media.projection.MediaProjectionManager
 import android.os.Build
 import android.os.Handler
@@ -180,6 +181,32 @@ class MediaProjectionService : Service() {
 		fun getStopIntent(context: Context): Intent {
 			return Intent(context, MediaProjectionService::class.java).apply {
 				putExtra("ACTION", "STOP")
+			}
+		}
+
+		/**
+		 * Creates the Intent for requesting screen capture permission. On Android 14 (API 34) and above,
+		 * this uses MediaProjectionConfig to prefer full-screen capture over single-app capture.
+		 *
+		 * Usage in your Activity:
+		 * ```
+		 * val intent = MediaProjectionService.getScreenCaptureIntent(this)
+		 * startActivityForResult(intent, REQUEST_CODE_MEDIA_PROJECTION, 100, null)
+		 * ```
+		 *
+		 * @param context The application's context.
+		 * @return An Intent to launch the screen capture permission dialog.
+		 */
+		fun getScreenCaptureIntent(context: Context): Intent {
+			val manager = context.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+
+			return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+				// Android 14+ - Use MediaProjectionConfig to prefer full screen capture.
+				val config = MediaProjectionConfig.createConfigForDefaultDisplay()
+				manager.createScreenCaptureIntent(config)
+			} else {
+				// Older Android versions - Use the standard intent.
+				manager.createScreenCaptureIntent()
 			}
 		}
 
