@@ -146,6 +146,7 @@ class BotService : Service() {
 							MessageLog.e(tag, "$appName encountered an Exception: ${e.stackTraceToString()}")
 						}
 					} finally {
+                        Log.d(tag, "Performing cleanup in the finally block...")
 						performCleanUp()
 					}
 				}
@@ -163,14 +164,14 @@ class BotService : Service() {
 		}
 	}
 
-
 	/**
 	 * Dismiss the overlay button and stop this service.
 	 */
 	private fun dismissOverlayButton() {
 		if (::floatingOverlayButton.isInitialized) floatingOverlayButton.cleanup()
 
-		if (isRunning && Companion.isBotThreadInitialized()) {
+        if (isRunning && isBotThreadInitialized()) {
+			Log.d(tag, "Interrupting the bot thread now from the dismiss overlay...")
 			thread.interrupt()
 			performCleanUp()
 		}
@@ -224,6 +225,7 @@ class BotService : Service() {
 			if (!isException) {
 				val contentIntent: Intent = packageManager.getLaunchIntentForPackage(packageName)!!
 				val className = contentIntent.component!!.className
+                Log.d(tag, "Updating notification for completion success with no exception.")
 				NotificationUtils.updateNotification(myContext, Class.forName(className), false, "Completed successfully with no errors.")
 			} else {
 				skipNotificationUpdate = true
@@ -259,6 +261,7 @@ class BotService : Service() {
 		val className = contentIntent.component!!.className
 
 		if (event.exception.toString() == "java.lang.InterruptedException") {
+            Log.d(tag, "InterruptedException detected. Assuming process was manually stopped.")
 			NotificationUtils.updateNotification(myContext, Class.forName(className), false, "Completed successfully with no errors.")
 		} else {
 			Log.d(tag, "Process has finished running but an exception(s) were detected.")

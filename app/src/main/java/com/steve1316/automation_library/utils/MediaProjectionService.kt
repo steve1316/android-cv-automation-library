@@ -296,6 +296,7 @@ class MediaProjectionService : Service() {
 
 		if (isStartCommand(intent)) {
 			// Create a new Notification in the foreground telling users that the MediaProjection Service is now active.
+            Log.d(tag, "MediaProjection Service received START Intent.")
 			val contentIntent: Intent = packageManager.getLaunchIntentForPackage(packageName)!!
 			val name = contentIntent.component!!.className
 			val (notification, notificationID) = NotificationUtils.getNewNotification(this, Class.forName(name))
@@ -311,11 +312,13 @@ class MediaProjectionService : Service() {
 				val botStartIntent = Intent(this, BotService::class.java)
 				startService(botStartIntent)
 			}
+            Log.d(tag, "MediaProjection Service finished processing the START Intent.")
 		} else if (isStopCommand(intent)) {
 			// Perform cleanup on the MediaProjection service and then stop itself.
 			Log.d(tag, "Received STOP Intent for MediaProjection. Stopping MediaProjection service.")
 			stopMediaProjection()
 			stopSelf()
+            Log.d(tag, "MediaProjection Service finished processing the STOP Intent.")
 		} else {
 			Log.e(tag, "Encountered unexpected Intent. Shutting down service.")
 			stopSelf()
@@ -380,6 +383,8 @@ class MediaProjectionService : Service() {
 
 				// Send a event to the React Native frontend.
 				EventBus.getDefault().post(JSEvent("MediaProjectionService", "Not Running"))
+
+                Log.d(tag, "MediaProjection Service cleanup completed.")
 			}
 		}
 	}
