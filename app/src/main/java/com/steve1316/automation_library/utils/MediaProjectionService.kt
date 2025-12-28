@@ -381,6 +381,8 @@ class MediaProjectionService : Service() {
 				Log.d(tag, "MediaProjection Service has stopped for this context: ${myContext.applicationInfo}.")
 				Toast.makeText(myContext, "MediaProjection Service has stopped.", Toast.LENGTH_SHORT).show()
 
+                NotificationUtils.cancelAllNotifications(myContext)
+
 				// Send a event to the React Native frontend.
 				EventBus.getDefault().post(JSEvent("MediaProjectionService", "Not Running"))
 

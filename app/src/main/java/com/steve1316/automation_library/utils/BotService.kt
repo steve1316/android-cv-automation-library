@@ -183,6 +183,12 @@ class BotService : Service() {
 			Log.w(tag, "Failed to start MediaProjection stop intent.")
 		}
 
+		// Verify MediaProjection service is stopped and notification is dismissed.
+		// Use a handler to check after a short delay to allow the stop to process.
+		Handler(Looper.getMainLooper()).postDelayed({
+			verifyServiceAndNotificationStopped()
+		}, 500)
+
 		stopSelf()
 	}
 
