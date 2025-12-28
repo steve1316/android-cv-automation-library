@@ -103,9 +103,9 @@ class MessageLog {
 					// Synchronize access to messageLog to prevent concurrent modification.
 					synchronized(messageLogLock) {
 						// Add the save message last, within the lock to ensure it appears at the end and is written to the file.
-						val logString: String = "${getElapsedTimeString()} Now saving Message Log to file named \"$fileName\" at $path"
+						val logString: String = "Now saving Message Log to file named \"$fileName\" at $path"
 						Log.d(TAG, logString)
-						messageLog.add("\n$logString")
+						messageLog.add("\n${getElapsedTimeString()} $logString")
 						EventBus.getDefault().post(JSEvent("MessageLog", "\n$logString"))
 
 						messageLog.forEach {

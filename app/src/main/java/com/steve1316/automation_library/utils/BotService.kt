@@ -146,6 +146,7 @@ class BotService : Service() {
 							MessageLog.e(tag, "$appName encountered an Exception: ${e.stackTraceToString()}")
 						}
 					} finally {
+                        Log.d(tag, "Performing cleanup in the finally block...")
 						performCleanUp()
 					}
 				}
@@ -163,14 +164,14 @@ class BotService : Service() {
 		}
 	}
 
-
 	/**
 	 * Dismiss the overlay button and stop this service.
 	 */
 	private fun dismissOverlayButton() {
 		if (::floatingOverlayButton.isInitialized) floatingOverlayButton.cleanup()
 
-		if (isRunning && Companion.isBotThreadInitialized()) {
+        if (isRunning && isBotThreadInitialized()) {
+			Log.d(tag, "Interrupting the bot thread now from the dismiss overlay...")
 			thread.interrupt()
 			performCleanUp()
 		}
@@ -182,7 +183,55 @@ class BotService : Service() {
 			Log.w(tag, "Failed to start MediaProjection stop intent.")
 		}
 
+		// Verify MediaProjection service is stopped and notification is dismissed.
+		// Use a handler to check after a short delay to allow the stop to process.
+		Handler(Looper.getMainLooper()).postDelayed({
+			verifyServiceAndNotificationStopped()
+		}, 500)
+
 		stopSelf()
+	}
+
+	/**
+	 * Verifies that the MediaProjection service is stopped and the notification is dismissed.
+	 * If not, retries to stop them.
+	 */
+	private fun verifyServiceAndNotificationStopped() {
+		val notificationManager = getSystemService(NOTIFICATION_SERVICE) as android.app.NotificationManager
+		val activeNotifications = notificationManager.activeNotifications
+
+		Log.d(tag, "Verifying cleanup: MediaProjection.isRunning=${MediaProjectionService.isRunning}, activeNotifications=${activeNotifications.size}")
+
+		// Check if MediaProjection service is still running or if there are still active notifications.
+		if (MediaProjectionService.isRunning || activeNotifications.isNotEmpty()) {
+			Log.w(tag, "MediaProjection service or notification still active. Forcing cleanup...")
+
+			// Force cancel all notifications.
+			notificationManager.cancelAll()
+			Log.d(tag, "Cancelled all notifications via NotificationManager.")
+
+			// Try to stop the MediaProjection service again.
+			if (MediaProjectionService.isRunning) {
+				try {
+					stopService(Intent(myContext, MediaProjectionService::class.java))
+					Log.d(tag, "Sent additional stop request to MediaProjectionService.")
+				} catch (e: Exception) {
+					Log.e(tag, "Failed to stop MediaProjectionService: ${e.message}")
+				}
+			}
+
+			// Check again after another delay.
+			Handler(Looper.getMainLooper()).postDelayed({
+				val finalNotifications = notificationManager.activeNotifications
+				Log.d(tag, "Final verification: MediaProjection.isRunning=${MediaProjectionService.isRunning}, activeNotifications=${finalNotifications.size}")
+				if (finalNotifications.isNotEmpty()) {
+					Log.w(tag, "Notifications still present after retry. Forcing cancelAll again.")
+					notificationManager.cancelAll()
+				}
+			}, 300)
+		} else {
+			Log.d(tag, "MediaProjection service and notification successfully stopped.")
+		}
 	}
 
 	override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -224,6 +273,7 @@ class BotService : Service() {
 			if (!isException) {
 				val contentIntent: Intent = packageManager.getLaunchIntentForPackage(packageName)!!
 				val className = contentIntent.component!!.className
+                Log.d(tag, "Updating notification for completion success with no exception.")
 				NotificationUtils.updateNotification(myContext, Class.forName(className), false, "Completed successfully with no errors.")
 			} else {
 				skipNotificationUpdate = true
@@ -259,6 +309,7 @@ class BotService : Service() {
 		val className = contentIntent.component!!.className
 
 		if (event.exception.toString() == "java.lang.InterruptedException") {
+            Log.d(tag, "InterruptedException detected. Assuming process was manually stopped.")
 			NotificationUtils.updateNotification(myContext, Class.forName(className), false, "Completed successfully with no errors.")
 		} else {
 			Log.d(tag, "Process has finished running but an exception(s) were detected.")

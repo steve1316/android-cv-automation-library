@@ -7,8 +7,10 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.steve1316.automation_library.R
+import com.steve1316.automation_library.data.SharedData
 
 /**
  * Contains the utility functions for creating a Notification.
@@ -18,6 +20,8 @@ import com.steve1316.automation_library.R
  */
 class NotificationUtils {
 	companion object {
+        private const val tag: String = "${SharedData.loggerTag}NotificationUtils"
+        
 		private lateinit var notificationManager: NotificationManager
 		private const val NOTIFICATION_ID: Int = 1
 		private const val CHANNEL_ID: String = "STATUS"
@@ -192,6 +196,28 @@ class NotificationUtils {
 			}
 
 			notificationManager.notify(NOTIFICATION_ID, newNotification)
+		}
+
+		/**
+		 * Cancels all notifications and removes them from the notification shade.
+		 * Should be called when the service is being fully stopped/dismissed.
+		 *
+		 * @param context The application context.
+		 */
+		fun cancelAllNotifications(context: Context) {
+			if (!::notificationManager.isInitialized) {
+				notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+			}
+			Log.d(tag, "Attempting to cancel all notifications")
+            Log.d(tag, "Active notifications before cancel: ${notificationManager.activeNotifications.size}")
+			notificationManager.cancelAll()
+
+			// Log active notifications after cancel.
+			val activeNotifications = notificationManager.activeNotifications
+			Log.d(tag, "Active notifications after cancel: ${activeNotifications.size}")
+			for (notification in activeNotifications) {
+				Log.d(tag, "  - ID: ${notification.id}, Tag: ${notification.tag}, Package: ${notification.packageName}")
+			}
 		}
 	}
 }
