@@ -186,6 +186,48 @@ class BotService : Service() {
 		stopSelf()
 	}
 
+	/**
+	 * Verifies that the MediaProjection service is stopped and the notification is dismissed.
+	 * If not, retries to stop them.
+	 */
+	private fun verifyServiceAndNotificationStopped() {
+		val notificationManager = getSystemService(NOTIFICATION_SERVICE) as android.app.NotificationManager
+		val activeNotifications = notificationManager.activeNotifications
+
+		Log.d(tag, "Verifying cleanup: MediaProjection.isRunning=${MediaProjectionService.isRunning}, activeNotifications=${activeNotifications.size}")
+
+		// Check if MediaProjection service is still running or if there are still active notifications.
+		if (MediaProjectionService.isRunning || activeNotifications.isNotEmpty()) {
+			Log.w(tag, "MediaProjection service or notification still active. Forcing cleanup...")
+
+			// Force cancel all notifications.
+			notificationManager.cancelAll()
+			Log.d(tag, "Cancelled all notifications via NotificationManager.")
+
+			// Try to stop the MediaProjection service again.
+			if (MediaProjectionService.isRunning) {
+				try {
+					stopService(Intent(myContext, MediaProjectionService::class.java))
+					Log.d(tag, "Sent additional stop request to MediaProjectionService.")
+				} catch (e: Exception) {
+					Log.e(tag, "Failed to stop MediaProjectionService: ${e.message}")
+				}
+			}
+
+			// Check again after another delay.
+			Handler(Looper.getMainLooper()).postDelayed({
+				val finalNotifications = notificationManager.activeNotifications
+				Log.d(tag, "Final verification: MediaProjection.isRunning=${MediaProjectionService.isRunning}, activeNotifications=${finalNotifications.size}")
+				if (finalNotifications.isNotEmpty()) {
+					Log.w(tag, "Notifications still present after retry. Forcing cancelAll again.")
+					notificationManager.cancelAll()
+				}
+			}, 300)
+		} else {
+			Log.d(tag, "MediaProjection service and notification successfully stopped.")
+		}
+	}
+
 	override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
 		// Do not attempt to restart the service if it crashes.
 		return START_NOT_STICKY
