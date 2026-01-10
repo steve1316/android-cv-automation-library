@@ -14,6 +14,7 @@ class SharedData {
         // This is the baseline device configuration that the framework is based off of.
         val baselineWidth = 1080f
         val baselineHeight = 2340f
+        val baselineDPI = 450
 
 		// These are set in the MediaProjectionService upon successful creation of the Virtual Display.
 		var mainPackagePath: String = ""
