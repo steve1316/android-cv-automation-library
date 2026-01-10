@@ -295,8 +295,14 @@ class MediaProjectionService : Service() {
 		}
 
 		if (isStartCommand(intent)) {
+			// Check battery optimization status and log a warning if not exempt.
+			if (!BatteryOptimizationUtils.isIgnoringBatteryOptimizations(this)) {
+				Log.w(tag, "Battery optimization is enabled for this app. Background execution may be unreliable. " +
+					"Consider calling BatteryOptimizationUtils.checkAndRequestBatteryOptimization(context) from your Activity.")
+			}
+
 			// Create a new Notification in the foreground telling users that the MediaProjection Service is now active.
-            Log.d(tag, "MediaProjection Service received START Intent.")
+			Log.d(tag, "MediaProjection Service received START Intent.")
 			val contentIntent: Intent = packageManager.getLaunchIntentForPackage(packageName)!!
 			val name = contentIntent.component!!.className
 			val (notification, notificationID) = NotificationUtils.getNewNotification(this, Class.forName(name))
