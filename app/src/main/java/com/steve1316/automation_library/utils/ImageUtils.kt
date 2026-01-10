@@ -593,31 +593,23 @@ open class ImageUtils(protected val context: Context) {
 	// Relative coordinate translation
 
 	/**
-	 * Convert absolute x-coordinate on 1080p to relative coordinate on different resolutions for the width.
+	 * Convert absolute x-coordinate from baseline resolution to relative coordinate for the current device.
 	 *
-	 * @param oldX The old absolute x-coordinate based off of the 1080p resolution.
+	 * @param oldX The old absolute x-coordinate based off of the baseline resolution.
 	 * @return The new relative x-coordinate based off of the current resolution.
 	 */
 	open fun relWidth(oldX: Int): Int {
-		return if (is1080p) {
-			oldX
-		} else {
-			(oldX.toDouble() * (displayWidth.toDouble() / 1080.0)).toInt()
-		}
+		return (oldX.toDouble() * (displayWidth.toDouble() / SharedData.baselineWidth)).toInt()
 	}
 
 	/**
-	 * Convert absolute y-coordinate on 1080p to relative coordinate on different resolutions for the height.
+	 * Convert absolute y-coordinate from baseline resolution to relative coordinate for the current device.
 	 *
-	 * @param oldY The old absolute y-coordinate based off of the 1080p resolution.
+	 * @param oldY The old absolute y-coordinate based off of the baseline resolution.
 	 * @return The new relative y-coordinate based off of the current resolution.
 	 */
 	open fun relHeight(oldY: Int): Int {
-		return if (is1080p) {
-			oldY
-		} else {
-			(oldY.toDouble() * (displayHeight.toDouble() / 2340.0)).toInt()
-		}
+		return (oldY.toDouble() * (displayHeight.toDouble() / SharedData.baselineHeight)).toInt()
 	}
 
 	/**
