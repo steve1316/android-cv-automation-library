@@ -1145,8 +1145,18 @@ open class ImageUtils(protected val context: Context) {
 		if (debugMode) Log.d(tag, "\n[TEXT_DETECTION] Starting text detection now...")
 
 		// Crop and convert the source bitmap to Mat.
+		// Google ML Kit requires a minimum of 32x32 pixels, so clamp the dimensions.
 		val (x, y, width, height) = cropRegion
-		val croppedBitmap = Bitmap.createBitmap(finalSourceBitmap, x, y, width, height)
+		val minDimension = 32
+		val clampedWidth = maxOf(width, minDimension).coerceAtMost(finalSourceBitmap.width - x)
+		val clampedHeight = maxOf(height, minDimension).coerceAtMost(finalSourceBitmap.height - y)
+
+		// Log if the dimensions were clamped to meet the minimum requirement.
+		if (width < minDimension || height < minDimension) {
+			Log.w(tag, "[TEXT_DETECTION] Crop region clamped from ${width}x${height} to ${clampedWidth}x${clampedHeight} to meet ML Kit's minimum 32x32 requirement.")
+		}
+
+		val croppedBitmap = Bitmap.createBitmap(finalSourceBitmap, x, y, clampedWidth, clampedHeight)
 		val cvImage = Mat()
 		Utils.bitmapToMat(croppedBitmap, cvImage)
 
