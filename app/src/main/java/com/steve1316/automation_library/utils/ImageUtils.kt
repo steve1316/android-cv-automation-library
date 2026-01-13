@@ -599,7 +599,7 @@ open class ImageUtils(protected val context: Context) {
 	 * @return The new relative x-coordinate based off of the current resolution.
 	 */
 	open fun relWidth(oldX: Int): Int {
-		return (oldX.toDouble() * (displayWidth.toDouble() / SharedData.baselineWidth)).toInt()
+		return if (SharedData.displayWidth.toInt() == SharedData.baselineWidth.toInt()) oldX else (oldX.toDouble() * (displayWidth.toDouble() / SharedData.baselineWidth)).toInt()
 	}
 
 	/**
@@ -609,7 +609,7 @@ open class ImageUtils(protected val context: Context) {
 	 * @return The new relative y-coordinate based off of the current resolution.
 	 */
 	open fun relHeight(oldY: Int): Int {
-		return (oldY.toDouble() * (displayHeight.toDouble() / SharedData.baselineHeight)).toInt()
+		return if (SharedData.displayWidth.toInt() == SharedData.baselineWidth.toInt()) oldY else (oldY.toDouble() * (displayHeight.toDouble() / SharedData.baselineHeight)).toInt()
 	}
 
 	/**
