@@ -32,6 +32,7 @@ import org.greenrobot.eventbus.EventBus
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
+import java.nio.ByteBuffer
 import java.util.*
 import androidx.core.graphics.createBitmap
 
@@ -104,11 +105,70 @@ class MediaProjectionService : Service() {
 			imageReader = ImageReader.newInstance(SharedData.displayWidth, SharedData.displayHeight, PixelFormat.RGBA_8888, 2)
 
 			// Now create the VirtualDisplay.
-			virtualDisplay = mediaProjection?.createVirtualDisplay(
-				"My Virtual Display", SharedData.displayWidth, SharedData.displayHeight,
-				SharedData.displayDPI, getVirtualDisplayFlags(), imageReader.surface, null, threadHandler
-			)!!
+            virtualDisplay = mediaProjection?.createVirtualDisplay(
+                "My Virtual Display", SharedData.displayWidth, SharedData.displayHeight,
+                SharedData.displayDPI, getVirtualDisplayFlags(), imageReader.surface, null, threadHandler
+            )!!
 		}
+
+        fun resizeVirtualDisplay(w: Int, h: Int) {
+            // Start the new ImageReader.
+			imageReader = ImageReader.newInstance(w, h, PixelFormat.RGBA_8888, 2)
+
+            virtualDisplay?.resize(w, h, SharedData.displayDPI)
+            virtualDisplay?.surface = imageReader.surface
+        }
+
+        fun captureArea(
+            cropX: Int,
+            cropY: Int,
+            cropW: Int,
+            cropH: Int,
+            saveImage: Boolean = false,
+            isException: Boolean = false,
+        ): Bitmap? {
+            val cropW: Int = cropW.coerceAtMost(SharedData.displayWidth)
+            val cropH: Int = cropH.coerceAtMost(SharedData.displayHeight)
+            var sourceBitmap: Bitmap? = null
+			val image: Image = imageReader.acquireLatestImage() ?: return null
+
+            try {
+                val plane = image.planes[0]
+                val buffer = plane.buffer
+                val pixelStride = plane.pixelStride
+                val rowStride = plane.rowStride
+                val sourceBitmap = Bitmap.createBitmap(cropW, cropH, Bitmap.Config.ARGB_8888)
+
+                for (y in 0 until cropH) {
+                    val sourceOffset = ((cropY + y) * rowStride) + (cropX * pixelStride)
+                    buffer.position(sourceOffset)
+                    val rowPixels = IntArray(cropW)
+                    buffer.asIntBuffer().get(rowPixels)
+                    sourceBitmap.setPixels(rowPixels, 0, cropW, 0, y, cropW, 1)
+                }
+
+                // Now write the Bitmap to the specified file inside the /files/temp/ folder. This adds about 500-600ms to runtime every time this is called when Debug Mode is on.
+                if (saveImage) {
+                    val fos = if (isException) {
+                        FileOutputStream("$tempDirectory/captureArea_exception.png")
+                    } else {
+                        FileOutputStream("$tempDirectory/captureArea_source.png")
+                    }
+                    sourceBitmap.compress(Bitmap.CompressFormat.PNG, 100, fos)
+
+                    // Perform cleanup by closing streams and freeing up memory.
+                    try {
+                        fos.close()
+                    } catch (ioe: IOException) {
+                        ioe.printStackTrace()
+                    }
+                }
+
+                return sourceBitmap
+            } finally {
+                image.close()
+            }
+        }
 
 		/**
 		 * Tell the ImageReader to grab the latest acquired screenshot and process it into a Bitmap.

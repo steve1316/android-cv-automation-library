@@ -779,6 +779,10 @@ open class ImageUtils(protected val context: Context) {
 		}
 	}
 
+    open fun getRegionBitmap(x: Int, y: Int, w: Int, h: Int): Bitmap? {
+        return MediaProjectionService.captureArea(x, y, w, h, saveImage = debugMode)
+    }
+
 	/**
 	 * Acquire a Bitmap from the URL image file.
 	 *
