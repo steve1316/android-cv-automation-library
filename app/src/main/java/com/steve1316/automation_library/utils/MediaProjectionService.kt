@@ -111,6 +111,17 @@ class MediaProjectionService : Service() {
             )!!
 		}
 
+        /** Takes screenshot of the specified region.
+         *
+         * @param cropX The start X-coorindate of the crop.
+         * @param cropY The start Y-coordinate of the crop.
+         * @param cropW The width to crop.
+         * @param cropH The height to crop.
+         * @param saveImage Whether to save the result bitmap to the temporary directory.
+         * @param isException Whether to save the result bitmap as part of exception logging.
+         *
+         * @return The cropped bitmap on success. Otherwise NULL.
+         */
         fun captureArea(
             cropX: Int,
             cropY: Int,
@@ -119,8 +130,10 @@ class MediaProjectionService : Service() {
             saveImage: Boolean = false,
             isException: Boolean = false,
         ): Bitmap? {
-            val cropW: Int = cropW.coerceAtMost(SharedData.displayWidth)
-            val cropH: Int = cropH.coerceAtMost(SharedData.displayHeight)
+            val cropW: Int = cropW.coerceIn(1, SharedData.displayWidth)
+            val cropH: Int = cropH.coerceIn(1, SharedData.displayHeight)
+            val cropX: Int = cropX.coerceIn(0, SharedData.displayWidth - cropW)
+            val cropY: Int = cropY.coerceIn(0, SharedData.displayHeight - cropH)
             var sourceBitmap: Bitmap? = null
 			val image: Image = imageReader.acquireLatestImage() ?: return null
 
