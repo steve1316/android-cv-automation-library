@@ -111,14 +111,6 @@ class MediaProjectionService : Service() {
             )!!
 		}
 
-        fun resizeVirtualDisplay(w: Int, h: Int) {
-            // Start the new ImageReader.
-			imageReader = ImageReader.newInstance(w, h, PixelFormat.RGBA_8888, 2)
-
-            virtualDisplay?.resize(w, h, SharedData.displayDPI)
-            virtualDisplay?.surface = imageReader.surface
-        }
-
         fun captureArea(
             cropX: Int,
             cropY: Int,
