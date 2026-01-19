@@ -69,6 +69,9 @@ class BotService : Service() {
 		appName = myContext.getString(R.string.app_name)
 		windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
 
+		// Initialize SettingsHelper for SQLite settings access.
+		SettingsHelper.initialize(myContext)
+
 		// Initialize the floating overlay button which handles all UI and animations.
 		floatingOverlayButton = FloatingOverlayButton(this, windowManager)
 
