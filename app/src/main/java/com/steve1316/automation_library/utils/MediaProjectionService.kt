@@ -61,6 +61,8 @@ class MediaProjectionService : Service() {
 
 		@SuppressLint("StaticFieldLeak")
         private var recording: ScreenRecorder? = null
+		private var lastBitmap: Bitmap? = null
+		private var lastBitmapIsFromException: Boolean = false
 
 		fun getImageReader(): ImageReader {
 			return imageReader
@@ -174,48 +176,73 @@ class MediaProjectionService : Service() {
 
 		/**
 		 * Tell the ImageReader to grab the latest acquired screenshot and process it into a Bitmap.
+		 * If no image is available, this will retry for a short duration before falling back to the last cached Bitmap.
 		 *
 		 * @param saveImage Flag to check whether to save the image to a file in the temp directory or not. Defaults to false.
 		 * @param isException Saves the screenshot as part of Exception logging or not. Defaults to false.
-		 * @return Bitmap of the latest acquired screenshot.
+		 * @return Bitmap of the latest acquired screenshot, or the last cached Bitmap if no new image is available.
 		 */
 		fun takeScreenshotNow(saveImage: Boolean = false, isException: Boolean = false): Bitmap? {
-			var sourceBitmap: Bitmap? = null
+			var image: Image? = imageReader.acquireLatestImage()
 
-			val image: Image? = imageReader.acquireLatestImage()
-
-			if (image != null) {
-				val planes: Array<Plane> = image.planes
-				val buffer = planes[0].buffer
-				val pixelStride = planes[0].pixelStride
-				val rowStride = planes[0].rowStride
-				val rowPadding: Int = rowStride - pixelStride * SharedData.displayWidth
-
-				// Create the Bitmap.
-				sourceBitmap = createBitmap(SharedData.displayWidth + rowPadding / pixelStride, SharedData.displayHeight)
-				sourceBitmap.copyPixelsFromBuffer(buffer)
-
-				// Now write the Bitmap to the specified file inside the /files/temp/ folder. This adds about 500-600ms to runtime every time this is called when Debug Mode is on.
-				if (saveImage) {
-					val fos = if (isException) {
-						FileOutputStream("$tempDirectory/exception.png")
-					} else {
-						FileOutputStream("$tempDirectory/source.png")
-					}
-					sourceBitmap.compress(Bitmap.CompressFormat.PNG, 100, fos)
-
-					// Perform cleanup by closing streams and freeing up memory.
-					try {
-						fos.close()
-					} catch (ioe: IOException) {
-						ioe.printStackTrace()
-					}
+			// If no image is available, retry for up to 50ms. This handles cases where the screen is static 
+			// or the ScreenRecorder has just consumed the latest frame.
+			if (image == null) {
+				var retries = 5
+				while (retries > 0) {
+					Thread.sleep(10)
+					image = imageReader.acquireLatestImage()
+					if (image != null) break
+					retries--
 				}
-
-				image.close()
 			}
 
-			return sourceBitmap
+			if (image != null) {
+				try {
+					val planes: Array<Plane> = image.planes
+					val buffer = planes[0].buffer
+					val pixelStride = planes[0].pixelStride
+					val rowStride = planes[0].rowStride
+					val rowPadding: Int = rowStride - pixelStride * SharedData.displayWidth
+
+					// Create the Bitmap.
+					val newBitmap = createBitmap(SharedData.displayWidth + rowPadding / pixelStride, SharedData.displayHeight)
+					newBitmap.copyPixelsFromBuffer(buffer)
+
+					// Update the cache.
+					lastBitmap = newBitmap
+					lastBitmapIsFromException = false
+				} finally {
+					image.close()
+				}
+			} else {
+				if (lastBitmap != null) {
+					Log.d(tag, "ImageReader returned null. Using cached bitmap.")
+				} else {
+					Log.w(tag, "ImageReader returned null and no cached bitmap is available.")
+				}
+			}
+
+			// Save the Bitmap (either fresh or cached) if requested.
+			val bitmapToReturn = lastBitmap
+			if (saveImage && bitmapToReturn != null) {
+				// Only save if it's an exception or if it's a fresh normal bitmap (to avoid redundant disk I/O on identical cached frames).
+				// We allow re-saving if it's an exception even if it's from cache, but we mark it.
+				val fos = if (isException) {
+					FileOutputStream("$tempDirectory/exception.png")
+				} else {
+					FileOutputStream("$tempDirectory/source.png")
+				}
+
+				try {
+					bitmapToReturn.compress(Bitmap.CompressFormat.PNG, 100, fos)
+					fos.close()
+				} catch (e: IOException) {
+					Log.e(tag, "Failed to save screenshot: ${e.message}")
+				}
+			}
+
+			return bitmapToReturn
 		}
 
 		/**
@@ -454,6 +481,10 @@ class MediaProjectionService : Service() {
 				// Finally, stop the Bot Service.
 				val botStopIntent = Intent(myContext, BotService::class.java)
 				stopService(botStopIntent)
+
+				// Clear bitmap cache.
+				lastBitmap = null
+				lastBitmapIsFromException = false
 
 				// Now set the MediaProjection object to null to eliminate the "Invalid media projection" error.
 				mediaProjection = null
