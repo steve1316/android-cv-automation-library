@@ -163,7 +163,7 @@ class MediaProjectionService : Service() {
 			Log.d(tag, "Current Virtual Display at ${SharedData.displayWidth}x${SharedData.displayHeight}, DPI: ${SharedData.displayDPI}, Density: ${SharedData.displayDensity}")
 
 			// Start the ImageReader.
-			imageReader = ImageReader.newInstance(SharedData.displayWidth, SharedData.displayHeight, PixelFormat.RGBA_8888, 2)
+			imageReader = ImageReader.newInstance(SharedData.displayWidth, SharedData.displayHeight, PixelFormat.RGBA_8888, 5)
 
 			// Now create the VirtualDisplay.
 			virtualDisplay = mediaProjection?.createVirtualDisplay(

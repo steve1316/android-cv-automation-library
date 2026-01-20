@@ -64,6 +64,7 @@ class ScreenRecorder(private val context: Context, private val width: Int, priva
 
 	// Capture thread.
 	private var captureThread: Thread? = null
+	private var lastCapturedBitmap: Bitmap? = null
 
     /**
 	 * Checks if recording is active.
@@ -170,15 +171,26 @@ class ScreenRecorder(private val context: Context, private val width: Int, priva
 					// synchronized with the screen even if the thread is slightly delayed, 
 					// as older intermediate frames are automatically dropped by the system.
 					val image = imageReader.acquireLatestImage()
-					var bitmap: Bitmap? = null
+					var bitmap: Bitmap?
 
 					if (image != null) {
 						try {
 							// Convert the raw Image data to a usable Bitmap.
 							bitmap = imageToBitmap(image)
+
+							// Update last captured bitmap for future re-use when acquireLatestImage() returns null.
+							if (bitmap != null) {
+								lastCapturedBitmap?.recycle()
+								lastCapturedBitmap = bitmap.copy(bitmap.config ?: Bitmap.Config.ARGB_8888, false)
+							}
 						} finally {
 							image.close()
 						}
+					} else {
+						// If no new image is available, re-use the last one to keep the encoder fed.
+						// This is critical for static screens where acquireLatestImage() might return null
+						// if another thread (like screenshotting) already consumed the frame.
+						bitmap = lastCapturedBitmap?.let { it.copy(it.config ?: Bitmap.Config.ARGB_8888, false) }
 					}
 
 					if (bitmap != null) {
@@ -413,6 +425,10 @@ class ScreenRecorder(private val context: Context, private val width: Int, priva
 
 		inputSurface?.release()
 		inputSurface = null
+
+		// Recycle the last captured bitmap.
+		lastCapturedBitmap?.recycle()
+		lastCapturedBitmap = null
 
 		// Clear any remaining frames.
 		while (true) {
