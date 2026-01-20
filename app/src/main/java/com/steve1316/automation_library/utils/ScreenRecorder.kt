@@ -267,7 +267,7 @@ class ScreenRecorder(private val context: Context, private val width: Int, priva
 		val textWidth = textPaint.measureText(deviceInfo)
 		val textHeight = textPaint.descent() - textPaint.ascent()
 		val padding = 8f * scaleFactor
-		val offset = 10f * scaleFactor
+		val offset = 50f * scaleFactor
 
 		// Draw semi-transparent background with offset.
 		canvas.drawRect(offset, 0f, offset + textWidth + padding * 2, textHeight + padding * 2, bgPaint)
