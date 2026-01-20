@@ -653,6 +653,7 @@ open class ImageUtils(protected val context: Context) {
 			sourceBitmap = MediaProjectionService.takeScreenshotNow()
 
 			if (sourceBitmap == null) {
+                Log.w(tag, "Source Bitmap is null. Swiping to generate new image.")
 				MyAccessibilityService.getInstance().swipe(oldXSwipe, oldYSwipe, newXSwipe, newYSwipe, durationSwipe)
 				MyAccessibilityService.getInstance().swipe(oldXSwipe, newYSwipe, newXSwipe, oldYSwipe, durationSwipe)
 			}
