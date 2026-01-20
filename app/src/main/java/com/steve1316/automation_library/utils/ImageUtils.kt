@@ -646,16 +646,17 @@ open class ImageUtils(protected val context: Context) {
 	 * @return A Pair of source and template Bitmaps.
 	 */
 	open fun getBitmaps(templateName: String, templatePath: String = SharedData.templateSubfolderPathName): Pair<Bitmap, Bitmap?> {
-		var sourceBitmap: Bitmap? = null
+		// Acquire the source bitmap. MediaProjectionService handles caching and retries internally, 
+		// so we no longer need to swipe aggressively to force new images.
+		var sourceBitmap = MediaProjectionService.takeScreenshotNow()
 
-		// Keep swiping a little bit up and down to trigger a new image for ImageReader to grab.
-		while (sourceBitmap == null) {
+		if (sourceBitmap == null) {
+			Log.w(tag, "Source Bitmap is null on initial capture. Waiting a moment before trying again.")
 			sourceBitmap = MediaProjectionService.takeScreenshotNow()
+		}
 
-			if (sourceBitmap == null) {
-				MyAccessibilityService.getInstance().swipe(oldXSwipe, oldYSwipe, newXSwipe, newYSwipe, durationSwipe)
-				MyAccessibilityService.getInstance().swipe(oldXSwipe, newYSwipe, newXSwipe, oldYSwipe, durationSwipe)
-			}
+		if (sourceBitmap == null) {
+			throw IllegalStateException("Failed to acquire a source bitmap even after caching and retries.")
 		}
 
 		var templateBitmap: Bitmap?
@@ -767,16 +768,16 @@ open class ImageUtils(protected val context: Context) {
 	 * @return Bitmap of the source screenshot.
 	 */
 	open fun getSourceBitmap(): Bitmap {
-		while (true) {
-			val bitmap = MediaProjectionService.takeScreenshotNow(saveImage = debugMode)
-			if (bitmap != null) {
-				return bitmap
-			} else {
-				Log.w(tag, "Source bitmap is null. Moving the screen a bit and waiting a second before trying again.")
-				MyAccessibilityService.getInstance().swipe(oldXSwipe, oldYSwipe, newXSwipe, newYSwipe, durationSwipe)
-				MyAccessibilityService.getInstance().swipe(oldXSwipe, newYSwipe, newXSwipe, oldYSwipe, durationSwipe)
-			}
+		// Acquire the source bitmap. MediaProjectionService handles caching and retries internally, 
+		// so we no longer need to swipe aggressively to force new images.
+		var bitmap = MediaProjectionService.takeScreenshotNow(saveImage = debugMode)
+
+		if (bitmap == null) {
+			Log.w(tag, "Source bitmap is null on initial capture. Waiting a moment before trying again.")
+			bitmap = MediaProjectionService.takeScreenshotNow(saveImage = debugMode)
 		}
+
+		return bitmap ?: throw IllegalStateException("Failed to acquire a source bitmap even after caching and retries.")
 	}
 
 	/**
