@@ -124,6 +124,11 @@ class BotService : Service() {
 						// Clear the message log in the frontend.
 						EventBus.getDefault().post(JSEvent("BotService", "Running"))
 
+						// Start screen recording if enabled in settings.
+						if (SharedData.enableScreenRecording) {
+							MediaProjectionService.startRecording(myContext)
+						}
+
 						// Run the Discord process on a new Thread if it is enabled.
 						if (DiscordUtils.enableDiscordNotifications) {
 							val discordUtils = DiscordUtils(myContext)
@@ -263,6 +268,9 @@ class BotService : Service() {
 	 *
 	 */
 	private fun performCleanUp() {
+		// Stop any active recording first to ensure proper file finalization.
+		MediaProjectionService.stopRecording()
+
 		if (!skipNotificationUpdate) {
 			Log.d(tag, "BotService for $appName is now stopped and executing cleanup now...")
 			isRunning = false

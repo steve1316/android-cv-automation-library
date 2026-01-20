@@ -59,8 +59,70 @@ class MediaProjectionService : Service() {
 		private lateinit var imageReader: ImageReader
 		var isRunning: Boolean = false
 
+		@SuppressLint("StaticFieldLeak")
+        private var recording: ScreenRecorder? = null
+
 		fun getImageReader(): ImageReader {
 			return imageReader
+		}
+
+		/**
+		 * Starts screen recording and will be saved to the /recordings directory.
+		 *
+		 * Note: MediaProjection must be running before calling this method.
+		 *
+		 * @param context The application's context.
+		 * @return True if recording started successfully, false otherwise.
+		 */
+		fun startRecording(context: Context): Boolean {
+			if (!isRunning) {
+				Log.e(tag, "Cannot start recording: MediaProjection is not running.")
+				return false
+			}
+
+			if (recording?.isRecording == true) {
+				Log.w(tag, "Recording is already in progress.")
+				return false
+			}
+
+			return try {
+				// Apply resolution scale for smaller file sizes.
+				val scale = SharedData.recordingResolutionScale
+				val scaledWidth = (SharedData.displayWidth * scale).toInt()
+				val scaledHeight = (SharedData.displayHeight * scale).toInt()
+
+				// Use dedicated capture thread.
+				recording = ScreenRecorder(context, scaledWidth, scaledHeight, imageReader)
+				Log.d(tag, "Screen recording started successfully.")
+				true
+			} catch (e: Exception) {
+				Log.e(tag, "Failed to start recording: ${e.message}")
+				recording = null
+				false
+			}
+		}
+
+		/**
+		 * Stops the current recording and releases resources.
+		 *
+		 * @return The File path of the saved recording, or null if no recording was active.
+		 */
+		fun stopRecording(): File? {
+			if (recording?.isRecording != true) {
+				Log.d(tag, "No recording in progress to stop.")
+				return null
+			}
+
+			val outputFile = recording?.outputFile
+			try {
+				recording?.close()
+			} catch (e: Exception) {
+				Log.e(tag, "Error stopping recording: ${e.message}")
+			} finally {
+				recording = null
+			}
+
+			return outputFile
 		}
 
 		/**
@@ -367,6 +429,18 @@ class MediaProjectionService : Service() {
 		override fun onStop() {
 			threadHandler.post {
 				isRunning = false
+
+				// Stop any active recording.
+				if (recording?.isRecording == true) {
+					try {
+						recording?.close()
+						Log.d(tag, "Recording stopped during MediaProjection cleanup.")
+					} catch (e: Exception) {
+						Log.e(tag, "Error stopping recording during cleanup: ${e.message}")
+					} finally {
+						recording = null
+					}
+				}
 
 				// Destroy the VirtualDisplay.
 				virtualDisplay.release()
