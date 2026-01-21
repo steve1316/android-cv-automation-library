@@ -402,6 +402,9 @@ class MediaProjectionService : Service() {
 	override fun onCreate() {
 		super.onCreate()
 
+		// Register the Global Exception Handler to catch any uncaught exceptions and log them.
+		GlobalExceptionHandler.register()
+
 		// Now, start a new Thread to handle processing new screenshots.
 		object : Thread() {
 			override fun run() {
