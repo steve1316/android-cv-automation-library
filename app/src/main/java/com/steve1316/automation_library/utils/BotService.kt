@@ -62,6 +62,10 @@ class BotService : Service() {
 	@SuppressLint("ClickableViewAccessibility", "InflateParams")
 	override fun onCreate() {
 		super.onCreate()
+
+		// Register the Global Exception Handler to catch any uncaught exceptions and log them.
+		GlobalExceptionHandler.register()
+
 		EventBus.getDefault().register(this)
 
 		// Save a reference to the app's context and app name.
@@ -319,8 +323,8 @@ class BotService : Service() {
 		val contentIntent: Intent = packageManager.getLaunchIntentForPackage(packageName)!!
 		val className = contentIntent.component!!.className
 
-		if (event.exception.toString() == "java.lang.InterruptedException") {
-            Log.d(tag, "InterruptedException detected. Assuming process was manually stopped.")
+		if (event.exception is InterruptedException) {
+			Log.d(tag, "InterruptedException detected. Assuming process was manually stopped.")
 			NotificationUtils.updateNotification(myContext, Class.forName(className), false, "Completed successfully with no errors.")
 		} else {
 			Log.d(tag, "Process has finished running but an exception(s) were detected.")
@@ -329,7 +333,7 @@ class BotService : Service() {
 				myContext,
 				Class.forName(className),
 				false,
-				"${event.exception.javaClass.canonicalName}\nTap me to see more details.",
+				"${event.exception.javaClass.simpleName}\nTap me to see more details.",
 				title = "Encountered Exception",
 				displayBigText = true
 			)
