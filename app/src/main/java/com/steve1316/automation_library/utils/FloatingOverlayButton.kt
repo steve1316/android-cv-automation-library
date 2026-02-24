@@ -298,6 +298,8 @@ class FloatingOverlayButton(
                             dragToDismiss.hide()
                             guidanceOverlays.hideGuidance()
 
+                            // Store the current button location in the preferences
+                            // so it can be reloaded the next time the service runs.
                             val editor = context.getSharedPreferences("OverlayPrefs", Context.MODE_PRIVATE).edit()
                             editor.putInt("lastX", overlayLayoutParams.x)
                             editor.putInt("lastY", overlayLayoutParams.y)
