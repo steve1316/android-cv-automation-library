@@ -88,6 +88,10 @@ class BotService : Service() {
 				Log.d(tag, "BotService for $appName is now running.")
                 Log.d(tag, "Automation Library version: ${BuildConfig.VERSION_NAME}")
 				Toast.makeText(myContext, "BotService for $appName is now running.", Toast.LENGTH_SHORT).show()
+
+				// Refresh settings before starting to ensure we have the latest values from the database.
+				SettingsHelper.refresh(myContext)
+
 				isRunning = true
 				floatingOverlayButton.setRunningState(true)
 
