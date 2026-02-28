@@ -91,6 +91,7 @@ class BotService : Service() {
 
 				// Refresh settings before starting to ensure we have the latest values from the database.
 				SettingsHelper.refresh(myContext)
+				DiscordUtils.enableDiscordNotifications = SettingsHelper.getBooleanSetting("discord", "enableDiscordNotifications", false)
 
 				isRunning = true
 				floatingOverlayButton.setRunningState(true)
