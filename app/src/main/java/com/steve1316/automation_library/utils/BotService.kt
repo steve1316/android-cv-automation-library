@@ -144,6 +144,7 @@ class BotService : Service() {
 							thread {
 								runBlocking {
 									DiscordUtils.queue.clear()
+									DiscordUtils.isRunning = true
 									discordUtils.main()
 								}
 							}
@@ -279,6 +280,9 @@ class BotService : Service() {
 	private fun performCleanUp() {
 		// Stop any active recording first to ensure proper file finalization.
 		MediaProjectionService.stopRecording()
+
+		// Stop the Discord message loop.
+		DiscordUtils.isRunning = false
 
 		if (!skipNotificationUpdate) {
 			Log.d(tag, "BotService for $appName is now stopped and executing cleanup now...")
