@@ -68,8 +68,8 @@ dependencies {
 	// string-similarity to compare the string from OCR to the strings in data.
 	api(libs.stringSimilarity)
 
-	// Javacord for Discord integration.
-	api(libs.javacord)
+	// Kord for Discord integration.
+	api(libs.kord.core)
 
 	// Klaxon to parse JSON data files.
 	api(libs.klaxon)
