@@ -11,7 +11,7 @@ app-jvm-toolchain = "17"
 
 
 androidGradleBuildTools = "8.12.0"
-javacord = "3.8.0"
+kord = "0.17.0"
 kotlinGradlePlugin = "2.2.0"
 androidx-core = "1.17.0"
 androidx-preference = "1.2.1"
@@ -26,7 +26,7 @@ twitter4jCore = "4.1.2"
 
 [libraries]
 androidGradleBuildTools = { group = "com.android.tools.build", name = "gradle", version.ref = "androidGradleBuildTools" }
-javacord = { module = "org.javacord:javacord", version.ref = "javacord" }
+kord-core = { module = "dev.kord:kord-core", version.ref = "kord" }
 kotlinGradlePlugin = { group = "org.jetbrains.kotlin", name = "kotlin-gradle-plugin", version.ref = "kotlinGradlePlugin" }
 androidx-core = { group = "androidx.core", name = "core-ktx", version.ref = "androidx-core" }
 androidx-preference = { group = "androidx.preference", name = "preference-ktx", version.ref = "androidx-preference" }
