@@ -284,8 +284,6 @@ class BotService : Service() {
 			Log.d(tag, "BotService for $appName is now stopped and executing cleanup now...")
 			isRunning = false
 
-			DiscordUtils.queue.add("```diff\n- Terminated connection to Discord API for $appName\n```")
-
 			// Save the message log and reset MessageLog.
 			MessageLog.saveLogToFile(myContext)
 

@@ -90,8 +90,6 @@ open class DiscordUtils(myContext: Context) {
 
 		Log.d(tag, "Successfully fetched reference to user and their DM channel.")
 
-		queue.add("```diff\n+ Successful mobile connection to Discord API for $appName\n```")
-
 		try {
 			// Loop and send any messages inside the Queue.
 			while (true) {
