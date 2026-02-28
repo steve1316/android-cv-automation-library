@@ -7,6 +7,8 @@ import com.steve1316.automation_library.data.SharedData
 import dev.kord.common.entity.Snowflake
 import dev.kord.core.Kord
 import dev.kord.core.entity.channel.DmChannel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.yield
 import java.util.*
 
 
@@ -28,6 +30,7 @@ open class DiscordUtils(myContext: Context) {
 
 		var discordToken: String = ""
 		var discordUserID: String = ""
+		var isRunning: Boolean = false
 	}
 
 	/**
@@ -90,19 +93,17 @@ open class DiscordUtils(myContext: Context) {
 
 		Log.d(tag, "Successfully fetched reference to user and their DM channel.")
 
-		queue.add("```diff\n+ Successful mobile connection to Discord API for $appName\n```")
-
 		try {
 			// Loop and send any messages inside the Queue.
-			while (true) {
+			while (isRunning) {
 				if (queue.isNotEmpty()) {
 					val message = queue.remove()
 					sendMessage(message)
-
-					if (message.contains("Terminated connection to Discord API")) {
-						break
-					}
 				}
+
+				// Yield to other coroutines and add a small delay to avoid busy-waiting.
+				yield()
+				delay(100)
 			}
 
 			Log.d(tag, "Terminated connection to Discord API.")

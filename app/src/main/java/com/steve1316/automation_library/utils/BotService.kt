@@ -144,6 +144,7 @@ class BotService : Service() {
 							thread {
 								runBlocking {
 									DiscordUtils.queue.clear()
+									DiscordUtils.isRunning = true
 									discordUtils.main()
 								}
 							}
@@ -280,11 +281,12 @@ class BotService : Service() {
 		// Stop any active recording first to ensure proper file finalization.
 		MediaProjectionService.stopRecording()
 
+		// Stop the Discord message loop.
+		DiscordUtils.isRunning = false
+
 		if (!skipNotificationUpdate) {
 			Log.d(tag, "BotService for $appName is now stopped and executing cleanup now...")
 			isRunning = false
-
-			DiscordUtils.queue.add("```diff\n- Terminated connection to Discord API for $appName\n```")
 
 			// Save the message log and reset MessageLog.
 			MessageLog.saveLogToFile(myContext)
@@ -351,10 +353,10 @@ class BotService : Service() {
 				val message1: String = event.exception.stackTraceToString().substring(0, halfLength)
 				val message2: String = event.exception.stackTraceToString().substring(halfLength)
 
-				DiscordUtils.queue.add("> Encountered exception: \n$message1")
-				DiscordUtils.queue.add("> $message2")
+				DiscordUtils.queue.add("> ${MessageLog.getSystemTimeString()} Encountered exception: \n$message1")
+				DiscordUtils.queue.add("> ${MessageLog.getSystemTimeString()} $message2")
 			} else {
-				DiscordUtils.queue.add("> Encountered exception: \n${event.exception.stackTraceToString()}")
+				DiscordUtils.queue.add("> ${MessageLog.getSystemTimeString()} Encountered exception: \n${event.exception.stackTraceToString()}")
 			}
 
 			isException = true
