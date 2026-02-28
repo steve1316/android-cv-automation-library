@@ -351,10 +351,10 @@ class BotService : Service() {
 				val message1: String = event.exception.stackTraceToString().substring(0, halfLength)
 				val message2: String = event.exception.stackTraceToString().substring(halfLength)
 
-				DiscordUtils.queue.add("> Encountered exception: \n$message1")
-				DiscordUtils.queue.add("> $message2")
+				DiscordUtils.queue.add("> ${MessageLog.getSystemTimeString()} Encountered exception: \n$message1")
+				DiscordUtils.queue.add("> ${MessageLog.getSystemTimeString()} $message2")
 			} else {
-				DiscordUtils.queue.add("> Encountered exception: \n${event.exception.stackTraceToString()}")
+				DiscordUtils.queue.add("> ${MessageLog.getSystemTimeString()} Encountered exception: \n${event.exception.stackTraceToString()}")
 			}
 
 			isException = true
