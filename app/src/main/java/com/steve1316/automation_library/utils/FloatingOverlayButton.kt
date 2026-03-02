@@ -2,6 +2,7 @@ package com.steve1316.automation_library.utils
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.SharedPreferences
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
@@ -141,6 +142,12 @@ class FloatingOverlayButton(
         overlayButton.requestLayout()
 
         setInitialOverlayPosition(forceScreenCenter = true)
+
+        // Reload previous overlay button location.
+        val prefs = context.getSharedPreferences("OverlayPrefs", Context.MODE_PRIVATE)
+        overlayLayoutParams.x = prefs.getInt("lastX", overlayLayoutParams.x)
+        overlayLayoutParams.y = prefs.getInt("lastY", overlayLayoutParams.y)
+        
         windowManager.addView(overlayView, overlayLayoutParams)
 
         setupTouchListener()
@@ -290,6 +297,13 @@ class FloatingOverlayButton(
 
                             dragToDismiss.hide()
                             guidanceOverlays.hideGuidance()
+
+                            // Store the current button location in the preferences
+                            // so it can be reloaded the next time the service runs.
+                            val editor = context.getSharedPreferences("OverlayPrefs", Context.MODE_PRIVATE).edit()
+                            editor.putInt("lastX", overlayLayoutParams.x)
+                            editor.putInt("lastY", overlayLayoutParams.y)
+                            editor.apply()
                         } else {
                             // This was a tap.
                             onOverlayClickListener?.invoke()
