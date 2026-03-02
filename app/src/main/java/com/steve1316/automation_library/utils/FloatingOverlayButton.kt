@@ -142,13 +142,13 @@ class FloatingOverlayButton(
         overlayButton.requestLayout()
 
         setInitialOverlayPosition(forceScreenCenter = true)
-        windowManager.addView(overlayView, overlayLayoutParams)
 
         // Reload previous overlay button location.
         val prefs = context.getSharedPreferences("OverlayPrefs", Context.MODE_PRIVATE)
-        overlayLayoutParams.x = prefs.getInt("lastX", 0)
-        overlayLayoutParams.y = prefs.getInt("lastY", 0)
-        windowManager.updateViewLayout(overlayView, overlayLayoutParams)
+        overlayLayoutParams.x = prefs.getInt("lastX", overlayLayoutParams.x)
+        overlayLayoutParams.y = prefs.getInt("lastY", overlayLayoutParams.y)
+        
+        windowManager.addView(overlayView, overlayLayoutParams)
 
         setupTouchListener()
 
