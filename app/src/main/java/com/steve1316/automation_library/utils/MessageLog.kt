@@ -49,6 +49,7 @@ class MessageLog {
 		 */
 		fun reset() {
 			clearLog()
+			disableOutput = false
 			Log.d(TAG, "MessageLog has now been reset and is ready for the next run.")
 		}
 		
@@ -107,7 +108,7 @@ class MessageLog {
 						val logString: String = "Now saving Message Log to file named \"$fileName\" at $path"
 						Log.d(TAG, logString)
 						messageLog.add("\n${getElapsedTimeString()} $logString")
-						EventBus.getDefault().post(JSEvent("MessageLog", "\n$logString"))
+						EventBus.getDefault().post(JSEvent("MessageLog", "\n$logString", disableOutput))
 
 						messageLog.forEach {
 							out.println(it)
@@ -270,9 +271,7 @@ class MessageLog {
 				messageLog.add(msg)
 
 				// Send the message to the frontend.
-				if (!disableOutput) {
-					EventBus.getDefault().post(JSEvent("MessageLog", msg))
-				}
+				EventBus.getDefault().post(JSEvent("MessageLog", msg, disableOutput))
 			}
 		}
 

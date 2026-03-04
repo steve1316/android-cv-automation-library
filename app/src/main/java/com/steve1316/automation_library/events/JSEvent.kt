@@ -5,5 +5,6 @@ package com.steve1316.automation_library.events
  *
  * @property eventName The name of the event to be picked up on as defined in the developer's JS frontend.
  * @property message The message string to pass on.
+ * @property isInternal Whether this event is for internal use and should be hidden from the JS bridge.
  */
-class JSEvent(val eventName: String, val message: String)
+class JSEvent(val eventName: String, val message: String, val isInternal: Boolean = false)
