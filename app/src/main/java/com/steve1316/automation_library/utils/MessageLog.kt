@@ -43,6 +43,12 @@ class MessageLog {
         // Particularly useful when parallel processing is being done to avoid log messages being sent to the frontend out of order.
         var disableOutput = false
 
+        // Optional prefix for the log file name (e.g. the trainee name with underscores).
+        var logFileNamePrefix = ""
+
+        // Optional suffix for the log file name.
+        var logFileNameSuffix = ""
+
 		/**
 		 * Resets state to prepare for the next run.
 		 * Clears the message log but keeps the startTimeMs so that any cleanup logging still has valid timestamps.
@@ -50,6 +56,8 @@ class MessageLog {
 		fun reset() {
 			clearLog()
 			disableOutput = false
+			logFileNamePrefix = ""
+			logFileNameSuffix = ""
 			Log.d(TAG, "MessageLog has now been reset and is ready for the next run.")
 		}
 		
@@ -86,14 +94,24 @@ class MessageLog {
 			}
 
 			// Generate the file name.
-			val fileName = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+			val timestamp = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
 				val current = LocalDateTime.now()
 				val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH_mm_ss")
-				"log @ ${current.format(formatter)}"
+				current.format(formatter)
 			} else {
-				val current = SimpleDateFormat("HH_mm_ss", Locale.getDefault()).format(Date())
 				val sdf = SimpleDateFormat("yyyy-MM-dd HH_mm_ss", Locale.getDefault())
-				"log @ ${current.format(sdf)}"
+				sdf.format(Date())
+			}
+
+			// Build the file name from optional prefix, timestamp, and optional suffix.
+			val parts = mutableListOf<String>()
+			if (logFileNamePrefix.isNotEmpty()) parts.add(logFileNamePrefix)
+			parts.add(timestamp)
+			if (logFileNameSuffix.isNotEmpty()) parts.add(logFileNameSuffix)
+			val fileName = if (logFileNamePrefix.isEmpty() && logFileNameSuffix.isEmpty()) {
+				"log @ $timestamp"
+			} else {
+				parts.joinToString("_")
 			}
 
 			// Now save the Message Log to the new text file.
