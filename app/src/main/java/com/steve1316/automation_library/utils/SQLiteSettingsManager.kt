@@ -5,6 +5,7 @@ import android.database.sqlite.SQLiteDatabase
 import android.util.Log
 import org.json.JSONObject
 import java.io.File
+import com.steve1316.automation_library.data.SharedData
 
 /**
  * Manages settings persistence using SQLite database.
@@ -12,7 +13,7 @@ import java.io.File
  */
 class SQLiteSettingsManager(private val context: Context) {
     companion object {
-        private const val TAG = "SQLiteSettingsManager"
+        private const val TAG = "${SharedData.loggerTag}SQLiteSettingsManager"
         private const val DATABASE_NAME = "settings.db"
         private const val TABLE_SETTINGS = "settings"
         
