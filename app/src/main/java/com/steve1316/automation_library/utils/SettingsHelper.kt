@@ -3,13 +3,14 @@ package com.steve1316.automation_library.utils
 import android.annotation.SuppressLint
 import android.content.Context
 import android.util.Log
+import com.steve1316.automation_library.data.SharedData
 
 /**
  * Helper class to provide easy access to settings from SQLite database.
  * This class provides a centralized way to access settings throughout the app.
  */
 object SettingsHelper {
-    private const val TAG = "SettingsHelper"
+    private const val TAG = "${SharedData.loggerTag}SettingsHelper"
     @SuppressLint("StaticFieldLeak")
     private var settingsManager: SQLiteSettingsManager? = null
 
