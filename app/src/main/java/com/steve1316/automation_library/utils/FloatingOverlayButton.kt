@@ -449,8 +449,6 @@ private class GuidanceOverlays(
     private lateinit var regionHighlightLayoutParams: WindowManager.LayoutParams
     private lateinit var tooltipView: TextView
     private lateinit var tooltipLayoutParams: WindowManager.LayoutParams
-    private lateinit var touchInterceptorView: View
-    private lateinit var touchInterceptorLayoutParams: WindowManager.LayoutParams
 
     // Handler for scheduling the flash hide callback.
     private val flashHandler = Handler(Looper.getMainLooper())
@@ -667,40 +665,6 @@ private class GuidanceOverlays(
         }
 
         windowManager.addView(tooltipView, tooltipLayoutParams)
-
-        // Create the full-screen touch interceptor view for stopping the flashing with any touch.
-        touchInterceptorView = View(context).apply {
-            // Start invisible, only shown during flashing.
-            visibility = View.INVISIBLE
-            setBackgroundColor(Color.TRANSPARENT)
-            isClickable = true
-            isFocusable = false
-        }
-
-        @SuppressLint("ClickableViewAccessibility")
-        touchInterceptorView.setOnTouchListener { _, event ->
-            if (isFlashing && event.action == MotionEvent.ACTION_DOWN) {
-                // Stop the flashing animation when any touch occurs.
-                stopFlashing()
-            }
-            // Return false to let the touch pass through to views below.
-            false
-        }
-
-        touchInterceptorLayoutParams = WindowManager.LayoutParams(
-            screenWidth,
-            screenHeight,
-            overlayLayoutParamsType,
-            // FLAG_NOT_FOCUSABLE allows touches to be passed through after we handle them.
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
-            PixelFormat.TRANSLUCENT
-        ).apply {
-            x = 0
-            y = 0
-            gravity = Gravity.TOP or Gravity.START
-        }
-
-        windowManager.addView(touchInterceptorView, touchInterceptorLayoutParams)
     }
 
     /**
@@ -776,11 +740,7 @@ private class GuidanceOverlays(
         // Cancel any existing flash callbacks.
         cancelFlashCallback()
 
-        // Show the touch interceptor to catch any screen touch.
         isFlashing = true
-        if (::touchInterceptorView.isInitialized) {
-            touchInterceptorView.visibility = View.VISIBLE
-        }
 
         // The fade duration in milliseconds is the same for both fade in and fade out.
         val fadeDuration = 250L
@@ -792,6 +752,7 @@ private class GuidanceOverlays(
                 if (remainingFlashes <= 0) {
                     // All flashes completed, fade out and stop.
                     fadeOutGuidance(fadeDuration)
+                    isFlashing = false
                     return
                 }
 
@@ -875,11 +836,8 @@ private class GuidanceOverlays(
     fun stopFlashing() {
         cancelFlashCallback()
         
-        // Mark flashing as stopped and hide the touch interceptor.
+        // Mark flashing as stopped.
         isFlashing = false
-        if (::touchInterceptorView.isInitialized) {
-            touchInterceptorView.visibility = View.INVISIBLE
-        }
 
         // Cancel any ongoing animations and hide immediately.
         if (::regionHighlightsView.isInitialized) {
@@ -907,9 +865,6 @@ private class GuidanceOverlays(
         }
         if (::tooltipView.isInitialized) {
             runCatching { windowManager.removeView(tooltipView) }
-        }
-        if (::touchInterceptorView.isInitialized) {
-            runCatching { windowManager.removeView(touchInterceptorView) }
         }
     }
 }
