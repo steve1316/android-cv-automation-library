@@ -119,15 +119,6 @@ class SQLiteSettingsManager(private val context: Context) :
         }
     }
 
-    /** Gets a readable reference to the database.
-     *
-     * @return The readable database reference if it is available, otherwise NULL.
-     */
-    @Deprecated("This is a legacy function. Use SQLiteSettingsManager.readableDatabase or SQLiteSettingsManager.writableDatabase instead.")
-    fun getDatabase(): SQLiteDatabase? {
-        return if (isAvailable()) this.readableDatabase else null
-    }
-
     /** Load a setting from the database using a category and key.
      *
      * @param category The category of the setting (e.g. "general", "characters", etc.)
