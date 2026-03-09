@@ -21,28 +21,7 @@ object SettingsHelper {
      * @param context The application context.
      */
     fun initialize(context: Context) {
-        // If already initialized, close it first.
-        if (settingsManager != null) {
-            settingsManager?.close()
-        }
-
         settingsManager = SQLiteSettingsManager(context)
-        if (settingsManager?.initialize() == true) {
-            Log.d(TAG, "Settings helper initialized successfully.")
-        } else {
-            Log.w(TAG, "Failed to initialize settings helper.")
-        }
-    }
-
-    /**
-     * Re-initializes the settings manager to ensure we have the freshest settings from the database.
-     * This is useful when settings are updated in the frontend and need to be reflected in the backend without restarting the service.
-     *
-     * @param context The application context.
-     */
-    fun refresh(context: Context) {
-        Log.d(TAG, "Refreshing settings helper...")
-        initialize(context)
     }
 
 	/**
@@ -153,7 +132,7 @@ object SettingsHelper {
 	 * @return True if the settings manager is initialized and the database is available.
 	 */
 	fun isAvailable(): Boolean {
-		return settingsManager != null && settingsManager?.isDatabaseAvailable() == true
+		return settingsManager != null && settingsManager?.isAvailable() == true
 	}
 }
 

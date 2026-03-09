@@ -89,8 +89,6 @@ class BotService : Service() {
                 Log.d(tag, "Automation Library version: ${BuildConfig.VERSION_NAME}")
 				Toast.makeText(myContext, "BotService for $appName is now running.", Toast.LENGTH_SHORT).show()
 
-				// Refresh settings before starting to ensure we have the latest values from the database.
-				SettingsHelper.refresh(myContext)
 				DiscordUtils.enableDiscordNotifications = SettingsHelper.getBooleanSetting("discord", "enableDiscordNotifications", false)
 
 				isRunning = true
