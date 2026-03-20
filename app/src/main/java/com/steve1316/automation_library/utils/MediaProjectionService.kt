@@ -142,10 +142,10 @@ class MediaProjectionService : Service() {
 				createVirtualDisplay()
 			} catch (_: Exception) {
 				Log.e(tag, "Failed to perform cleanup and recreating the VirtualDisplay after device rotation.")
-				Toast.makeText(
+				AndroidComponents.showCustomToast(
 					context, "Failed to perform cleanup and recreating the VirtualDisplay after device rotation.",
-					Toast.LENGTH_SHORT
-				).show()
+					1000
+				)
 			}
 		}
 
@@ -558,10 +558,10 @@ class MediaProjectionService : Service() {
 					createVirtualDisplay()
 				} catch (e: Exception) {
 					Log.e(tag, "Failed to perform cleanup and recreating the VirtualDisplay after device rotation: $e")
-					Toast.makeText(
+					AndroidComponents.showCustomToast(
 						myContext, "Failed to perform cleanup and recreating the VirtualDisplay after device rotation.",
-						Toast.LENGTH_SHORT
-					).show()
+						1000
+					)
 				}
 			}
 		}
@@ -608,7 +608,7 @@ class MediaProjectionService : Service() {
 				mediaProjection = null
 
 				Log.d(tag, "MediaProjection Service has stopped for this context: ${myContext.applicationInfo}.")
-				Toast.makeText(myContext, "MediaProjection Service has stopped.", Toast.LENGTH_SHORT).show()
+				AndroidComponents.showCustomToast(myContext, "MediaProjection Service has stopped.", 1000)
 
                 NotificationUtils.cancelAllNotifications(myContext)
 
@@ -655,7 +655,7 @@ class MediaProjectionService : Service() {
 		mediaProjection?.registerCallback(MediaProjectionStopCallback(), threadHandler)
 
 		Log.d(tag, "MediaProjection Service is now running.")
-		Toast.makeText(myContext, "MediaProjection Service is now running.", Toast.LENGTH_SHORT).show()
+		AndroidComponents.showCustomToast(myContext, "MediaProjection Service is now running.", 1000)
 	}
 
 	/**
