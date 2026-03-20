@@ -117,7 +117,7 @@ class MyAccessibilityService : AccessibilityService() {
 		appName = myContext.getString(R.string.app_name)
 
 		Log.d(tag, "Accessibility Service for $appName is now running.")
-		Toast.makeText(myContext, "Accessibility Service for $appName is now running.", Toast.LENGTH_SHORT).show()
+		AndroidComponents.showCustomToast(myContext, "Accessibility Service for $appName is now running.", 1000)
 	}
 
 	override fun onAccessibilityEvent(event: AccessibilityEvent?) {
@@ -168,7 +168,7 @@ class MyAccessibilityService : AccessibilityService() {
 		super.onDestroy()
 
 		Log.d(tag, "Accessibility Service for $appName is now stopped.")
-		Toast.makeText(myContext, "Accessibility Service for $appName is now stopped.", Toast.LENGTH_SHORT).show()
+		AndroidComponents.showCustomToast(myContext, "Accessibility Service for $appName is now stopped.", 1000)
 	}
 
 	/**

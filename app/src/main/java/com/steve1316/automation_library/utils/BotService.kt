@@ -86,8 +86,10 @@ class BotService : Service() {
 
 			if (!isRunning) {
 				Log.d(tag, "BotService for $appName is now running.")
-                Log.d(tag, "Automation Library version: ${BuildConfig.VERSION_NAME}")
-				Toast.makeText(myContext, "BotService for $appName is now running.", Toast.LENGTH_SHORT).show()
+				Log.d(tag, "Automation Library version: ${BuildConfig.VERSION_NAME}")
+
+				// Display a custom Toast for 1 second (1000ms) to notify the user.
+				AndroidComponents.showCustomToast(myContext, "BotService for $appName is now running.", 1000)
 
 				DiscordUtils.enableDiscordNotifications = SettingsHelper.getBooleanSetting("discord", "enableDiscordNotifications", false)
 
