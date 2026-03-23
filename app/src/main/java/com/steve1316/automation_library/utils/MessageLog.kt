@@ -43,6 +43,9 @@ class MessageLog {
         // Particularly useful when parallel processing is being done to avoid log messages being sent to the frontend out of order.
         var disableOutput = false
 
+        // Flag to determine whether to log debug messages to the internal log or just Logcat.
+        var debugMode = false
+
         // Optional prefix for the log file name (e.g. the trainee name with underscores).
         var logFileNamePrefix = ""
 
@@ -312,7 +315,11 @@ class MessageLog {
 		 * @param skipPrintTime Flag to suppress adding the timestamp to the logged message.
 		 */
 		fun d(tag: String = TAG, message: String, skipPrintTime: Boolean = false) {
-			log(tag, message, LogLevel.DEBUG, skipPrintTime)
+			if (debugMode) {
+				log(tag, message, LogLevel.DEBUG, skipPrintTime)
+			} else {
+				Log.d(tag, message)
+			}
 		}
 
 		/**

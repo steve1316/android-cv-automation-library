@@ -92,6 +92,7 @@ class BotService : Service() {
 				AndroidComponents.showCustomToast(myContext, "BotService for $appName is now running.", 1000)
 
 				DiscordUtils.enableDiscordNotifications = SettingsHelper.getBooleanSetting("discord", "enableDiscordNotifications", false)
+				MessageLog.debugMode = SettingsHelper.getBooleanSetting("debug", "debugMode", false)
 
 				isRunning = true
 				floatingOverlayButton.setRunningState(true)
