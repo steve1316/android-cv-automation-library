@@ -361,6 +361,12 @@ class BotService : Service() {
 			}
 
 			isException = true
+
+			// Wait to make sure Discord message queue gets fully processed before terminating.
+			if (DiscordUtils.enableDiscordNotifications) {
+				Thread.sleep(2000)
+			}
+
 			performCleanUp()
 		}
 	}
