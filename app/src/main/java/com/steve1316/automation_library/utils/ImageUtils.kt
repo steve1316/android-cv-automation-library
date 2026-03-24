@@ -724,11 +724,23 @@ open class ImageUtils(protected val context: Context) {
 	 * @return The cropped bitmap or null if bounds are still invalid after clamping.
 	 */
 	open fun createSafeBitmap(sourceBitmap: Bitmap, x: Int, y: Int, width: Int, height: Int, context: String): Bitmap? {
-		// Clamp individual dimensions to source bitmap bounds.
+		// Clamp starting coordinates to source bitmap bounds.
 		val clampedX = x.coerceIn(0, sourceBitmap.width)
 		val clampedY = y.coerceIn(0, sourceBitmap.height)
-		val clampedWidth = width.coerceIn(1, sourceBitmap.width - clampedX)
-		val clampedHeight = height.coerceIn(1, sourceBitmap.height - clampedY)
+
+		// Calculate maximum possible dimensions for the crop based on clamped coordinates.
+		val maxWidth = sourceBitmap.width - clampedX
+		val maxHeight = sourceBitmap.height - clampedY
+
+		// If the available area is effectively empty, return null instead of crashing.
+		if (maxWidth < 1 || maxHeight < 1) {
+			Log.w(tag, "Cannot create bitmap for $context: remaining space is too small (width=$maxWidth, height=$maxHeight) at (x=$clampedX, y=$clampedY), sourceBitmap=${sourceBitmap.width}x${sourceBitmap.height}")
+			return null
+		}
+
+		// Clamp width and height to available area.
+		val clampedWidth = width.coerceIn(1, maxWidth)
+		val clampedHeight = height.coerceIn(1, maxHeight)
 
 		// Check if any dimensions were clamped and log a warning.
 		if (x != clampedX || y != clampedY || width != clampedWidth || height != clampedHeight) {
@@ -737,7 +749,8 @@ open class ImageUtils(protected val context: Context) {
 
 		// Final validation to ensure the clamped dimensions are still valid.
 		if (clampedX < 0 || clampedY < 0 || clampedWidth <= 0 || clampedHeight <= 0 ||
-			clampedX + clampedWidth > sourceBitmap.width || clampedY + clampedHeight > sourceBitmap.height) {
+			clampedX + clampedWidth > sourceBitmap.width || clampedY + clampedHeight > sourceBitmap.height
+		) {
 			Log.e(tag, "Invalid bounds for $context after clamping: x=$clampedX, y=$clampedY, width=$clampedWidth, height=$clampedHeight, sourceBitmap=${sourceBitmap.width}x${sourceBitmap.height}")
 			return null
 		}
