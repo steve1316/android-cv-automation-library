@@ -1,8 +1,9 @@
 # Automation Library
 
+![GitHub commit activity](https://img.shields.io/github/commit-activity/m/steve1316/android-cv-automation-library?logo=GitHub) ![GitHub last commit](https://img.shields.io/github/last-commit/steve1316/android-cv-automation-library?logo=GitHub) ![GitHub issues](https://img.shields.io/github/issues/steve1316/android-cv-automation-library?logo=GitHub) ![GitHub pull requests](https://img.shields.io/github/issues-pr/steve1316/android-cv-automation-library?logo=GitHub) ![GitHub](https://img.shields.io/github/license/steve1316/android-cv-automation-library?logo=GitHub)
+
 [![JitPack](https://jitpack.io/v/steve1316/android-cv-automation-library.svg)](https://jitpack.io/#steve1316/android-cv-automation-library)
 [![API](https://img.shields.io/badge/API-24%2B-brightgreen.svg)](https://developer.android.com/about/versions/nougat)
-[![License](https://img.shields.io/github/license/steve1316/android-cv-automation-library)](LICENSE)
 
 An Android library that provides a complete backend for computer vision-based automation on Android devices. It handles screenshot capture, image processing (via OpenCV), programmatic gesture dispatch, and integrations with external services — so you can focus on your automation logic.
 
