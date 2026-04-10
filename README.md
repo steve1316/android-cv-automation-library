@@ -155,4 +155,4 @@ See the [Wiki](../../wiki) for detailed documentation on each component in the l
 
 ## License
 
-This project is licensed under the [MIT License](LICENSE).
+This project is licensed under the [GPL 3.0 License](LICENSE).
