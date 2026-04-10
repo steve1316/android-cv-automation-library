@@ -16,3 +16,6 @@ local.properties
 
 /opencv
 .idea/
+
+/wiki
+wiki-home.md
