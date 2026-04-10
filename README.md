@@ -1,78 +1,157 @@
-# Automation Library [![](https://jitpack.io/v/steve1316/android-cv-automation-library.svg)](https://jitpack.io/#steve1316/android-cv-automation-library)
+# Automation Library
 
-This library serves to consolidate all necessary code to facilitate a backend for automation purposes on Android devices. The OpenCV Android SDK is being imported from this [OpenCV Android SDK repo](https://github.com/steve1316/opencv-android-sdk). Currently, this library can do the following:
+[![JitPack](https://jitpack.io/v/steve1316/android-cv-automation-library.svg)](https://jitpack.io/#steve1316/android-cv-automation-library)
+[![API](https://img.shields.io/badge/API-24%2B-brightgreen.svg)](https://developer.android.com/about/versions/nougat)
+[![License](https://img.shields.io/github/license/steve1316/android-cv-automation-library)](LICENSE)
 
--   Uses `MyAccessibilityService` to programmatically execute gestures and `MediaProjectionService` to acquire screenshots for `ImageUtils` to perform image processing operations on.
--   `BotService` handles the display and movement of the floating overlay button to start and stop program execution.
--   Handles connection with Discord and Twitter APIs with `DiscordUtils` and `TwitterUtils` respectively.
--   Loads in a `settings.json` file with `JSONParser` to be further processed in the primary project.
--   Saves a text log of messages with `MessageLog`.
--   Displays a persistent status notification informing the user via `NotificationUtils`.
--   Any messages that needs to be sent from this library to the primary project can be done with the `EventBus` library using the `JSEvent` and `StartEvent` event classes.
--   `ScreenStateReceiver` gracefully stops the bot when the device screen turns off to prevent gestures from being dispatched on a sleeping device.
+An Android library that provides a complete backend for computer vision-based automation on Android devices. It handles screenshot capture, image processing (via OpenCV), programmatic gesture dispatch, and integrations with external services — so you can focus on your automation logic.
+
+## Table of Contents
+
+- [Architecture](#architecture)
+- [Features](#features)
+- [Requirements](#requirements)
+- [Installation](#installation)
+- [Local Testing](#local-testing-before-publishing-to-jitpack)
+- [Documentation](#documentation)
+- [License](#license)
+
+## Architecture
+
+```mermaid
+graph TD
+    subgraph Core Services
+        A[MyAccessibilityService] -- dispatches gestures --> D[Device Screen]
+        B[MediaProjectionService] -- captures screenshots --> E[ImageUtils]
+        C[BotService] -- manages lifecycle --> A
+        C -- manages lifecycle --> B
+    end
+
+    subgraph Image Processing
+        E -- template matching --> F[OpenCV SDK]
+        E -- text recognition --> G[Tesseract OCR]
+        E -- text recognition --> H[ML Kit]
+    end
+
+    subgraph UI & Notifications
+        I[FloatingOverlayButton] -- start/stop --> C
+        J[NotificationUtils] -- status updates --> K[System Notification]
+        L[ScreenStateReceiver] -- screen off --> C
+    end
+
+    subgraph Data & Communication
+        M[JSONParser / SettingsHelper] -- loads config --> C
+        N[MessageLog] -- persists logs --> O[Log File]
+        P[EventBus] -- JSEvent / StartEvent --> Q[Host App]
+    end
+
+    subgraph External APIs
+        R[DiscordUtils] -- DM notifications --> S[Discord]
+        T[TwitterUtils] -- tweet/search --> U[Twitter]
+    end
+```
+
+## Features
+
+### Image Processing & Computer Vision
+- **Template matching** — locate UI elements on screen using OpenCV
+- **OCR** — extract text via Tesseract and Google ML Kit
+- **Screenshot capture** — acquire screen images through `MediaProjectionService`
+- **Screen recording** — capture video from the screen at a fixed FPS
+
+### Gesture Automation
+- **Programmatic gestures** — tap, swipe, and text input via `MyAccessibilityService`
+- **Floating overlay** — draggable start/stop button managed by `BotService`
+- **Screen state awareness** — `ScreenStateReceiver` gracefully stops automation when the device sleeps
+
+### External Integrations
+- **Discord** — send DM notifications via the Discord API (`DiscordUtils`)
+- **Twitter** — search and post tweets via Twitter API v1.1 (`TwitterUtils`)
+
+### Configuration & Logging
+- **Settings** — load from `settings.json` (`JSONParser`) or SQLite (`SettingsHelper`)
+- **Message log** — thread-safe, persistent text log (`MessageLog`)
+- **Notifications** — persistent status notification with action buttons (`NotificationUtils`)
+- **EventBus** — communicate between the library and your host app via `JSEvent`, `StartEvent`, and `ExceptionEvent`
+
+## Requirements
+
+| Requirement | Version |
+|---|---|
+| Android minSdk | 24 (Android 7.0) |
+| Android targetSdk | 30 |
+| Java | 17 |
+| OpenCV Android SDK | [4.12.0](https://github.com/steve1316/opencv-android-sdk) |
+
+## Installation
+
+Add the JitPack repository to your project-level `build.gradle` or `settings.gradle.kts`:
+
+```groovy
+// settings.gradle.kts
+dependencyResolutionManagement {
+    repositories {
+        maven { url = uri("https://www.jitpack.io") }
+    }
+}
+```
+
+Then add the dependency in your app-level `build.gradle.kts`:
+
+```kotlin
+dependencies {
+    implementation("com.github.steve1316:android-cv-automation-library:<version>")
+}
+```
+
+> Replace `<version>` with a release tag (e.g. `2.5.5`) or a commit hash.
+> See all available versions on [JitPack](https://jitpack.io/#steve1316/android-cv-automation-library).
 
 ## Local Testing (Before Publishing to JitPack)
 
-To test changes to this library locally without publishing to JitPack:
+To test changes locally without publishing to JitPack:
 
-1. **Change the versionName to include "-SNAPSHOT"** in `gradle/libs.versions.toml`:
-   - Update `app-versionName` to include "-SNAPSHOT" (e.g., `app-versionName = "2.1.1-SNAPSHOT"`).
-   - This will ensure gradle will always pull the latest version from the local repository for your app to use.
+**1. Set a SNAPSHOT version** in [`gradle/libs.versions.toml`](gradle/libs.versions.toml):
 
-2. **Publish to Maven Local** (from the library root directory):
-```bash
-./gradlew publishToMavenLocal
-# Or on Windows:
-gradlew.bat publishToMavenLocal
-# You can then confirm the local publication by looking in your local Maven repository (typically located at `C:\Users\username\.m2\repository`).
-# If we continue with the example from above, there will be 5 files generated in the 2.1.1-SNAPSHOT folder:
-# - automation_library-2.1.1-SNAPSHOT.aar
-# - automation_library-2.1.1-SNAPSHOT.module
-# - automation_library-2.1.1-SNAPSHOT.pom
-# - automation_library-2.1.1-SNAPSHOT-sources.jar
-# - maven-metadata-local.xml
+```toml
+app-versionName = "2.5.5-SNAPSHOT"
 ```
 
-3. **In your app's `build.gradle.kts`, add Maven Local repository**:
+> The `-SNAPSHOT` suffix tells Gradle to always pull the latest build from the local repository.
+
+**2. Publish to Maven Local:**
+
+```bash
+./gradlew publishToMavenLocal
+```
+
+Verify the output exists in your local Maven repository at `~/.m2/repository/`.
+
+**3. Add `mavenLocal()` to your app's repositories** (must be listed first):
+
 ```kotlin
 allprojects {
     repositories {
-        maven { url "https://www.jitpack.io" }
-        mavenLocal() // Add this line for local testing. Make sure it is above every other repository.
+        mavenLocal()
+        maven { url = uri("https://www.jitpack.io") }
         google()
         mavenCentral()
     }
 }
 ```
 
-4. **Add the dependency to your app**:
+**4. Reference the SNAPSHOT version in your app:**
+
 ```kotlin
 dependencies {
-    // If you are using a local version, you will need to use the -SNAPSHOT version here.
-    implementation("com.github.steve1316:automation_library:2.1.1-SNAPSHOT")
+    implementation("com.github.steve1316:automation_library:2.5.5-SNAPSHOT")
 }
 ```
 
-The library will be loaded from your local Maven repository (typically `~/.m2/repository` or `C:\Users\username\.m2\repository`).
+## Documentation
 
-## Installation
+See the [Wiki](../../wiki) for detailed documentation on each component in the library.
 
-```
-// Project-level build.gradle
-allprojects {
-    repositories {
-        maven { url 'https://www.jitpack.io' }
-    }
-}
-```
+## License
 
-```
-// App-level build.gradle
-dependencies {
-        implementation("com.github.steve1316:android-cv-automation-library:Tag")
-}
-```
-
-## TODO
-
--   [ ] Create a Wiki and create a page for each class in the `utils` folder, explaining what each of them do in a broad scope and what they offer to the project that will be using them.
+This project is licensed under the [MIT License](LICENSE).
