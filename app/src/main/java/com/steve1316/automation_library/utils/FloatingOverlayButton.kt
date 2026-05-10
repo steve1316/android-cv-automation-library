@@ -236,8 +236,7 @@ class FloatingOverlayButton(
                         isDragging = false
                         isLongPressTriggered = false
 
-                        // Stop any ongoing flashing animation (the touch interceptor handles
-                        // any screen touch, but this is kept as a safety fallback).
+                        // Stop any ongoing flashing animation when the button itself is tapped.
                         guidanceOverlays.stopFlashing()
 
                         // Schedule the long-press check.
@@ -445,8 +444,8 @@ private class GuidanceOverlays(
     private val windowManager: WindowManager,
     private val overlayLayoutParamsType: Int
 ) {
-    private lateinit var regionHighlightsView: RegionHighlightsView
-    private lateinit var regionHighlightLayoutParams: WindowManager.LayoutParams
+    // One view per guidance region. Each is added to WindowManager with a window sized to that region only.
+    private val regionHighlightViews: MutableList<View> = mutableListOf()
     private lateinit var tooltipView: TextView
     private lateinit var tooltipLayoutParams: WindowManager.LayoutParams
 
@@ -482,10 +481,13 @@ private class GuidanceOverlays(
     }
 
     /**
-     * Custom View to draw all guidance regions simultaneously.
+     * Highlights a single guidance region. One instance is added per region to its own
+     * region-sized WindowManager window. This keeps the overlay's footprint limited to
+     * the region's bounds - areas outside any region have no overlay above the underlying
+     * app, so Android's untrusted-touch filtering does not drop taps in those areas.
      */
     @SuppressLint("ViewConstructor")
-    private class RegionHighlightsView(context: Context, regions: List<GuidanceRegion>) : View(context) {
+    private class RegionHighlightView(context: Context, region: GuidanceRegion) : View(context) {
         private val density = context.resources.displayMetrics.density
         private val cornerRadius = density * 8
 
@@ -502,15 +504,8 @@ private class GuidanceOverlays(
             isAntiAlias = true
         }
 
-        // Pre-allocate RectF objects to avoid allocations during onDraw.
-        private val regionRects: List<RectF> = regions.map { region ->
-            RectF(
-                region.x.toFloat(),
-                region.y.toFloat(),
-                (region.x + region.width).toFloat(),
-                (region.y + region.height).toFloat()
-            )
-        }
+        // Local-coordinate rect - the window itself is sized to the region, so we draw at (0, 0).
+        private val rect = RectF(0f, 0f, region.width.toFloat(), region.height.toFloat())
 
         init {
             // Use hardware layer for better rendering performance when visibility changes.
@@ -520,19 +515,13 @@ private class GuidanceOverlays(
             isFocusable = false
         }
 
-        /**
-         * Override onTouchEvent to ensure all touches pass through to underlying views.
-         */
         @SuppressLint("ClickableViewAccessibility")
         override fun onTouchEvent(event: MotionEvent?): Boolean = false
 
         override fun onDraw(canvas: Canvas) {
             super.onDraw(canvas)
-            // Draw all guidance regions using pre-allocated rects.
-            for (rect in regionRects) {
-                canvas.drawRoundRect(rect, cornerRadius, cornerRadius, paintFill)
-                canvas.drawRoundRect(rect, cornerRadius, cornerRadius, paintStroke)
-            }
+            canvas.drawRoundRect(rect, cornerRadius, cornerRadius, paintFill)
+            canvas.drawRoundRect(rect, cornerRadius, cornerRadius, paintStroke)
         }
     }
 
@@ -609,28 +598,31 @@ private class GuidanceOverlays(
     private fun createRegionGuidanceOverlays() {
         if (!OverlayConfig.ENABLE_GUIDANCE_OVERLAYS) return
 
-        // Create the full-screen region highlights view.
-        regionHighlightsView = RegionHighlightsView(context, guidanceRegions).apply {
-            // Use INVISIBLE instead of GONE so the view is pre-measured and ready.
-            visibility = View.INVISIBLE
+        // Fullscreen fallback case: no regions configured.
+        if (isFullScreenGuidance || guidanceRegions.isEmpty()) return
+
+        // Create one region-sized window per region. Each is its own WindowManager view so areas outside the regions have no overlay at all.
+        for (region in guidanceRegions) {
+            val view = RegionHighlightView(context, region).apply {
+                // Use INVISIBLE instead of GONE so the view is pre-measured and ready.
+                visibility = View.INVISIBLE
+            }
+
+            val params = WindowManager.LayoutParams(
+                region.width,
+                region.height,
+                overlayLayoutParamsType,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                PixelFormat.TRANSLUCENT
+            ).apply {
+                x = region.x
+                y = region.y
+                gravity = Gravity.TOP or Gravity.START
+            }
+
+            windowManager.addView(view, params)
+            regionHighlightViews.add(view)
         }
-
-        val screenWidth = if (SharedData.displayWidth > 0) SharedData.displayWidth else context.resources.displayMetrics.widthPixels
-        val screenHeight = if (SharedData.displayHeight > 0) SharedData.displayHeight else context.resources.displayMetrics.heightPixels
-
-        regionHighlightLayoutParams = WindowManager.LayoutParams(
-            screenWidth,
-            screenHeight,
-            overlayLayoutParamsType,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
-            PixelFormat.TRANSLUCENT
-        ).apply {
-            x = 0
-            y = 0
-            gravity = Gravity.TOP or Gravity.START
-        }
-
-        windowManager.addView(regionHighlightsView, regionHighlightLayoutParams)
 
         // Create the tooltip view.
         tooltipView = TextView(context).apply {
@@ -693,10 +685,10 @@ private class GuidanceOverlays(
             return
         }
 
-        // Show the highlights view.
-        if (::regionHighlightsView.isInitialized) {
-            regionHighlightsView.alpha = 1f
-            regionHighlightsView.visibility = View.VISIBLE
+        // Show every per-region highlight.
+        for (view in regionHighlightViews) {
+            view.alpha = 1f
+            view.visibility = View.VISIBLE
         }
 
         // Show the tooltip view.
@@ -712,9 +704,9 @@ private class GuidanceOverlays(
     fun hideGuidance() {
         // Hide the region highlight and tooltip views using INVISIBLE to stay pre-measured.
         // Also reset alpha to 1 so showGuidance() works correctly.
-        if (::regionHighlightsView.isInitialized) {
-            regionHighlightsView.alpha = 1f
-            regionHighlightsView.visibility = View.INVISIBLE
+        for (view in regionHighlightViews) {
+            view.alpha = 1f
+            view.visibility = View.INVISIBLE
         }
         if (::tooltipView.isInitialized) {
             tooltipView.alpha = 1f
@@ -784,9 +776,9 @@ private class GuidanceOverlays(
      * @param duration The duration of the fade animation in milliseconds.
      */
     private fun fadeInGuidance(duration: Long) {
-        if (::regionHighlightsView.isInitialized) {
-            regionHighlightsView.visibility = View.VISIBLE
-            regionHighlightsView.animate().alpha(1f).setDuration(duration).start()
+        for (view in regionHighlightViews) {
+            view.visibility = View.VISIBLE
+            view.animate().alpha(1f).setDuration(duration).start()
         }
         if (::tooltipView.isInitialized) {
             tooltipView.visibility = View.VISIBLE
@@ -800,9 +792,9 @@ private class GuidanceOverlays(
      * @param duration The duration of the fade animation in milliseconds.
      */
     private fun fadeOutGuidance(duration: Long) {
-        if (::regionHighlightsView.isInitialized) {
-            regionHighlightsView.animate().alpha(0f).setDuration(duration).withEndAction {
-                regionHighlightsView.visibility = View.INVISIBLE
+        for (view in regionHighlightViews) {
+            view.animate().alpha(0f).setDuration(duration).withEndAction {
+                view.visibility = View.INVISIBLE
             }.start()
         }
         if (::tooltipView.isInitialized) {
@@ -835,15 +827,15 @@ private class GuidanceOverlays(
      */
     fun stopFlashing() {
         cancelFlashCallback()
-        
+
         // Mark flashing as stopped.
         isFlashing = false
 
         // Cancel any ongoing animations and hide immediately.
-        if (::regionHighlightsView.isInitialized) {
-            regionHighlightsView.animate().cancel()
-            regionHighlightsView.alpha = 1f
-            regionHighlightsView.visibility = View.INVISIBLE
+        for (view in regionHighlightViews) {
+            view.animate().cancel()
+            view.alpha = 1f
+            view.visibility = View.INVISIBLE
         }
         if (::tooltipView.isInitialized) {
             tooltipView.animate().cancel()
@@ -859,10 +851,13 @@ private class GuidanceOverlays(
         // Cancel any pending flash callbacks.
         cancelFlashCallback()
 
-        // Remove the region highlight and tooltip views.
-        if (::regionHighlightsView.isInitialized) {
-            runCatching { windowManager.removeView(regionHighlightsView) }
+        // Remove every per-region highlight view and the tooltip view.
+        for (view in regionHighlightViews) {
+            runCatching { windowManager.removeView(view) }
         }
+
+        regionHighlightViews.clear()
+
         if (::tooltipView.isInitialized) {
             runCatching { windowManager.removeView(tooltipView) }
         }
