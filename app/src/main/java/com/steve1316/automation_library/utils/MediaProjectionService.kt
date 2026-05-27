@@ -108,15 +108,15 @@ class MediaProjectionService : Service() {
 		/**
 		 * Stops the current recording and releases resources.
 		 *
-		 * @return The File path of the saved recording, or null if no recording was active.
+		 * @return The display path of the saved recording, or null if no recording was active.
 		 */
-		fun stopRecording(): File? {
+		fun stopRecording(): String? {
 			if (recording?.isRecording != true) {
 				Log.d(tag, "No recording in progress to stop.")
 				return null
 			}
 
-			val outputFile = recording?.outputFile
+			val outputPath = recording?.outputDisplayPath
 			try {
 				recording?.close()
 			} catch (e: Exception) {
@@ -125,7 +125,7 @@ class MediaProjectionService : Service() {
 				recording = null
 			}
 
-			return outputFile
+			return outputPath
 		}
 
 		/**

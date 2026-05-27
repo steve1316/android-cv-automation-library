@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.net.Uri
+import android.os.ParcelFileDescriptor
 import android.util.Log
 import androidx.documentfile.provider.DocumentFile
 import com.steve1316.automation_library.data.SharedData
@@ -127,6 +128,34 @@ class UserStorageManager private constructor(private val context: Context) {
         }
     }
 
+    /** Open a writable `ParcelFileDescriptor` for a file under the named subdirectory. Useful for
+     * APIs like `MediaMuxer` and `MediaRecorder` that require a file descriptor rather than a
+     * stream. The subdirectory is created if it doesn't exist. Pre-existing files with the same
+     * name are overwritten. Falls back to opening a `ParcelFileDescriptor` against the legacy
+     * `getExternalFilesDir()` path when no tree `Uri` is configured.
+     *
+     * Callers are responsible for closing the returned descriptor after the consuming API has
+     * finished writing to it.
+     *
+     * @param subdir The subdirectory name under the tree root (e.g. `"recordings"`).
+     * @param filename The file to create.
+     * @param mimeType The MIME type used when creating the file via SAF. Ignored in legacy mode.
+     *
+     * @return A writable `ParcelFileDescriptor`, or `null` on failure.
+     */
+    fun openWriteFileDescriptor(subdir: String, filename: String, mimeType: String): ParcelFileDescriptor? {
+        val tree = treeDocument() ?: return legacyOpenWriteFd(subdir, filename)
+        return try {
+            val dir = subdirectory(tree, subdir) ?: return null
+            dir.findFile(filename)?.delete()
+            val file = dir.createFile(mimeType, filename) ?: return null
+            context.contentResolver.openFileDescriptor(file.uri, "w")
+        } catch (e: Exception) {
+            Log.e(TAG, "openWriteFileDescriptor($subdir/$filename) failed", e)
+            null
+        }
+    }
+
     /** Open an `InputStream` for reading a file from the named subdirectory. When no tree `Uri`
      * is configured, falls back to reading from `getExternalFilesDir()`. Callers are responsible
      * for closing the returned stream.
@@ -162,6 +191,26 @@ class UserStorageManager private constructor(private val context: Context) {
         val dir = tree.findFile(subdir) ?: return emptyList()
         if (!dir.isDirectory) return emptyList()
         return dir.listFiles().toList()
+    }
+
+    /** List the names of files inside the named subdirectory, sorted ascending. Works for both
+     * SAF and legacy modes so callers can iterate uniformly. Returns an empty list if the
+     * subdirectory does not exist.
+     *
+     * @param subdir The subdirectory name under the storage root.
+     *
+     * @return The sorted file names, or an empty list.
+     */
+    fun listFilenames(subdir: String): List<String> {
+        val tree = treeDocument()
+        if (tree == null) {
+            val dir = File(context.getExternalFilesDir(null) ?: context.filesDir, subdir)
+            if (!dir.exists() || !dir.isDirectory) return emptyList()
+            return dir.listFiles()?.mapNotNull { it.name }?.sorted() ?: emptyList()
+        }
+        val dir = tree.findFile(subdir) ?: return emptyList()
+        if (!dir.isDirectory) return emptyList()
+        return dir.listFiles().mapNotNull { it.name }.sorted()
     }
 
     /** Delete a file from a subdirectory. When no tree `Uri` is configured, falls back to
@@ -261,6 +310,25 @@ class UserStorageManager private constructor(private val context: Context) {
             if (!file.exists()) null else FileInputStream(file)
         } catch (e: Exception) {
             Log.e(TAG, "legacyOpenInput($subdir/$filename) failed", e)
+            null
+        }
+    }
+
+    /** Open a writable `ParcelFileDescriptor` against the legacy `getExternalFilesDir()` path.
+     * Used as the fallback for `openWriteFileDescriptor` when no SAF tree `Uri` is configured.
+     *
+     * @param subdir The subdirectory name under the legacy root.
+     * @param filename The file to open or create.
+     *
+     * @return A writable `ParcelFileDescriptor`, or `null` if the file could not be opened.
+     */
+    private fun legacyOpenWriteFd(subdir: String, filename: String): ParcelFileDescriptor? {
+        return try {
+            val file = legacyFile(subdir, filename)
+            val mode = ParcelFileDescriptor.MODE_WRITE_ONLY or ParcelFileDescriptor.MODE_CREATE or ParcelFileDescriptor.MODE_TRUNCATE
+            ParcelFileDescriptor.open(file, mode)
+        } catch (e: Exception) {
+            Log.e(TAG, "legacyOpenWriteFd($subdir/$filename) failed", e)
             null
         }
     }
