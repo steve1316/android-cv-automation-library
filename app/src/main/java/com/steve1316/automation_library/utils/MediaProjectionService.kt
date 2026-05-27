@@ -479,26 +479,19 @@ class MediaProjectionService : Service() {
 		// Save a reference to the package that started this service (the developer's package, not this library).
 		SharedData.mainPackagePath = myContext.packageName
 
-		// Creates a temporary folder if it does not already exist to store source images.
-		val externalFilesDir: File? = getExternalFilesDir(null)
-		if (externalFilesDir != null) {
-			tempDirectory = myContext.getExternalFilesDir(null)?.absolutePath + "/temp/"
-			val newTempDirectory = File(tempDirectory)
-
-			// If the /files/temp/ folder does not exist, create it.
-			if (!newTempDirectory.exists()) {
-				val successfullyCreated: Boolean = newTempDirectory.mkdirs()
-
-				// If the folder was not able to be created for some reason, log the error and stop the MediaProjection Service.
-				if (!successfullyCreated) {
-					Log.e(tag, "Failed to create the /files/temp/ folder.")
-					stopSelf()
-				} else {
-					Log.d(tag, "Successfully created /files/temp/ folder.")
-				}
+		// Create the bot's internal temp folder if it does not already exist for storing source images.
+		tempDirectory = File(myContext.filesDir, "temp").absolutePath + "/"
+		val newTempDirectory = File(tempDirectory)
+		if (!newTempDirectory.exists()) {
+			val successfullyCreated: Boolean = newTempDirectory.mkdirs()
+			if (!successfullyCreated) {
+				Log.e(tag, "Failed to create the internal temp folder.")
+				stopSelf()
 			} else {
-				Log.d(tag, "/files/temp/ folder already exists.")
+				Log.d(tag, "Successfully created internal temp folder.")
 			}
+		} else {
+			Log.d(tag, "Internal temp folder already exists.")
 		}
 
 		if (isStartCommand(intent)) {

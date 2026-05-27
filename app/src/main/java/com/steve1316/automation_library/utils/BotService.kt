@@ -103,25 +103,21 @@ class BotService : Service() {
 				// Enable gestures when starting the bot.
 				MyAccessibilityService.enableGestures()
 
-				// Clear all contents from the /files/temp/ folder to start fresh.
-				val externalFilesDir: File? = getExternalFilesDir(null)
-				if (externalFilesDir != null) {
-					val tempDirectory = myContext.getExternalFilesDir(null)?.absolutePath + "/temp/"
-					val newTempDirectory = File(tempDirectory)
-					if (newTempDirectory.exists()) {
-						val files = newTempDirectory.listFiles()
-						if (files != null) {
-							var deletedCount = 0
-							for (file in files) {
-								if (file.delete()) {
-									deletedCount++
-								} else {
-									Log.w(tag, "Failed to delete file: ${file.name}")
-								}
+				// Clear all contents from the bot's internal temp folder to start fresh.
+				val tempDirectory = File(myContext.filesDir, "temp")
+				if (tempDirectory.exists()) {
+					val files = tempDirectory.listFiles()
+					if (files != null) {
+						var deletedCount = 0
+						for (file in files) {
+							if (file.delete()) {
+								deletedCount++
+							} else {
+								Log.w(tag, "Failed to delete file: ${file.name}")
 							}
-							if (deletedCount > 0) {
-									Log.d(tag, "Cleared $deletedCount file(s) from /files/temp/ folder.")
-							}
+						}
+						if (deletedCount > 0) {
+							Log.d(tag, "Cleared $deletedCount file(s) from internal temp folder.")
 						}
 					}
 				}
