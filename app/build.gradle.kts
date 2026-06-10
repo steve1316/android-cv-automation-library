@@ -4,6 +4,16 @@ plugins {
 	id("com.android.library")
 	id("org.jetbrains.kotlin.android")
 	id("maven-publish")
+	alias(libs.plugins.ktlint)
+}
+
+ktlint {
+	android = true
+	ignoreFailures = true
+	reporters {
+		reporter(org.jlleitschuh.gradle.ktlint.reporter.ReporterType.PLAIN)
+		reporter(org.jlleitschuh.gradle.ktlint.reporter.ReporterType.CHECKSTYLE)
+	}
 }
 
 android {
