@@ -9,13 +9,13 @@ import kotlin.math.abs
  */
 object TextUtils {
     /** Finds the closest substring in a string.
-    *
-    * @param query The string to attempt to find inside the source string.
-    * @param source The string within which we will search for the query string.
-    * @param threshold Threshold value for filtering the result by similarity.
-    *
-    * @return The result string if score > threshold, else NULL.
-    */
+     *
+     * @param query The string to attempt to find inside the source string.
+     * @param source The string within which we will search for the query string.
+     * @param threshold Threshold value for filtering the result by similarity.
+     *
+     * @return The result string if score > threshold, else NULL.
+     */
     fun findMostSimilarSubstring(query: String, source: String, threshold: Double = 0.8): String? {
         // Return early if there is an exact match.
         if (query in source) {
@@ -44,13 +44,13 @@ object TextUtils {
     }
 
     /** Finds the closest matching string in a list of strings.
-    *
-    * @param query The string to find in the list.
-    * @param choices The list of strings to search.
-    * @param threshold Threshold value for filtering the result by similarity.
-    *
-    * @return The result string if score > threshold, else NULL.
-    */
+     *
+     * @param query The string to find in the list.
+     * @param choices The list of strings to search.
+     * @param threshold Threshold value for filtering the result by similarity.
+     *
+     * @return The result string if score > threshold, else NULL.
+     */
     fun matchStringInList(query: String, choices: List<String>, threshold: Double = 0.8): String? {
         // Return early if there is an exact match.
         if (choices.contains(query)) {
