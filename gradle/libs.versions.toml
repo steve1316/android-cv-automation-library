@@ -24,6 +24,7 @@ mlkitTextRecognition = "16.0.1"
 opencvAndroidSdk = "4.12.0"
 appUpdater = "2.7"
 twitter4jCore = "4.1.2"
+ktlint = "14.2.0"
 
 [libraries]
 androidGradleBuildTools = { group = "com.android.tools.build", name = "gradle", version.ref = "androidGradleBuildTools" }
@@ -46,3 +47,4 @@ androidApp = ["androidx-core", "androidx-preference", "androidx-documentfile"]
 
 [plugins]
 foojayJDKResolver = { id = "org.gradle.toolchains.foojay-resolver-convention", version = "1.0.0" }
+ktlint = { id = "org.jlleitschuh.gradle.ktlint", version.ref = "ktlint" }

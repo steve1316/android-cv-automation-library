@@ -1,94 +1,104 @@
 import org.gradle.api.publish.maven.MavenPublication
 
 plugins {
-	id("com.android.library")
-	id("org.jetbrains.kotlin.android")
-	id("maven-publish")
+    id("com.android.library")
+    id("org.jetbrains.kotlin.android")
+    id("maven-publish")
+    alias(libs.plugins.ktlint)
+}
+
+ktlint {
+    android = true
+    ignoreFailures = true
+    reporters {
+        reporter(org.jlleitschuh.gradle.ktlint.reporter.ReporterType.PLAIN)
+        reporter(org.jlleitschuh.gradle.ktlint.reporter.ReporterType.CHECKSTYLE)
+    }
 }
 
 android {
-	namespace = "com.steve1316.automation_library"
-	compileSdk = libs.versions.app.compileSdk.get().toInt()
-	buildToolsVersion = libs.versions.app.buildToolsVersion.get()
+    namespace = "com.steve1316.automation_library"
+    compileSdk = libs.versions.app.compileSdk.get().toInt()
+    buildToolsVersion = libs.versions.app.buildToolsVersion.get()
 
-	buildFeatures {
-		buildConfig = true
-	}
+    buildFeatures {
+        buildConfig = true
+    }
 
-	defaultConfig {
-		minSdk = libs.versions.app.minSdk.get().toInt()
-		buildConfigField("String", "VERSION_NAME", "\"${libs.versions.app.versionName.get()}\"")
-		consumerProguardFiles("consumer-rules.pro")
-	}
+    defaultConfig {
+        minSdk = libs.versions.app.minSdk.get().toInt()
+        buildConfigField("String", "VERSION_NAME", "\"${libs.versions.app.versionName.get()}\"")
+        consumerProguardFiles("consumer-rules.pro")
+    }
 
-	buildTypes {
-		release {
-			isMinifyEnabled = false
-			proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-		}
-	}
+    buildTypes {
+        release {
+            isMinifyEnabled = false
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+        }
+    }
 
-	compileOptions {
-		sourceCompatibility = JavaVersion.VERSION_17
-		targetCompatibility = JavaVersion.VERSION_17
-	}
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
 }
 
 version = libs.versions.app.versionName.get()
 
 afterEvaluate {
-	publishing {
-		publications {
-			create<MavenPublication>("release") {
-				from(components.getByName("release"))
-				groupId = "com.github.steve1316"
-				artifactId = "automation_library"
-				version = libs.versions.app.versionName.get()
-			}
-		}
+    publishing {
+        publications {
+            create<MavenPublication>("release") {
+                from(components.getByName("release"))
+                groupId = "com.github.steve1316"
+                artifactId = "automation_library"
+                version = libs.versions.app.versionName.get()
+            }
+        }
 		
-		// Add Maven Local repository for local testing without publishing to JitPack.
-		repositories {
-			mavenLocal()
-		}
-	}
+        // Add Maven Local repository for local testing without publishing to JitPack.
+        repositories {
+            mavenLocal()
+        }
+    }
 }
 
 dependencies {
-	//////// Dependencies available to the project ////////
+    // ////// Dependencies available to the project ////////
 
-	api(libs.bundles.androidApp)
+    api(libs.bundles.androidApp)
 
-	// OpenCV Android for image processing.
-	api(libs.opencv.android.sdk)
+    // OpenCV Android for image processing.
+    api(libs.opencv.android.sdk)
 
-	// Tesseract4Android for OCR text recognition.
-	api(libs.tesseract4android)
+    // Tesseract4Android for OCR text recognition.
+    api(libs.tesseract4android)
 
-	// string-similarity to compare the string from OCR to the strings in data.
-	api(libs.stringSimilarity)
+    // string-similarity to compare the string from OCR to the strings in data.
+    api(libs.stringSimilarity)
 
-	// Kord for Discord integration.
-	api(libs.kord.core)
+    // Kord for Discord integration.
+    api(libs.kord.core)
 
-	// Klaxon to parse JSON data files.
-	api(libs.klaxon)
+    // Klaxon to parse JSON data files.
+    api(libs.klaxon)
 
-	// EventBus to communicate between modules and to the Javascript frontend.
-	api(libs.eventbus)
+    // EventBus to communicate between modules and to the Javascript frontend.
+    api(libs.eventbus)
 
-	// Google's Firebase Machine Learning OCR for Text Detection.
-	api(libs.mlkitTextRecognition)
+    // Google's Firebase Machine Learning OCR for Text Detection.
+    api(libs.mlkitTextRecognition)
 
-	// Twitter4j is used to connect to the Twitter API.
-	api(libs.twitter4j.core)
+    // Twitter4j is used to connect to the Twitter API.
+    api(libs.twitter4j.core)
 
-	// AppUpdater for notifying users when there is a new update available.
-	api(libs.appUpdater)
+    // AppUpdater for notifying users when there is a new update available.
+    api(libs.appUpdater)
 }
 
 kotlin {
-	jvmToolchain {
-		languageVersion.set(JavaLanguageVersion.of(libs.versions.app.jvm.toolchain.get().toInt()))
-	}
+    jvmToolchain {
+        languageVersion.set(JavaLanguageVersion.of(libs.versions.app.jvm.toolchain.get().toInt()))
+    }
 }

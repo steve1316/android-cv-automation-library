@@ -10,8 +10,8 @@ import android.content.Intent
  * Source is from https://stackoverflow.com/questions/41359337/android-notification-pendingintent-to-stop-service
  */
 class StopServiceReceiver : BroadcastReceiver() {
-	override fun onReceive(context: Context, intent: Intent?) {
-		val service = Intent(context, MediaProjectionService::class.java)
-		context.stopService(service)
-	}
+    override fun onReceive(context: Context, intent: Intent?) {
+        val service = Intent(context, MediaProjectionService::class.java)
+        context.stopService(service)
+    }
 }

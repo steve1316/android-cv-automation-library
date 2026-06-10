@@ -2,12 +2,12 @@ package com.steve1316.automation_library.utils
 
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
-import android.database.sqlite.SQLiteOpenHelper
 import android.database.sqlite.SQLiteException
+import android.database.sqlite.SQLiteOpenHelper
 import android.util.Log
+import com.steve1316.automation_library.data.SharedData
 import org.json.JSONObject
 import java.io.File
-import com.steve1316.automation_library.data.SharedData
 
 /**
  * Manages settings persistence using SQLite database.
@@ -20,7 +20,6 @@ import com.steve1316.automation_library.data.SharedData
  */
 class SQLiteSettingsManager(private val context: Context) :
     SQLiteOpenHelper(context, getDatabasePath(context), null, DATABASE_VERSION) {
-
     companion object {
         private const val TAG = "${SharedData.loggerTag}SQLiteSettingsManager"
         private const val DATABASE_NAME = "settings.db"
@@ -55,9 +54,11 @@ class SQLiteSettingsManager(private val context: Context) :
 
         @Volatile
         private var instance: SQLiteSettingsManager? = null
-        fun getInstance(context: Context): SQLiteSettingsManager = instance ?: synchronized(this) {
-            instance ?: SQLiteSettingsManager(context.applicationContext).also { instance = it }
-        }
+
+        fun getInstance(context: Context): SQLiteSettingsManager =
+            instance ?: synchronized(this) {
+                instance ?: SQLiteSettingsManager(context.applicationContext).also { instance = it }
+            }
     }
 
     /** Called when the database is created for the first time.
@@ -66,7 +67,8 @@ class SQLiteSettingsManager(private val context: Context) :
      */
     override fun onCreate(db: SQLiteDatabase) {
         // Create the settings table.
-        db.execSQL("""
+        db.execSQL(
+            """
             CREATE TABLE IF NOT EXISTS $TABLE_SETTINGS (
                 $COLUMN_ID INTEGER PRIMARY KEY AUTOINCREMENT,
                 $COLUMN_CATEGORY TEXT NOT NULL,
@@ -75,14 +77,17 @@ class SQLiteSettingsManager(private val context: Context) :
                 $COLUMN_UPDATED_AT DATETIME DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE($COLUMN_CATEGORY, `$COLUMN_KEY`)
             )
-        """)
+        """,
+        )
         Log.d(TAG, "Created settings table.")
-        
+
         // Create index for faster queries.
-        db.execSQL("""
+        db.execSQL(
+            """
             CREATE INDEX IF NOT EXISTS idx_settings_category_key
             ON $TABLE_SETTINGS($COLUMN_CATEGORY, `$COLUMN_KEY`)
-        """)
+        """,
+        )
         Log.d(TAG, "Created index.")
     }
 
@@ -109,7 +114,7 @@ class SQLiteSettingsManager(private val context: Context) :
         try {
             db = this.readableDatabase
             val result: Boolean = db?.isOpen == true && db?.isReadOnly == false
-            Log.d(TAG, "Database availability check: open=${db?.isOpen}, available=${result}")
+            Log.d(TAG, "Database availability check: open=${db?.isOpen}, available=$result")
             return result
         } catch (e: SQLiteException) {
             Log.e(TAG, "Error checking if database is available:", e)
@@ -129,22 +134,24 @@ class SQLiteSettingsManager(private val context: Context) :
     fun loadSetting(category: String, key: String): String? {
         try {
             val db = this.readableDatabase
-            val cursor = db.query(
-                TABLE_SETTINGS,
-                arrayOf(COLUMN_VALUE),
-                "$COLUMN_CATEGORY = ? AND `$COLUMN_KEY` = ?",
-                arrayOf(category, key),
-                null,
-                null,
-                null,
-            )
+            val cursor =
+                db.query(
+                    TABLE_SETTINGS,
+                    arrayOf(COLUMN_VALUE),
+                    "$COLUMN_CATEGORY = ? AND `$COLUMN_KEY` = ?",
+                    arrayOf(category, key),
+                    null,
+                    null,
+                    null,
+                )
 
-            val result: String? = if (cursor?.moveToFirst() == true) {
-                cursor.getString(0)
-            } else {
-                Log.e(TAG, "Setting not found: $category.$key")
-                null
-            }
+            val result: String? =
+                if (cursor?.moveToFirst() == true) {
+                    cursor.getString(0)
+                } else {
+                    Log.e(TAG, "Setting not found: $category.$key")
+                    null
+                }
 
             cursor?.close()
             return result
@@ -163,8 +170,9 @@ class SQLiteSettingsManager(private val context: Context) :
      * @throws RuntimeException if setting doesn't exist or cannot be parsed.
      */
     fun getBooleanSetting(category: String, key: String): Boolean {
-        val result = loadSetting(category, key)
-            ?: throw RuntimeException("Setting not found: $category.$key")
+        val result =
+            loadSetting(category, key)
+                ?: throw RuntimeException("Setting not found: $category.$key")
         return try {
             result.toBoolean()
         } catch (e: Exception) {
@@ -181,8 +189,9 @@ class SQLiteSettingsManager(private val context: Context) :
      * @throws RuntimeException if setting doesn't exist or cannot be parsed.
      */
     fun getIntSetting(category: String, key: String): Int {
-        val result = loadSetting(category, key)
-            ?: throw RuntimeException("Setting not found: $category.$key")
+        val result =
+            loadSetting(category, key)
+                ?: throw RuntimeException("Setting not found: $category.$key")
         return try {
             result.toInt()
         } catch (e: Exception) {
@@ -199,8 +208,9 @@ class SQLiteSettingsManager(private val context: Context) :
      * @throws RuntimeException if setting doesn't exist or cannot be parsed.
      */
     fun getDoubleSetting(category: String, key: String): Double {
-        val result = loadSetting(category, key)
-            ?: throw RuntimeException("Setting not found: $category.$key")
+        val result =
+            loadSetting(category, key)
+                ?: throw RuntimeException("Setting not found: $category.$key")
         return try {
             result.toDouble()
         } catch (e: Exception) {
@@ -230,8 +240,9 @@ class SQLiteSettingsManager(private val context: Context) :
      * @throws RuntimeException if setting doesn't exist or cannot be parsed.
      */
     fun getStringArraySetting(category: String, key: String): List<String> {
-        val result = loadSetting(category, key)
-            ?: throw RuntimeException("Setting not found: $category.$key")
+        val result =
+            loadSetting(category, key)
+                ?: throw RuntimeException("Setting not found: $category.$key")
         return try {
             val jsonArray = JSONObject("{\"array\": $result}").getJSONArray("array")
             val list = mutableListOf<String>()

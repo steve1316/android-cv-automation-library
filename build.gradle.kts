@@ -12,6 +12,10 @@ buildscript {
     }
 }
 
+plugins {
+    alias(libs.plugins.ktlint) apply false
+}
+
 extra["minSdkVersion"] = libs.versions.app.minSdk.get().toInt()
 extra["targetSdkVersion"] = libs.versions.app.targetSdk.get().toInt()
 extra["compileSdkVersion"] = libs.versions.app.compileSdk.get().toInt()

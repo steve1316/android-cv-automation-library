@@ -14,6 +14,7 @@ An Android library that provides a complete backend for computer vision-based au
 - [Requirements](#requirements)
 - [Installation](#installation)
 - [Local Testing](#local-testing-before-publishing-to-jitpack)
+- [Code Formatting](#code-formatting)
 - [Documentation](#documentation)
 - [License](#license)
 
@@ -148,6 +149,16 @@ dependencies {
     implementation("com.github.steve1316:automation_library:2.5.5-SNAPSHOT")
 }
 ```
+
+## Code Formatting
+
+Kotlin code is formatted with [ktlint](https://github.com/jlleitschuh/ktlint-gradle) using a ktfmt-approximating ruleset defined in [`.editorconfig`](.editorconfig). Run the formatter before committing:
+
+```bash
+./gradlew ktlintFormat
+```
+
+To only check for violations without rewriting files, run `./gradlew ktlintCheck`.
 
 ## Documentation
 

@@ -41,9 +41,10 @@ class UserStorageManager private constructor(private val context: Context) {
          *
          * @return The shared `UserStorageManager` instance.
          */
-        fun getInstance(context: Context): UserStorageManager = instance ?: synchronized(this) {
-            instance ?: UserStorageManager(context.applicationContext).also { instance = it }
-        }
+        fun getInstance(context: Context): UserStorageManager =
+            instance ?: synchronized(this) {
+                instance ?: UserStorageManager(context.applicationContext).also { instance = it }
+            }
     }
 
     /** Persist the tree `Uri` chosen by the user from `ACTION_OPEN_DOCUMENT_TREE`.
