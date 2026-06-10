@@ -24,17 +24,15 @@ import android.util.Log
 import android.view.Display
 import android.view.OrientationEventListener
 import android.view.WindowManager
-import android.widget.Toast
 import androidx.annotation.RequiresApi
+import androidx.core.graphics.createBitmap
 import com.steve1316.automation_library.data.SharedData
 import com.steve1316.automation_library.events.JSEvent
 import org.greenrobot.eventbus.EventBus
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
-import java.nio.ByteBuffer
 import java.util.*
-import androidx.core.graphics.createBitmap
 
 /**
  * The MediaProjection service that will control taking screenshots.
@@ -43,137 +41,145 @@ import androidx.core.graphics.createBitmap
  * added to suit this application's purposes.
  */
 class MediaProjectionService : Service() {
-	private lateinit var myContext: Context
+    private lateinit var myContext: Context
 
-	companion object {
-		private const val tag: String = "${SharedData.loggerTag}MediaProjectionService"
+    companion object {
+        private const val tag: String = "${SharedData.loggerTag}MediaProjectionService"
 
-		private var mediaProjection: MediaProjection? = null
-		private var orientationChangeCallback: OrientationEventListener? = null
-		private lateinit var tempDirectory: String
-		private lateinit var threadHandler: Handler
+        private var mediaProjection: MediaProjection? = null
+        private var orientationChangeCallback: OrientationEventListener? = null
+        private lateinit var tempDirectory: String
+        private lateinit var threadHandler: Handler
 
-		private lateinit var virtualDisplay: VirtualDisplay
-		private lateinit var defaultDisplay: Display
-		private lateinit var windowManager: WindowManager
-		private var oldRotation: Int = 0
-		private lateinit var imageReader: ImageReader
-		var isRunning: Boolean = false
+        private lateinit var virtualDisplay: VirtualDisplay
+        private lateinit var defaultDisplay: Display
+        private lateinit var windowManager: WindowManager
+        private var oldRotation: Int = 0
+        private lateinit var imageReader: ImageReader
+        var isRunning: Boolean = false
 
-		@SuppressLint("StaticFieldLeak")
+        @SuppressLint("StaticFieldLeak")
         private var recording: ScreenRecorder? = null
-		private var lastBitmap: Bitmap? = null
-		private var lastBitmapIsFromException: Boolean = false
+        private var lastBitmap: Bitmap? = null
+        private var lastBitmapIsFromException: Boolean = false
 
-		fun getImageReader(): ImageReader {
-			return imageReader
-		}
+        fun getImageReader(): ImageReader {
+            return imageReader
+        }
 
-		/**
-		 * Starts screen recording and will be saved to the /recordings directory.
-		 *
-		 * Note: MediaProjection must be running before calling this method.
-		 *
-		 * @param context The application's context.
-		 * @return True if recording started successfully, false otherwise.
-		 */
-		fun startRecording(context: Context): Boolean {
-			if (!isRunning) {
-				Log.e(tag, "Cannot start recording: MediaProjection is not running.")
-				return false
-			}
+        /**
+         * Starts screen recording and will be saved to the /recordings directory.
+         *
+         * Note: MediaProjection must be running before calling this method.
+         *
+         * @param context The application's context.
+         * @return True if recording started successfully, false otherwise.
+         */
+        fun startRecording(context: Context): Boolean {
+            if (!isRunning) {
+                Log.e(tag, "Cannot start recording: MediaProjection is not running.")
+                return false
+            }
 
-			if (recording?.isRecording == true) {
-				Log.w(tag, "Recording is already in progress.")
-				return false
-			}
+            if (recording?.isRecording == true) {
+                Log.w(tag, "Recording is already in progress.")
+                return false
+            }
 
-			return try {
-				// Apply resolution scale for smaller file sizes.
-				val scale = SharedData.recordingResolutionScale
-				val scaledWidth = (SharedData.displayWidth * scale).toInt()
-				val scaledHeight = (SharedData.displayHeight * scale).toInt()
+            return try {
+                // Apply resolution scale for smaller file sizes.
+                val scale = SharedData.recordingResolutionScale
+                val scaledWidth = (SharedData.displayWidth * scale).toInt()
+                val scaledHeight = (SharedData.displayHeight * scale).toInt()
 
-				// Use dedicated capture thread.
-				recording = ScreenRecorder(context, scaledWidth, scaledHeight, imageReader)
-				Log.d(tag, "Screen recording started successfully.")
-				true
-			} catch (e: Exception) {
-				Log.e(tag, "Failed to start recording: ${e.message}")
-				recording = null
-				false
-			}
-		}
+                // Use dedicated capture thread.
+                recording = ScreenRecorder(context, scaledWidth, scaledHeight, imageReader)
+                Log.d(tag, "Screen recording started successfully.")
+                true
+            } catch (e: Exception) {
+                Log.e(tag, "Failed to start recording: ${e.message}")
+                recording = null
+                false
+            }
+        }
 
-		/**
-		 * Stops the current recording and releases resources.
-		 *
-		 * @return The File path of the saved recording, or null if no recording was active.
-		 */
-		fun stopRecording(): File? {
-			if (recording?.isRecording != true) {
-				Log.d(tag, "No recording in progress to stop.")
-				return null
-			}
+        /**
+         * Stops the current recording and releases resources.
+         *
+         * @return The File path of the saved recording, or null if no recording was active.
+         */
+        fun stopRecording(): File? {
+            if (recording?.isRecording != true) {
+                Log.d(tag, "No recording in progress to stop.")
+                return null
+            }
 
-			val outputFile = recording?.outputFile
-			try {
-				recording?.close()
-			} catch (e: Exception) {
-				Log.e(tag, "Error stopping recording: ${e.message}")
-			} finally {
-				recording = null
-			}
+            val outputFile = recording?.outputFile
+            try {
+                recording?.close()
+            } catch (e: Exception) {
+                Log.e(tag, "Error stopping recording: ${e.message}")
+            } finally {
+                recording = null
+            }
 
-			return outputFile
-		}
+            return outputFile
+        }
 
-		/**
-		 * Forcibly regenerate the Virtual Display. Useful when the Virtual Display is stuck in Portrait Mode when the device already rotated to Landscape and vice-versa.
-		 *
-		 * @param context The application's context.
-		 */
-		fun forceGenerateVirtualDisplay(context: Context) {
-			try {
-				// Perform cleanup.
-				virtualDisplay.release()
+        /**
+         * Forcibly regenerate the Virtual Display. Useful when the Virtual Display is stuck in Portrait Mode when the device already rotated to Landscape and vice-versa.
+         *
+         * @param context The application's context.
+         */
+        fun forceGenerateVirtualDisplay(context: Context) {
+            try {
+                // Perform cleanup.
+                virtualDisplay.release()
 
-				// Now re-create the VirtualDisplay based on the new width and height of the rotated screen.
-				createVirtualDisplay()
-			} catch (_: Exception) {
-				Log.e(tag, "Failed to perform cleanup and recreating the VirtualDisplay after device rotation.")
-				AndroidComponents.showCustomToast(
-					context, "Failed to perform cleanup and recreating the VirtualDisplay after device rotation.",
-					1000
-				)
-			}
-		}
+                // Now re-create the VirtualDisplay based on the new width and height of the rotated screen.
+                createVirtualDisplay()
+            } catch (_: Exception) {
+                Log.e(tag, "Failed to perform cleanup and recreating the VirtualDisplay after device rotation.")
+                AndroidComponents.showCustomToast(
+                    context,
+                    "Failed to perform cleanup and recreating the VirtualDisplay after device rotation.",
+                    1000,
+                )
+            }
+        }
 
-		/**
-		 * Creates the VirtualDisplay and the ImageReader to start reading in screenshots.
-		 */
-		@SuppressLint("WrongConstant")
-		private fun createVirtualDisplay() {
-			// Get the full width and height of the device screen such that making a screenshot would not scale it down and creating black bars that
-			// would offset the screen coordinates of matches by the difference.
-			val metrics = DisplayMetrics()
-			defaultDisplay.getRealMetrics(metrics)
-			SharedData.displayWidth = metrics.widthPixels
-			SharedData.displayHeight = metrics.heightPixels
-			SharedData.displayDPI = metrics.densityDpi
-			SharedData.displayDensity = metrics.density
+        /**
+         * Creates the VirtualDisplay and the ImageReader to start reading in screenshots.
+         */
+        @SuppressLint("WrongConstant")
+        private fun createVirtualDisplay() {
+            // Get the full width and height of the device screen such that making a screenshot would not scale it down and creating black bars that
+            // would offset the screen coordinates of matches by the difference.
+            val metrics = DisplayMetrics()
+            defaultDisplay.getRealMetrics(metrics)
+            SharedData.displayWidth = metrics.widthPixels
+            SharedData.displayHeight = metrics.heightPixels
+            SharedData.displayDPI = metrics.densityDpi
+            SharedData.displayDensity = metrics.density
 
-			Log.d(tag, "Current Virtual Display at ${SharedData.displayWidth}x${SharedData.displayHeight}, DPI: ${SharedData.displayDPI}, Density: ${SharedData.displayDensity}")
+            Log.d(tag, "Current Virtual Display at ${SharedData.displayWidth}x${SharedData.displayHeight}, DPI: ${SharedData.displayDPI}, Density: ${SharedData.displayDensity}")
 
-			// Start the ImageReader.
-			imageReader = ImageReader.newInstance(SharedData.displayWidth, SharedData.displayHeight, PixelFormat.RGBA_8888, 5)
+            // Start the ImageReader.
+            imageReader = ImageReader.newInstance(SharedData.displayWidth, SharedData.displayHeight, PixelFormat.RGBA_8888, 5)
 
-			// Now create the VirtualDisplay.
-            virtualDisplay = mediaProjection?.createVirtualDisplay(
-                "My Virtual Display", SharedData.displayWidth, SharedData.displayHeight,
-                SharedData.displayDPI, getVirtualDisplayFlags(), imageReader.surface, null, threadHandler
-            )!!
-		}
+            // Now create the VirtualDisplay.
+            virtualDisplay =
+                mediaProjection?.createVirtualDisplay(
+                    "My Virtual Display",
+                    SharedData.displayWidth,
+                    SharedData.displayHeight,
+                    SharedData.displayDPI,
+                    getVirtualDisplayFlags(),
+                    imageReader.surface,
+                    null,
+                    threadHandler,
+                )!!
+        }
 
         /** Takes screenshot of the specified region.
          *
@@ -259,24 +265,26 @@ class MediaProjectionService : Service() {
             }
 
             // Save the Bitmap (either fresh or cached) if requested.
-            val bitmapToReturn = if (useCachedBitmap) {
-                if (prevBitmap == null) {
-                    null
+            val bitmapToReturn =
+                if (useCachedBitmap) {
+                    if (prevBitmap == null) {
+                        null
+                    } else {
+                        // Crop the cached bitmap if it exists.
+                        Bitmap.createBitmap(prevBitmap, cropX, cropY, cropW, cropH)
+                    }
                 } else {
-                    // Crop the cached bitmap if it exists.
-                    Bitmap.createBitmap(prevBitmap, cropX, cropY, cropW, cropH)
+                    newBitmap
                 }
-            } else {
-                newBitmap
-            }
             if (saveImage && bitmapToReturn != null) {
                 // Only save if it's an exception or if it's a fresh normal bitmap (to avoid redundant disk I/O on identical cached frames).
                 // We allow re-saving if it's an exception even if it's from cache, but we mark it.
-                val fos = if (isException) {
-                    FileOutputStream("$tempDirectory/exception.png")
-                } else {
-                    FileOutputStream("$tempDirectory/source.png")
-                }
+                val fos =
+                    if (isException) {
+                        FileOutputStream("$tempDirectory/exception.png")
+                    } else {
+                        FileOutputStream("$tempDirectory/source.png")
+                    }
 
                 try {
                     bitmapToReturn.compress(Bitmap.CompressFormat.PNG, 100, fos)
@@ -289,381 +297,392 @@ class MediaProjectionService : Service() {
             return bitmapToReturn
         }
 
-		/**
-		 * Tell the ImageReader to grab the latest acquired screenshot and process it into a Bitmap.
-		 * If no image is available, this will retry for a short duration before falling back to the last cached Bitmap.
-		 *
-		 * @param saveImage Flag to check whether to save the image to a file in the temp directory or not. Defaults to false.
-		 * @param isException Saves the screenshot as part of Exception logging or not. Defaults to false.
-		 * @return Bitmap of the latest acquired screenshot, or the last cached Bitmap if no new image is available.
-		 */
-		fun takeScreenshotNow(saveImage: Boolean = false, isException: Boolean = false): Bitmap? {
-			var image: Image? = imageReader.acquireLatestImage()
+        /**
+         * Tell the ImageReader to grab the latest acquired screenshot and process it into a Bitmap.
+         * If no image is available, this will retry for a short duration before falling back to the last cached Bitmap.
+         *
+         * @param saveImage Flag to check whether to save the image to a file in the temp directory or not. Defaults to false.
+         * @param isException Saves the screenshot as part of Exception logging or not. Defaults to false.
+         * @return Bitmap of the latest acquired screenshot, or the last cached Bitmap if no new image is available.
+         */
+        fun takeScreenshotNow(saveImage: Boolean = false, isException: Boolean = false): Bitmap? {
+            var image: Image? = imageReader.acquireLatestImage()
 
-			// If no image is available, retry for up to 50ms. This handles cases where the screen is static 
-			// or the ScreenRecorder has just consumed the latest frame.
-			if (image == null) {
-				var retries = 5
-				while (retries > 0) {
-					Thread.sleep(10)
-					image = imageReader.acquireLatestImage()
-					if (image != null) break
-					retries--
-				}
-			}
+            // If no image is available, retry for up to 50ms. This handles cases where the screen is static
+            // or the ScreenRecorder has just consumed the latest frame.
+            if (image == null) {
+                var retries = 5
+                while (retries > 0) {
+                    Thread.sleep(10)
+                    image = imageReader.acquireLatestImage()
+                    if (image != null) break
+                    retries--
+                }
+            }
 
-			if (image != null) {
-				try {
-					val planes: Array<Plane> = image.planes
-					val buffer = planes[0].buffer
-					val pixelStride = planes[0].pixelStride
-					val rowStride = planes[0].rowStride
-					val rowPadding: Int = rowStride - pixelStride * SharedData.displayWidth
+            if (image != null) {
+                try {
+                    val planes: Array<Plane> = image.planes
+                    val buffer = planes[0].buffer
+                    val pixelStride = planes[0].pixelStride
+                    val rowStride = planes[0].rowStride
+                    val rowPadding: Int = rowStride - pixelStride * SharedData.displayWidth
 
-					// Create the Bitmap.
-					val newBitmap = createBitmap(SharedData.displayWidth + rowPadding / pixelStride, SharedData.displayHeight)
-					newBitmap.copyPixelsFromBuffer(buffer)
+                    // Create the Bitmap.
+                    val newBitmap = createBitmap(SharedData.displayWidth + rowPadding / pixelStride, SharedData.displayHeight)
+                    newBitmap.copyPixelsFromBuffer(buffer)
 
-					// Update the cache.
-					lastBitmap = newBitmap
-					lastBitmapIsFromException = false
-				} finally {
-					image.close()
-				}
-			} else {
-				if (lastBitmap != null) {
-					Log.d(tag, "ImageReader returned null. Using cached bitmap.")
-				} else {
-					Log.w(tag, "ImageReader returned null and no cached bitmap is available.")
-				}
-			}
+                    // Update the cache.
+                    lastBitmap = newBitmap
+                    lastBitmapIsFromException = false
+                } finally {
+                    image.close()
+                }
+            } else {
+                if (lastBitmap != null) {
+                    Log.d(tag, "ImageReader returned null. Using cached bitmap.")
+                } else {
+                    Log.w(tag, "ImageReader returned null and no cached bitmap is available.")
+                }
+            }
 
-			// Save the Bitmap (either fresh or cached) if requested.
-			val bitmapToReturn = lastBitmap
-			if (saveImage && bitmapToReturn != null) {
-				// Only save if it's an exception or if it's a fresh normal bitmap (to avoid redundant disk I/O on identical cached frames).
-				// We allow re-saving if it's an exception even if it's from cache, but we mark it.
-				val fos = if (isException) {
-					FileOutputStream("$tempDirectory/exception.png")
-				} else {
-					FileOutputStream("$tempDirectory/source.png")
-				}
+            // Save the Bitmap (either fresh or cached) if requested.
+            val bitmapToReturn = lastBitmap
+            if (saveImage && bitmapToReturn != null) {
+                // Only save if it's an exception or if it's a fresh normal bitmap (to avoid redundant disk I/O on identical cached frames).
+                // We allow re-saving if it's an exception even if it's from cache, but we mark it.
+                val fos =
+                    if (isException) {
+                        FileOutputStream("$tempDirectory/exception.png")
+                    } else {
+                        FileOutputStream("$tempDirectory/source.png")
+                    }
 
-				try {
-					bitmapToReturn.compress(Bitmap.CompressFormat.PNG, 100, fos)
-					fos.close()
-				} catch (e: IOException) {
-					Log.e(tag, "Failed to save screenshot: ${e.message}")
-				}
-			}
+                try {
+                    bitmapToReturn.compress(Bitmap.CompressFormat.PNG, 100, fos)
+                    fos.close()
+                } catch (e: IOException) {
+                    Log.e(tag, "Failed to save screenshot: ${e.message}")
+                }
+            }
 
-			return bitmapToReturn
-		}
+            return bitmapToReturn
+        }
 
-		/**
-		 * Create a new Intent to start this service.
-		 *
-		 * @param context The application's context.
-		 * @param resultCode The output of this service.
-		 * @param data The data of this service.
-		 * @return A new Intent.
-		 */
-		fun getStartIntent(context: Context, resultCode: Int, data: Intent): Intent {
-			return Intent(context, MediaProjectionService::class.java).apply {
-				putExtra("ACTION", "START")
-				putExtra("RESULT_CODE", resultCode)
-				putExtra("DATA", data)
-			}
-		}
+        /**
+         * Create a new Intent to start this service.
+         *
+         * @param context The application's context.
+         * @param resultCode The output of this service.
+         * @param data The data of this service.
+         * @return A new Intent.
+         */
+        fun getStartIntent(context: Context, resultCode: Int, data: Intent): Intent {
+            return Intent(context, MediaProjectionService::class.java).apply {
+                putExtra("ACTION", "START")
+                putExtra("RESULT_CODE", resultCode)
+                putExtra("DATA", data)
+            }
+        }
 
-		/**
-		 * Create a new Intent to stop this service.
-		 *
-		 * @param context The application's context.
-		 * @return A new Intent.
-		 */
-		fun getStopIntent(context: Context): Intent {
-			return Intent(context, MediaProjectionService::class.java).apply {
-				putExtra("ACTION", "STOP")
-			}
-		}
+        /**
+         * Create a new Intent to stop this service.
+         *
+         * @param context The application's context.
+         * @return A new Intent.
+         */
+        fun getStopIntent(context: Context): Intent {
+            return Intent(context, MediaProjectionService::class.java).apply {
+                putExtra("ACTION", "STOP")
+            }
+        }
 
-		/**
-		 * Creates the Intent for requesting screen capture permission. On Android 14 (API 34) and above,
-		 * this uses MediaProjectionConfig to prefer full-screen capture over single-app capture.
-		 *
-		 * Usage in your Activity:
-		 * ```
-		 * val intent = MediaProjectionService.getScreenCaptureIntent(this)
-		 * startActivityForResult(intent, REQUEST_CODE_MEDIA_PROJECTION, 100, null)
-		 * ```
-		 *
-		 * @param context The application's context.
-		 * @return An Intent to launch the screen capture permission dialog.
-		 */
-		fun getScreenCaptureIntent(context: Context): Intent {
-			val manager = context.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+        /**
+         * Creates the Intent for requesting screen capture permission. On Android 14 (API 34) and above,
+         * this uses MediaProjectionConfig to prefer full-screen capture over single-app capture.
+         *
+         * Usage in your Activity:
+         * ```
+         * val intent = MediaProjectionService.getScreenCaptureIntent(this)
+         * startActivityForResult(intent, REQUEST_CODE_MEDIA_PROJECTION, 100, null)
+         * ```
+         *
+         * @param context The application's context.
+         * @return An Intent to launch the screen capture permission dialog.
+         */
+        fun getScreenCaptureIntent(context: Context): Intent {
+            val manager = context.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
 
-			return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-				// Android 14+ - Use MediaProjectionConfig to prefer full screen capture.
-				val config = MediaProjectionConfig.createConfigForDefaultDisplay()
-				manager.createScreenCaptureIntent(config)
-			} else {
-				// Older Android versions - Use the standard intent.
-				manager.createScreenCaptureIntent()
-			}
-		}
+            return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                // Android 14+ - Use MediaProjectionConfig to prefer full screen capture.
+                val config = MediaProjectionConfig.createConfigForDefaultDisplay()
+                manager.createScreenCaptureIntent(config)
+            } else {
+                // Older Android versions - Use the standard intent.
+                manager.createScreenCaptureIntent()
+            }
+        }
 
-		/**
-		 * Checks whether the Intent is a START command.
-		 *
-		 * @param intent The Intent to be checked.
-		 * @return True if it is a START command. Otherwise, it is False.
-		 */
-		private fun isStartCommand(intent: Intent): Boolean {
-			isRunning = true
-			return (intent.hasExtra("RESULT_CODE") && intent.hasExtra("DATA") && intent.hasExtra("ACTION") && Objects.equals(
-				intent.getStringExtra("ACTION"), "START"
-			))
-		}
+        /**
+         * Checks whether the Intent is a START command.
+         *
+         * @param intent The Intent to be checked.
+         * @return True if it is a START command. Otherwise, it is False.
+         */
+        private fun isStartCommand(intent: Intent): Boolean {
+            isRunning = true
+            return (
+                intent.hasExtra("RESULT_CODE") &&
+                    intent.hasExtra("DATA") &&
+                    intent.hasExtra("ACTION") &&
+                    Objects.equals(
+                        intent.getStringExtra("ACTION"),
+                        "START",
+                    )
+            )
+        }
 
-		/**
-		 * Checks whether the Intent is a STOP command.
-		 *
-		 * @param intent The Intent to be checked.
-		 * @return True if it is a STOP command. Otherwise, it is False.
-		 */
-		private fun isStopCommand(intent: Intent): Boolean {
-			isRunning = false
-			return (intent.hasExtra("ACTION") && Objects.equals(intent.getStringExtra("ACTION"), "STOP"))
-		}
+        /**
+         * Checks whether the Intent is a STOP command.
+         *
+         * @param intent The Intent to be checked.
+         * @return True if it is a STOP command. Otherwise, it is False.
+         */
+        private fun isStopCommand(intent: Intent): Boolean {
+            isRunning = false
+            return (intent.hasExtra("ACTION") && Objects.equals(intent.getStringExtra("ACTION"), "STOP"))
+        }
 
-		/**
-		 * Gets the public flag for the initialization of the VirtualDisplay, whether or not it can allow applications to open their own displays on
-		 * it.
-		 *
-		 * @return An Integer representing the flag.
-		 */
-		private fun getVirtualDisplayFlags(): Int {
-			return DisplayManager.VIRTUAL_DISPLAY_FLAG_OWN_CONTENT_ONLY or DisplayManager.VIRTUAL_DISPLAY_FLAG_PUBLIC
-		}
-	}
+        /**
+         * Gets the public flag for the initialization of the VirtualDisplay, whether or not it can allow applications to open their own displays on
+         * it.
+         *
+         * @return An Integer representing the flag.
+         */
+        private fun getVirtualDisplayFlags(): Int {
+            return DisplayManager.VIRTUAL_DISPLAY_FLAG_OWN_CONTENT_ONLY or DisplayManager.VIRTUAL_DISPLAY_FLAG_PUBLIC
+        }
+    }
 
-	override fun onCreate() {
-		super.onCreate()
+    override fun onCreate() {
+        super.onCreate()
 
-		// Register the Global Exception Handler to catch any uncaught exceptions and log them.
-		GlobalExceptionHandler.register()
+        // Register the Global Exception Handler to catch any uncaught exceptions and log them.
+        GlobalExceptionHandler.register()
 
-		// Now, start a new Thread to handle processing new screenshots.
-		object : Thread() {
-			override fun run() {
-				Log.d(tag, "Thread running for MediaProjection service.")
-				threadHandler = Handler(Looper.getMainLooper())
-				Looper.prepare()
-				Looper.loop()
-			}
-		}.start()
-	}
+        // Now, start a new Thread to handle processing new screenshots.
+        object : Thread() {
+            override fun run() {
+                Log.d(tag, "Thread running for MediaProjection service.")
+                threadHandler = Handler(Looper.getMainLooper())
+                Looper.prepare()
+                Looper.loop()
+            }
+        }.start()
+    }
 
-	override fun onBind(intent: Intent?): IBinder? {
-		return null
-	}
+    override fun onBind(intent: Intent?): IBinder? {
+        return null
+    }
 
-	@RequiresApi(Build.VERSION_CODES.R)
-	@SuppressLint("ClickableViewAccessibility", "InflateParams")
-	override fun onStartCommand(intent: Intent, flags: Int, startId: Int): Int {
-		// Save a reference to the context.
-		myContext = this
+    @RequiresApi(Build.VERSION_CODES.R)
+    @SuppressLint("ClickableViewAccessibility", "InflateParams")
+    override fun onStartCommand(intent: Intent, flags: Int, startId: Int): Int {
+        // Save a reference to the context.
+        myContext = this
 
-		// Save a reference to the package that started this service (the developer's package, not this library).
-		SharedData.mainPackagePath = myContext.packageName
+        // Save a reference to the package that started this service (the developer's package, not this library).
+        SharedData.mainPackagePath = myContext.packageName
 
-		// Creates a temporary folder if it does not already exist to store source images.
-		val externalFilesDir: File? = getExternalFilesDir(null)
-		if (externalFilesDir != null) {
-			tempDirectory = myContext.getExternalFilesDir(null)?.absolutePath + "/temp/"
-			val newTempDirectory = File(tempDirectory)
+        // Creates a temporary folder if it does not already exist to store source images.
+        val externalFilesDir: File? = getExternalFilesDir(null)
+        if (externalFilesDir != null) {
+            tempDirectory = myContext.getExternalFilesDir(null)?.absolutePath + "/temp/"
+            val newTempDirectory = File(tempDirectory)
 
-			// If the /files/temp/ folder does not exist, create it.
-			if (!newTempDirectory.exists()) {
-				val successfullyCreated: Boolean = newTempDirectory.mkdirs()
+            // If the /files/temp/ folder does not exist, create it.
+            if (!newTempDirectory.exists()) {
+                val successfullyCreated: Boolean = newTempDirectory.mkdirs()
 
-				// If the folder was not able to be created for some reason, log the error and stop the MediaProjection Service.
-				if (!successfullyCreated) {
-					Log.e(tag, "Failed to create the /files/temp/ folder.")
-					stopSelf()
-				} else {
-					Log.d(tag, "Successfully created /files/temp/ folder.")
-				}
-			} else {
-				Log.d(tag, "/files/temp/ folder already exists.")
-			}
-		}
+                // If the folder was not able to be created for some reason, log the error and stop the MediaProjection Service.
+                if (!successfullyCreated) {
+                    Log.e(tag, "Failed to create the /files/temp/ folder.")
+                    stopSelf()
+                } else {
+                    Log.d(tag, "Successfully created /files/temp/ folder.")
+                }
+            } else {
+                Log.d(tag, "/files/temp/ folder already exists.")
+            }
+        }
 
-		if (isStartCommand(intent)) {
-			// Check battery optimization status and log a warning if not exempt.
-			if (!BatteryOptimizationUtils.isIgnoringBatteryOptimizations(this)) {
-				Log.w(tag, "Battery optimization is enabled for this app. Background execution may be unreliable. " +
-					"Consider calling BatteryOptimizationUtils.checkAndRequestBatteryOptimization(context) from your Activity.")
-			}
+        if (isStartCommand(intent)) {
+            // Check battery optimization status and log a warning if not exempt.
+            if (!BatteryOptimizationUtils.isIgnoringBatteryOptimizations(this)) {
+                Log.w(
+                    tag,
+                    "Battery optimization is enabled for this app. Background execution may be unreliable. " +
+                        "Consider calling BatteryOptimizationUtils.checkAndRequestBatteryOptimization(context) from your Activity.",
+                )
+            }
 
-			// Create a new Notification in the foreground telling users that the MediaProjection Service is now active.
-			Log.d(tag, "MediaProjection Service received START Intent.")
-			val contentIntent: Intent = packageManager.getLaunchIntentForPackage(packageName)!!
-			val name = contentIntent.component!!.className
-			val (notification, notificationID) = NotificationUtils.getNewNotification(this, Class.forName(name))
-			startForeground(notificationID, notification)
+            // Create a new Notification in the foreground telling users that the MediaProjection Service is now active.
+            Log.d(tag, "MediaProjection Service received START Intent.")
+            val contentIntent: Intent = packageManager.getLaunchIntentForPackage(packageName)!!
+            val name = contentIntent.component!!.className
+            val (notification, notificationID) = NotificationUtils.getNewNotification(this, Class.forName(name))
+            startForeground(notificationID, notification)
 
-			val resultCode = intent.getIntExtra("RESULT_CODE", Activity.RESULT_CANCELED)
-			val data: Intent? = intent.getParcelableExtra("DATA")
-			if (data != null) {
-				// Start the MediaProjection service.
-				startMediaProjection(resultCode, data)
+            val resultCode = intent.getIntExtra("RESULT_CODE", Activity.RESULT_CANCELED)
+            val data: Intent? = intent.getParcelableExtra("DATA")
+            if (data != null) {
+                // Start the MediaProjection service.
+                startMediaProjection(resultCode, data)
 
-				// Finally, start the Bot Service.
-				val botStartIntent = Intent(this, BotService::class.java)
-				startService(botStartIntent)
-			}
+                // Finally, start the Bot Service.
+                val botStartIntent = Intent(this, BotService::class.java)
+                startService(botStartIntent)
+            }
             Log.d(tag, "MediaProjection Service finished processing the START Intent.")
-		} else if (isStopCommand(intent)) {
-			// Perform cleanup on the MediaProjection service and then stop itself.
-			Log.d(tag, "Received STOP Intent for MediaProjection. Stopping MediaProjection service.")
-			stopMediaProjection()
-			stopSelf()
+        } else if (isStopCommand(intent)) {
+            // Perform cleanup on the MediaProjection service and then stop itself.
+            Log.d(tag, "Received STOP Intent for MediaProjection. Stopping MediaProjection service.")
+            stopMediaProjection()
+            stopSelf()
             Log.d(tag, "MediaProjection Service finished processing the STOP Intent.")
-		} else {
-			Log.e(tag, "Encountered unexpected Intent. Shutting down service.")
-			stopSelf()
-		}
+        } else {
+            Log.e(tag, "Encountered unexpected Intent. Shutting down service.")
+            stopSelf()
+        }
 
-		return START_NOT_STICKY
-	}
+        return START_NOT_STICKY
+    }
 
-	/**
-	 * Creates a callback that will fire when the device orientation changes and recreates the virtual display.
-	 *
-	 * @param context The application's context.
-	 */
-	private inner class OrientationChangeCallback(context: Context) : OrientationEventListener(context) {
-		override fun onOrientationChanged(orientation: Int) {
-			val newRotation: Int = (getSystemService(WINDOW_SERVICE) as WindowManager).defaultDisplay.rotation
-			if (newRotation != oldRotation) {
-				oldRotation = newRotation
-				try {
-					// Perform cleanup.
-					virtualDisplay.release()
+    /**
+     * Creates a callback that will fire when the device orientation changes and recreates the virtual display.
+     *
+     * @param context The application's context.
+     */
+    private inner class OrientationChangeCallback(context: Context) : OrientationEventListener(context) {
+        override fun onOrientationChanged(orientation: Int) {
+            val newRotation: Int = (getSystemService(WINDOW_SERVICE) as WindowManager).defaultDisplay.rotation
+            if (newRotation != oldRotation) {
+                oldRotation = newRotation
+                try {
+                    // Perform cleanup.
+                    virtualDisplay.release()
 
-					// Now re-create the VirtualDisplay based on the new width and height of the rotated screen.
-					createVirtualDisplay()
-				} catch (e: Exception) {
-					Log.e(tag, "Failed to perform cleanup and recreating the VirtualDisplay after device rotation: $e")
-					AndroidComponents.showCustomToast(
-						myContext, "Failed to perform cleanup and recreating the VirtualDisplay after device rotation.",
-						1000
-					)
-				}
-			}
-		}
-	}
+                    // Now re-create the VirtualDisplay based on the new width and height of the rotated screen.
+                    createVirtualDisplay()
+                } catch (e: Exception) {
+                    Log.e(tag, "Failed to perform cleanup and recreating the VirtualDisplay after device rotation: $e")
+                    AndroidComponents.showCustomToast(
+                        myContext,
+                        "Failed to perform cleanup and recreating the VirtualDisplay after device rotation.",
+                        1000,
+                    )
+                }
+            }
+        }
+    }
 
-	/**
-	 * Custom Callback for when it is necessary to stop the MediaProjection.
-	 */
-	private inner class MediaProjectionStopCallback : MediaProjection.Callback() {
-		override fun onStop() {
-			threadHandler.post {
-				isRunning = false
+    /**
+     * Custom Callback for when it is necessary to stop the MediaProjection.
+     */
+    private inner class MediaProjectionStopCallback : MediaProjection.Callback() {
+        override fun onStop() {
+            threadHandler.post {
+                isRunning = false
 
-				// Stop any active recording.
-				if (recording?.isRecording == true) {
-					try {
-						recording?.close()
-						Log.d(tag, "Recording stopped during MediaProjection cleanup.")
-					} catch (e: Exception) {
-						Log.e(tag, "Error stopping recording during cleanup: ${e.message}")
-					} finally {
-						recording = null
-					}
-				}
+                // Stop any active recording.
+                if (recording?.isRecording == true) {
+                    try {
+                        recording?.close()
+                        Log.d(tag, "Recording stopped during MediaProjection cleanup.")
+                    } catch (e: Exception) {
+                        Log.e(tag, "Error stopping recording during cleanup: ${e.message}")
+                    } finally {
+                        recording = null
+                    }
+                }
 
-				// Destroy the VirtualDisplay.
-				virtualDisplay.release()
+                // Destroy the VirtualDisplay.
+                virtualDisplay.release()
 
-				// Disable the OrientationChangeCallback.
-				orientationChangeCallback?.disable()
+                // Disable the OrientationChangeCallback.
+                orientationChangeCallback?.disable()
 
-				// Then remove this listener from the MediaProjection object.
-				mediaProjection?.unregisterCallback(this@MediaProjectionStopCallback)
+                // Then remove this listener from the MediaProjection object.
+                mediaProjection?.unregisterCallback(this@MediaProjectionStopCallback)
 
-				// Finally, stop the Bot Service.
-				val botStopIntent = Intent(myContext, BotService::class.java)
-				stopService(botStopIntent)
+                // Finally, stop the Bot Service.
+                val botStopIntent = Intent(myContext, BotService::class.java)
+                stopService(botStopIntent)
 
-				// Clear bitmap cache.
-				lastBitmap = null
-				lastBitmapIsFromException = false
+                // Clear bitmap cache.
+                lastBitmap = null
+                lastBitmapIsFromException = false
 
-				// Now set the MediaProjection object to null to eliminate the "Invalid media projection" error.
-				mediaProjection = null
+                // Now set the MediaProjection object to null to eliminate the "Invalid media projection" error.
+                mediaProjection = null
 
-				Log.d(tag, "MediaProjection Service has stopped for this context: ${myContext.applicationInfo}.")
-				AndroidComponents.showCustomToast(myContext, "MediaProjection Service has stopped.", 1000)
+                Log.d(tag, "MediaProjection Service has stopped for this context: ${myContext.applicationInfo}.")
+                AndroidComponents.showCustomToast(myContext, "MediaProjection Service has stopped.", 1000)
 
                 NotificationUtils.cancelAllNotifications(myContext)
 
-				// Send a event to the React Native frontend.
-				EventBus.getDefault().post(JSEvent("MediaProjectionService", "Not Running"))
+                // Send a event to the React Native frontend.
+                EventBus.getDefault().post(JSEvent("MediaProjectionService", "Not Running"))
 
                 Log.d(tag, "MediaProjection Service cleanup completed.")
-			}
-		}
-	}
+            }
+        }
+    }
 
-	/**
-	 * Creates and starts the MediaProjection.
-	 *
-	 * @param resultCode The output of this service.
-	 * @param data The data of this service.
-	 */
-	private fun startMediaProjection(resultCode: Int, data: Intent) {
-		Log.d(tag, "Creating and starting the MediaProjection now.")
+    /**
+     * Creates and starts the MediaProjection.
+     *
+     * @param resultCode The output of this service.
+     * @param data The data of this service.
+     */
+    private fun startMediaProjection(resultCode: Int, data: Intent) {
+        Log.d(tag, "Creating and starting the MediaProjection now.")
 
-		// Retrieve the MediaProjection object.
-		if (mediaProjection == null) {
-			mediaProjection = (getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager).getMediaProjection(resultCode, data)
-		}
+        // Retrieve the MediaProjection object.
+        if (mediaProjection == null) {
+            mediaProjection = (getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager).getMediaProjection(resultCode, data)
+        }
 
-		// Get the WindowManager object.
-		windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
+        // Get the WindowManager object.
+        windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
 
-		// Get the DefaultDisplay object.
-		defaultDisplay = windowManager.defaultDisplay
+        // Get the DefaultDisplay object.
+        defaultDisplay = windowManager.defaultDisplay
 
-		// Create the VirtualDisplay and start reading in screenshots.
-		createVirtualDisplay()
+        // Create the VirtualDisplay and start reading in screenshots.
+        createVirtualDisplay()
 
-		Log.d(tag, "Finished creating the Virtual Display")
+        Log.d(tag, "Finished creating the Virtual Display")
 
-		// Attach the OrientationChangeCallback.
-		orientationChangeCallback = OrientationChangeCallback(this)
-		if ((orientationChangeCallback as OrientationChangeCallback).canDetectOrientation()) {
-			(orientationChangeCallback as OrientationChangeCallback).enable()
-		}
+        // Attach the OrientationChangeCallback.
+        orientationChangeCallback = OrientationChangeCallback(this)
+        if ((orientationChangeCallback as OrientationChangeCallback).canDetectOrientation()) {
+            (orientationChangeCallback as OrientationChangeCallback).enable()
+        }
 
-		// Attach the MediaProjectionStopCallback to the MediaProjection object.
-		mediaProjection?.registerCallback(MediaProjectionStopCallback(), threadHandler)
+        // Attach the MediaProjectionStopCallback to the MediaProjection object.
+        mediaProjection?.registerCallback(MediaProjectionStopCallback(), threadHandler)
 
-		Log.d(tag, "MediaProjection Service is now running.")
-		AndroidComponents.showCustomToast(myContext, "MediaProjection Service is now running.", 1000)
-	}
+        Log.d(tag, "MediaProjection Service is now running.")
+        AndroidComponents.showCustomToast(myContext, "MediaProjection Service is now running.", 1000)
+    }
 
-	/**
-	 * Stops the MediaProjection.
-	 */
-	private fun stopMediaProjection() {
-		threadHandler.post {
-			mediaProjection?.stop()
-		}
-	}
+    /**
+     * Stops the MediaProjection.
+     */
+    private fun stopMediaProjection() {
+        threadHandler.post {
+            mediaProjection?.stop()
+        }
+    }
 }

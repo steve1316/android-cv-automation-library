@@ -2,7 +2,6 @@ package com.steve1316.automation_library.utils
 
 import android.annotation.SuppressLint
 import android.content.Context
-import android.content.SharedPreferences
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
@@ -10,10 +9,14 @@ import android.graphics.PixelFormat
 import android.graphics.RectF
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
+import android.util.TypedValue
 import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewConfiguration
 import android.view.WindowManager
 import android.view.animation.Animation
 import android.view.animation.AnimationUtils
@@ -22,10 +25,6 @@ import android.widget.ImageButton
 import android.widget.TextView
 import com.steve1316.automation_library.R
 import com.steve1316.automation_library.data.SharedData
-import android.os.Handler
-import android.os.Looper
-import android.util.TypedValue
-import android.view.ViewConfiguration
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -83,26 +82,28 @@ private fun getNotchHeight(windowManager: WindowManager): Int {
  */
 class FloatingOverlayButton(
     private val context: Context,
-    private val windowManager: WindowManager
+    private val windowManager: WindowManager,
 ) {
-    private val overlayLayoutParamsType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-        WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-    } else {
-        WindowManager.LayoutParams.TYPE_SYSTEM_ALERT
-    }
+    private val overlayLayoutParamsType =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+        } else {
+            WindowManager.LayoutParams.TYPE_SYSTEM_ALERT
+        }
 
     private var buttonSizePx: Int = 0
     private lateinit var overlayView: View
     private lateinit var overlayButton: ImageButton
-    private val overlayLayoutParams = WindowManager.LayoutParams().apply {
-        type = overlayLayoutParamsType
-        flags = WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
-        format = PixelFormat.TRANSLUCENT
-        width = WindowManager.LayoutParams.WRAP_CONTENT
-        height = WindowManager.LayoutParams.WRAP_CONTENT
-        windowAnimations = android.R.style.Animation_Toast
-        gravity = Gravity.TOP or Gravity.START
-    }
+    private val overlayLayoutParams =
+        WindowManager.LayoutParams().apply {
+            type = overlayLayoutParamsType
+            flags = WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+            format = PixelFormat.TRANSLUCENT
+            width = WindowManager.LayoutParams.WRAP_CONTENT
+            height = WindowManager.LayoutParams.WRAP_CONTENT
+            windowAnimations = android.R.style.Animation_Toast
+            gravity = Gravity.TOP or Gravity.START
+        }
 
     // Animation
     private lateinit var playButtonAnimation: Animation
@@ -147,7 +148,7 @@ class FloatingOverlayButton(
         val prefs = context.getSharedPreferences("OverlayPrefs", Context.MODE_PRIVATE)
         overlayLayoutParams.x = prefs.getInt("lastX", overlayLayoutParams.x)
         overlayLayoutParams.y = prefs.getInt("lastY", overlayLayoutParams.y)
-        
+
         windowManager.addView(overlayView, overlayLayoutParams)
 
         setupTouchListener()
@@ -158,7 +159,7 @@ class FloatingOverlayButton(
 
     /**
      * Sets the initial position of the overlay button.
-     * 
+     *
      * @param forceScreenCenter If true, centers on screen regardless of allowed regions.
      */
     private fun setInitialOverlayPosition(forceScreenCenter: Boolean) {
@@ -186,7 +187,7 @@ class FloatingOverlayButton(
 
     /**
      * Calculates the center coordinates (X, Y) of the overlay button on screen.
-     * 
+     *
      * @return A Pair of Ints representing the center coordinates (X, Y).
      */
     private fun getOverlayCenter(): Pair<Int, Int> {
@@ -199,131 +200,134 @@ class FloatingOverlayButton(
 
     /**
      * Sets up the touch listener for dragging the button.
-     * 
+     *
      * @return Boolean indicating if the touch event was handled.
      */
     @SuppressLint("ClickableViewAccessibility")
     private fun setupTouchListener() {
-        overlayButton.setOnTouchListener(object : View.OnTouchListener {
-            private var initialX: Int = 0
-            private var initialY: Int = 0
-            private var initialTouchX: Float = 0F
-            private var initialTouchY: Float = 0F
-            private var isDragging = false
-            private var isLongPressTriggered = false
+        overlayButton.setOnTouchListener(
+            object : View.OnTouchListener {
+                private var initialX: Int = 0
+                private var initialY: Int = 0
+                private var initialTouchX: Float = 0F
+                private var initialTouchY: Float = 0F
+                private var isDragging = false
+                private var isLongPressTriggered = false
 
-            private val longPressRunnable = Runnable {
-                // Highlight dismiss area if it exists.
-                isLongPressTriggered = true
-                dragToDismiss.show()
-                
-                // Show initial guidance around the button.
-                val (centerX, centerY) = getOverlayCenter()
-                if (!guidanceOverlays.isInsideGuidanceRegion(centerX, centerY)) {
-                    guidanceOverlays.showGuidance()
-                }
-            }
+                private val longPressRunnable =
+                    Runnable {
+                        // Highlight dismiss area if it exists.
+                        isLongPressTriggered = true
+                        dragToDismiss.show()
 
-            override fun onTouch(v: View?, event: MotionEvent?): Boolean {
-                val action = event?.action ?: return false
-
-                when (action) {
-                    MotionEvent.ACTION_DOWN -> {
-                        initialX = overlayLayoutParams.x
-                        initialY = overlayLayoutParams.y
-                        initialTouchX = event.rawX
-                        initialTouchY = event.rawY
-                        isDragging = false
-                        isLongPressTriggered = false
-
-                        // Stop any ongoing flashing animation when the button itself is tapped.
-                        guidanceOverlays.stopFlashing()
-
-                        // Schedule the long-press check.
-                        handler.postDelayed(longPressRunnable, ViewConfiguration.getLongPressTimeout().toLong())
-                        return false
-                    }
-                    MotionEvent.ACTION_MOVE -> {
-                        val xDiffRaw = event.rawX - initialTouchX
-                        val yDiffRaw = event.rawY - initialTouchY
-
-                        // If we haven't started dragging yet, check if we've moved past the touch slop.
-                        if (!isDragging && !isLongPressTriggered) {
-                            if (abs(xDiffRaw) > touchSlop || abs(yDiffRaw) > touchSlop) {
-                                // Start showing UI immediately on drag.
-                                isDragging = true
-                                handler.removeCallbacks(longPressRunnable)
-                                dragToDismiss.show() 
-                            }
+                        // Show initial guidance around the button.
+                        val (centerX, centerY) = getOverlayCenter()
+                        if (!guidanceOverlays.isInsideGuidanceRegion(centerX, centerY)) {
+                            guidanceOverlays.showGuidance()
                         }
+                    }
 
-                        if (isDragging || isLongPressTriggered) {
-                            val xDiff = xDiffRaw.roundToInt()
-                            val yDiff = yDiffRaw.roundToInt()
-                            
-                            overlayLayoutParams.x = initialX + xDiff
-                            overlayLayoutParams.y = initialY + yDiff
-                            windowManager.updateViewLayout(overlayView, overlayLayoutParams)
+                override fun onTouch(v: View?, event: MotionEvent?): Boolean {
+                    val action = event?.action ?: return false
 
-                            val (centerX, centerY) = getOverlayCenter()
-                            
-                            // Determine if the button is inside the drag-to-dismiss area.
-                            val isInsideDismiss = dragToDismiss.isInside(centerX, centerY)
-                            dragToDismiss.updateHover(isInsideDismiss)
+                    when (action) {
+                        MotionEvent.ACTION_DOWN -> {
+                            initialX = overlayLayoutParams.x
+                            initialY = overlayLayoutParams.y
+                            initialTouchX = event.rawX
+                            initialTouchY = event.rawY
+                            isDragging = false
+                            isLongPressTriggered = false
 
-                            if (isInsideDismiss) {
-                                guidanceOverlays.hideGuidance()
-                            } else {
-                                // Show the guidance overlays for the regions based on where the button is located.
-                                if (!guidanceOverlays.isInsideGuidanceRegion(centerX, centerY)) {
-                                    guidanceOverlays.showGuidance()
-                                } else {
-                                    guidanceOverlays.hideGuidance()
+                            // Stop any ongoing flashing animation when the button itself is tapped.
+                            guidanceOverlays.stopFlashing()
+
+                            // Schedule the long-press check.
+                            handler.postDelayed(longPressRunnable, ViewConfiguration.getLongPressTimeout().toLong())
+                            return false
+                        }
+                        MotionEvent.ACTION_MOVE -> {
+                            val xDiffRaw = event.rawX - initialTouchX
+                            val yDiffRaw = event.rawY - initialTouchY
+
+                            // If we haven't started dragging yet, check if we've moved past the touch slop.
+                            if (!isDragging && !isLongPressTriggered) {
+                                if (abs(xDiffRaw) > touchSlop || abs(yDiffRaw) > touchSlop) {
+                                    // Start showing UI immediately on drag.
+                                    isDragging = true
+                                    handler.removeCallbacks(longPressRunnable)
+                                    dragToDismiss.show()
                                 }
                             }
+
+                            if (isDragging || isLongPressTriggered) {
+                                val xDiff = xDiffRaw.roundToInt()
+                                val yDiff = yDiffRaw.roundToInt()
+
+                                overlayLayoutParams.x = initialX + xDiff
+                                overlayLayoutParams.y = initialY + yDiff
+                                windowManager.updateViewLayout(overlayView, overlayLayoutParams)
+
+                                val (centerX, centerY) = getOverlayCenter()
+
+                                // Determine if the button is inside the drag-to-dismiss area.
+                                val isInsideDismiss = dragToDismiss.isInside(centerX, centerY)
+                                dragToDismiss.updateHover(isInsideDismiss)
+
+                                if (isInsideDismiss) {
+                                    guidanceOverlays.hideGuidance()
+                                } else {
+                                    // Show the guidance overlays for the regions based on where the button is located.
+                                    if (!guidanceOverlays.isInsideGuidanceRegion(centerX, centerY)) {
+                                        guidanceOverlays.showGuidance()
+                                    } else {
+                                        guidanceOverlays.hideGuidance()
+                                    }
+                                }
+                            }
+                            return false
                         }
-                        return false
-                    }
-                    MotionEvent.ACTION_UP -> {
-                        handler.removeCallbacks(longPressRunnable)
-                        
-                        // If we were dragging or holding, handle the end of that interaction.
-                        if (isDragging || isLongPressTriggered) {
-                            // Dismiss the button if it is inside the drag-to-dismiss area.
-                            if (dragToDismiss.isHovering) {
-                                onDismissListener?.invoke()
+                        MotionEvent.ACTION_UP -> {
+                            handler.removeCallbacks(longPressRunnable)
+
+                            // If we were dragging or holding, handle the end of that interaction.
+                            if (isDragging || isLongPressTriggered) {
+                                // Dismiss the button if it is inside the drag-to-dismiss area.
+                                if (dragToDismiss.isHovering) {
+                                    onDismissListener?.invoke()
+                                }
+
+                                dragToDismiss.hide()
+                                guidanceOverlays.hideGuidance()
+
+                                // Store the current button location in the preferences
+                                // so it can be reloaded the next time the service runs.
+                                val editor = context.getSharedPreferences("OverlayPrefs", Context.MODE_PRIVATE).edit()
+                                editor.putInt("lastX", overlayLayoutParams.x)
+                                editor.putInt("lastY", overlayLayoutParams.y)
+                                editor.apply()
+                            } else {
+                                // This was a tap.
+                                onOverlayClickListener?.invoke()
+                                v?.performClick()
                             }
 
+                            isDragging = false
+                            isLongPressTriggered = false
+                            return false
+                        }
+                        MotionEvent.ACTION_CANCEL -> {
+                            handler.removeCallbacks(longPressRunnable)
                             dragToDismiss.hide()
                             guidanceOverlays.hideGuidance()
-
-                            // Store the current button location in the preferences
-                            // so it can be reloaded the next time the service runs.
-                            val editor = context.getSharedPreferences("OverlayPrefs", Context.MODE_PRIVATE).edit()
-                            editor.putInt("lastX", overlayLayoutParams.x)
-                            editor.putInt("lastY", overlayLayoutParams.y)
-                            editor.apply()
-                        } else {
-                            // This was a tap.
-                            onOverlayClickListener?.invoke()
-                            v?.performClick()
+                            isDragging = false
+                            isLongPressTriggered = false
                         }
-                        
-                        isDragging = false
-                        isLongPressTriggered = false
-                        return false
                     }
-                    MotionEvent.ACTION_CANCEL -> {
-                        handler.removeCallbacks(longPressRunnable)
-                        dragToDismiss.hide()
-                        guidanceOverlays.hideGuidance()
-                        isDragging = false
-                        isLongPressTriggered = false
-                    }
+                    return false
                 }
-                return false
-            }
-        })
+            },
+        )
     }
 
     /**
@@ -335,35 +339,47 @@ class FloatingOverlayButton(
         stopButtonAnimation = AnimationUtils.loadAnimation(context, R.anim.stop_button_animation)
 
         // These listeners are used to alternate between the play and play-alt animations.
-        playButtonAnimation.setAnimationListener(object : Animation.AnimationListener {
-            override fun onAnimationStart(animation: Animation?) {}
-            override fun onAnimationEnd(animation: Animation?) {
-                if (!isRunning) {
-                    overlayButton.startAnimation(playButtonAnimation)
+        playButtonAnimation.setAnimationListener(
+            object : Animation.AnimationListener {
+                override fun onAnimationStart(animation: Animation?) {}
+
+                override fun onAnimationEnd(animation: Animation?) {
+                    if (!isRunning) {
+                        overlayButton.startAnimation(playButtonAnimation)
+                    }
                 }
-            }
-            override fun onAnimationRepeat(animation: Animation?) {}
-        })
-        playButtonAnimationAlt.setAnimationListener(object : Animation.AnimationListener {
-            override fun onAnimationStart(animation: Animation?) {}
-            override fun onAnimationEnd(animation: Animation?) {
-                if (!isRunning) {
-                    overlayButton.startAnimation(playButtonAnimationAlt)
+
+                override fun onAnimationRepeat(animation: Animation?) {}
+            },
+        )
+        playButtonAnimationAlt.setAnimationListener(
+            object : Animation.AnimationListener {
+                override fun onAnimationStart(animation: Animation?) {}
+
+                override fun onAnimationEnd(animation: Animation?) {
+                    if (!isRunning) {
+                        overlayButton.startAnimation(playButtonAnimationAlt)
+                    }
                 }
-            }
-            override fun onAnimationRepeat(animation: Animation?) {}
-        })
+
+                override fun onAnimationRepeat(animation: Animation?) {}
+            },
+        )
 
         // This listener is used to alternate between the stop and play animations.
-        stopButtonAnimation.setAnimationListener(object : Animation.AnimationListener {
-            override fun onAnimationStart(animation: Animation?) {}
-            override fun onAnimationEnd(animation: Animation?) {
-                if (isRunning) {
-                    overlayButton.startAnimation(stopButtonAnimation)
+        stopButtonAnimation.setAnimationListener(
+            object : Animation.AnimationListener {
+                override fun onAnimationStart(animation: Animation?) {}
+
+                override fun onAnimationEnd(animation: Animation?) {
+                    if (isRunning) {
+                        overlayButton.startAnimation(stopButtonAnimation)
+                    }
                 }
-            }
-            override fun onAnimationRepeat(animation: Animation?) {}
-        })
+
+                override fun onAnimationRepeat(animation: Animation?) {}
+            },
+        )
     }
 
     /**
@@ -394,7 +410,7 @@ class FloatingOverlayButton(
 
     /**
      * Updates the visual state of the button (icon and animation) based on whether the bot is running.
-     * 
+     *
      * @param running True if the bot is running, false otherwise.
      */
     fun setRunningState(running: Boolean) {
@@ -442,7 +458,7 @@ class FloatingOverlayButton(
 private class GuidanceOverlays(
     private val context: Context,
     private val windowManager: WindowManager,
-    private val overlayLayoutParamsType: Int
+    private val overlayLayoutParamsType: Int,
 ) {
     // One view per guidance region. Each is added to WindowManager with a window sized to that region only.
     private val regionHighlightViews: MutableList<View> = mutableListOf()
@@ -491,18 +507,20 @@ private class GuidanceOverlays(
         private val density = context.resources.displayMetrics.density
         private val cornerRadius = density * 8
 
-        private val paintFill = Paint().apply {
-            color = 0x80444444.toInt()
-            style = Paint.Style.FILL
-            isAntiAlias = true
-        }
+        private val paintFill =
+            Paint().apply {
+                color = 0x80444444.toInt()
+                style = Paint.Style.FILL
+                isAntiAlias = true
+            }
 
-        private val paintStroke = Paint().apply {
-            color = 0x66FFFFFF
-            style = Paint.Style.STROKE
-            strokeWidth = density * 2
-            isAntiAlias = true
-        }
+        private val paintStroke =
+            Paint().apply {
+                color = 0x66FFFFFF
+                style = Paint.Style.STROKE
+                strokeWidth = density * 2
+                isAntiAlias = true
+            }
 
         // Local-coordinate rect - the window itself is sized to the region, so we draw at (0, 0).
         private val rect = RectF(0f, 0f, region.width.toFloat(), region.height.toFloat())
@@ -553,7 +571,7 @@ private class GuidanceOverlays(
 
         val processed = mutableListOf<GuidanceRegion>()
         val notchHeight = getNotchHeight(windowManager)
-        
+
         for (raw in rawRegions) {
             if (raw.size < 4) continue
 
@@ -565,23 +583,24 @@ private class GuidanceOverlays(
             val scaledH = (raw[3] * scaleY).roundToInt()
 
             val x = scaledX.coerceIn(0, screenWidth)
-            
+
             // For width/height, if 0 or less was provided in raw, it usually meant "rest of screen" or "full".
             // Logic here: if raw[2] <= 0 we take remaining width. If it was positive, we use the scaled width.
             val width = if (raw[2] <= 0) (screenWidth - x).coerceAtLeast(0) else scaledW.coerceAtMost(screenWidth - x)
             val height = if (raw[3] <= 0) (screenHeight - scaledY).coerceAtLeast(0) else scaledH
-            
+
             // Adjust y-coordinate if the container would extend past the bottom of the screen.
-            val y = if (scaledY + height > screenHeight) {
-                // Move y up so that the full height fits within the screen.
-                (screenHeight - height).coerceAtLeast(0)
-            } else {
-                scaledY.coerceIn(0, screenHeight)
-            }
-            
+            val y =
+                if (scaledY + height > screenHeight) {
+                    // Move y up so that the full height fits within the screen.
+                    (screenHeight - height).coerceAtLeast(0)
+                } else {
+                    scaledY.coerceIn(0, screenHeight)
+                }
+
             // Recalculate height based on final y position.
             val finalHeight = height.coerceAtMost(screenHeight - y)
-            
+
             if (width > 0 && finalHeight > 0) {
                 processed.add(GuidanceRegion(x, y, width, finalHeight))
             }
@@ -603,58 +622,65 @@ private class GuidanceOverlays(
 
         // Create one region-sized window per region. Each is its own WindowManager view so areas outside the regions have no overlay at all.
         for (region in guidanceRegions) {
-            val view = RegionHighlightView(context, region).apply {
-                // Use INVISIBLE instead of GONE so the view is pre-measured and ready.
-                visibility = View.INVISIBLE
-            }
+            val view =
+                RegionHighlightView(context, region).apply {
+                    // Use INVISIBLE instead of GONE so the view is pre-measured and ready.
+                    visibility = View.INVISIBLE
+                }
 
-            val params = WindowManager.LayoutParams(
-                region.width,
-                region.height,
-                overlayLayoutParamsType,
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
-                PixelFormat.TRANSLUCENT
-            ).apply {
-                x = region.x
-                y = region.y
-                gravity = Gravity.TOP or Gravity.START
-            }
+            val params =
+                WindowManager.LayoutParams(
+                    region.width,
+                    region.height,
+                    overlayLayoutParamsType,
+                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                        WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                    PixelFormat.TRANSLUCENT,
+                ).apply {
+                    x = region.x
+                    y = region.y
+                    gravity = Gravity.TOP or Gravity.START
+                }
 
             windowManager.addView(view, params)
             regionHighlightViews.add(view)
         }
 
         // Create the tooltip view.
-        tooltipView = TextView(context).apply {
-            // Use INVISIBLE instead of GONE so the view is pre-measured and ready.
-            visibility = View.INVISIBLE
-            text = "Recommended to place the button inside the highlighted area(s)."
-            setTextColor(Color.WHITE)
-            textSize = 14f
-            // Adjusts the padding of the tooltip container.
-            setPadding(context.dpToPx(4f), context.dpToPx(4f), context.dpToPx(4f), context.dpToPx(4f))
-            background = GradientDrawable().apply {
-                shape = GradientDrawable.RECTANGLE
-                setColor(0xCC000000.toInt())
-                cornerRadius = context.dpToPx(8f).toFloat()
+        tooltipView =
+            TextView(context).apply {
+                // Use INVISIBLE instead of GONE so the view is pre-measured and ready.
+                visibility = View.INVISIBLE
+                text = "Recommended to place the button inside the highlighted area(s)."
+                setTextColor(Color.WHITE)
+                textSize = 14f
+                // Adjusts the padding of the tooltip container.
+                setPadding(context.dpToPx(4f), context.dpToPx(4f), context.dpToPx(4f), context.dpToPx(4f))
+                background =
+                    GradientDrawable().apply {
+                        shape = GradientDrawable.RECTANGLE
+                        setColor(0xCC000000.toInt())
+                        cornerRadius = context.dpToPx(8f).toFloat()
+                    }
+                textAlignment = View.TEXT_ALIGNMENT_CENTER
+                // Ensure touches pass through to views below.
+                isClickable = false
+                isFocusable = false
             }
-            textAlignment = View.TEXT_ALIGNMENT_CENTER
-            // Ensure touches pass through to views below.
-            isClickable = false
-            isFocusable = false
-        }
 
-        tooltipLayoutParams = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.WRAP_CONTENT,
-            WindowManager.LayoutParams.WRAP_CONTENT,
-            overlayLayoutParamsType,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
-            PixelFormat.TRANSLUCENT
-        ).apply {
-            windowAnimations = android.R.style.Animation_Toast
-            // Center the tooltip on the screen.
-            gravity = Gravity.CENTER
-        }
+        tooltipLayoutParams =
+            WindowManager.LayoutParams(
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                overlayLayoutParamsType,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                PixelFormat.TRANSLUCENT,
+            ).apply {
+                windowAnimations = android.R.style.Animation_Toast
+                // Center the tooltip on the screen.
+                gravity = Gravity.CENTER
+            }
 
         windowManager.addView(tooltipView, tooltipLayoutParams)
     }
@@ -739,31 +765,32 @@ private class GuidanceOverlays(
         var remainingFlashes = flashCount
 
         // Create a runnable that performs smooth fade animations.
-        val blinkRunnable = object : Runnable {
-            override fun run() {
-                if (remainingFlashes <= 0) {
-                    // All flashes completed, fade out and stop.
-                    fadeOutGuidance(fadeDuration)
-                    isFlashing = false
-                    return
-                }
+        val blinkRunnable =
+            object : Runnable {
+                override fun run() {
+                    if (remainingFlashes <= 0) {
+                        // All flashes completed, fade out and stop.
+                        fadeOutGuidance(fadeDuration)
+                        isFlashing = false
+                        return
+                    }
 
-                remainingFlashes--
+                    remainingFlashes--
 
-                // Fade in, then schedule fade out.
-                fadeInGuidance(fadeDuration)
+                    // Fade in, then schedule fade out.
+                    fadeInGuidance(fadeDuration)
 
-                // Schedule fade out after the visible period.
-                flashHandler.postDelayed({
-                    fadeOutGuidance(fadeDuration)
-                }, blinkIntervalMs - fadeDuration)
+                    // Schedule fade out after the visible period.
+                    flashHandler.postDelayed({
+                        fadeOutGuidance(fadeDuration)
+                    }, blinkIntervalMs - fadeDuration)
 
-                // Schedule the next blink cycle if there are more flashes.
-                if (remainingFlashes > 0) {
-                    flashHandler.postDelayed(this, blinkIntervalMs)
+                    // Schedule the next blink cycle if there are more flashes.
+                    if (remainingFlashes > 0) {
+                        flashHandler.postDelayed(this, blinkIntervalMs)
+                    }
                 }
             }
-        }
 
         // Store reference for cleanup and start the blinking.
         flashHideRunnable = blinkRunnable
@@ -879,12 +906,12 @@ private class GuidanceOverlays(
 private class DragToDismiss(
     private val context: Context,
     private val windowManager: WindowManager,
-    private val overlayLayoutParamsType: Int
+    private val overlayLayoutParamsType: Int,
 ) {
     private lateinit var dismissTargetView: View
     private lateinit var dismissCircleView: View
     private lateinit var dismissLayoutParams: WindowManager.LayoutParams
-    
+
     /**
      * True if the button is currently hovering over the dismiss target.
      */
@@ -908,53 +935,58 @@ private class DragToDismiss(
         val screenHeight = if (SharedData.displayHeight > 0) SharedData.displayHeight else context.resources.displayMetrics.heightPixels
         val bottomMargin = context.dpToPx(32f) + if (SharedData.displayDPI >= 400) 150 else 50
 
-        dismissTargetView = FrameLayout(context).apply {
-            // Use INVISIBLE instead of GONE so the view is pre-measured and ready.
-            visibility = View.INVISIBLE
-            // Use hardware layer for better rendering performance when visibility changes.
-            setLayerType(View.LAYER_TYPE_HARDWARE, null)
-        }
+        dismissTargetView =
+            FrameLayout(context).apply {
+                // Use INVISIBLE instead of GONE so the view is pre-measured and ready.
+                visibility = View.INVISIBLE
+                // Use hardware layer for better rendering performance when visibility changes.
+                setLayerType(View.LAYER_TYPE_HARDWARE, null)
+            }
 
         // Create the dismiss circle view.
-        dismissCircleView = FrameLayout(context).apply {
-            layoutParams = FrameLayout.LayoutParams(targetSizePx, targetSizePx, Gravity.CENTER)
-            background = GradientDrawable().apply {
-                shape = GradientDrawable.OVAL
-                setColor(0xCC000000.toInt())
-            }
+        dismissCircleView =
+            FrameLayout(context).apply {
+                layoutParams = FrameLayout.LayoutParams(targetSizePx, targetSizePx, Gravity.CENTER)
+                background =
+                    GradientDrawable().apply {
+                        shape = GradientDrawable.OVAL
+                        setColor(0xCC000000.toInt())
+                    }
 
-            val iconView = TextView(context).apply {
-                text = "✕"
-                setTextColor(Color.WHITE)
-                // Limit text size to 40% of the circle size to ensure it fits well.
-                setTextSize(TypedValue.COMPLEX_UNIT_PX, targetSizePx * 0.4f)
-                gravity = Gravity.CENTER
-                includeFontPadding = false
-            }
-            addView(
-                iconView,
-                FrameLayout.LayoutParams(
-                    FrameLayout.LayoutParams.WRAP_CONTENT,
-                    FrameLayout.LayoutParams.WRAP_CONTENT,
-                    Gravity.CENTER
+                val iconView =
+                    TextView(context).apply {
+                        text = "✕"
+                        setTextColor(Color.WHITE)
+                        // Limit text size to 40% of the circle size to ensure it fits well.
+                        setTextSize(TypedValue.COMPLEX_UNIT_PX, targetSizePx * 0.4f)
+                        gravity = Gravity.CENTER
+                        includeFontPadding = false
+                    }
+                addView(
+                    iconView,
+                    FrameLayout.LayoutParams(
+                        FrameLayout.LayoutParams.WRAP_CONTENT,
+                        FrameLayout.LayoutParams.WRAP_CONTENT,
+                        Gravity.CENTER,
+                    ),
                 )
-            )
-        }
+            }
 
         (dismissTargetView as FrameLayout).addView(dismissCircleView)
 
-        dismissLayoutParams = WindowManager.LayoutParams(
-            containerSizePx,
-            containerSizePx,
-            overlayLayoutParamsType,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
-            PixelFormat.TRANSLUCENT
-        ).apply {
-            gravity = Gravity.TOP or Gravity.START
-            x = (screenWidth - containerSizePx) / 2
-            y = (screenHeight - containerSizePx - bottomMargin).coerceAtLeast(0)
-            windowAnimations = android.R.style.Animation_Toast
-        }
+        dismissLayoutParams =
+            WindowManager.LayoutParams(
+                containerSizePx,
+                containerSizePx,
+                overlayLayoutParamsType,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
+                PixelFormat.TRANSLUCENT,
+            ).apply {
+                gravity = Gravity.TOP or Gravity.START
+                x = (screenWidth - containerSizePx) / 2
+                y = (screenHeight - containerSizePx - bottomMargin).coerceAtLeast(0)
+                windowAnimations = android.R.style.Animation_Toast
+            }
 
         windowManager.addView(dismissTargetView, dismissLayoutParams)
     }
@@ -986,13 +1018,13 @@ private class DragToDismiss(
 
     /**
      * Updates the scale of the target based on hover state. It will magnify if the button is hovered over and go back to normal if not.
-     * 
+     *
      * @param isHoveringParam True if the button is hovered over, false otherwise.
      */
     fun updateHover(isHoveringParam: Boolean) {
         if (!OverlayConfig.ENABLE_DISMISS_DRAG) return
         if (isHovering == isHoveringParam) return
-        
+
         if (::dismissCircleView.isInitialized) {
             val targetScale = if (isHoveringParam) 1.2f else 1f
             dismissCircleView.animate().scaleX(targetScale).scaleY(targetScale).setDuration(120L).start()
@@ -1002,7 +1034,7 @@ private class DragToDismiss(
 
     /**
      * Checks if the button center is within the dismiss target's bounds.
-     * 
+     *
      * @param centerX The x-coordinate of the button center.
      * @param centerY The y-coordinate of the button center.
      * @return True if the button center is within the dismiss target's bounds, false otherwise.
