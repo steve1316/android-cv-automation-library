@@ -245,6 +245,21 @@ class UserStorageManager private constructor(private val context: Context) {
         return context.getExternalFilesDir(null)?.absolutePath ?: "filesDir"
     }
 
+    /** Count files under the legacy `getExternalFilesDir()/logs` and `/recordings` directories. Used by the
+     * first-run wizard to decide whether the migration step should appear. Returns zero counts if the
+     * directories do not exist.
+     *
+     * @return A pair of `(logsCount, recordingsCount)`.
+     */
+    fun scanLegacyFiles(): Pair<Int, Int> {
+        val root = context.getExternalFilesDir(null) ?: return 0 to 0
+        val logsDir = File(root, "logs")
+        val recordingsDir = File(root, "recordings")
+        val logsCount = if (logsDir.exists() && logsDir.isDirectory) logsDir.listFiles()?.size ?: 0 else 0
+        val recordingsCount = if (recordingsDir.exists() && recordingsDir.isDirectory) recordingsDir.listFiles()?.size ?: 0 else 0
+        return logsCount to recordingsCount
+    }
+
     // //////////////////////////////////////////////////////////////////////////////////////////////////
     // //////////////////////////////////////////////////////////////////////////////////////////////////
     // Helpers
