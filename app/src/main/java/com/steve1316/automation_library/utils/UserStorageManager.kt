@@ -5,6 +5,8 @@ import android.content.Intent
 import android.content.SharedPreferences
 import android.net.Uri
 import android.os.ParcelFileDescriptor
+import android.system.ErrnoException
+import android.system.OsConstants
 import android.util.Log
 import androidx.documentfile.provider.DocumentFile
 import com.steve1316.automation_library.data.SharedData
@@ -20,7 +22,7 @@ import java.io.OutputStream
  * `Uri` and routes file operations through SAF. When no `Uri` is configured, it falls back to
  * the legacy `getExternalFilesDir()` paths so existing apps that haven't migrated keep working.
  *
- * Subdirectories like `logs/`, `recordings/`, and `backups/` are created lazily on first use.
+ * Subdirectories like `logs/` and `recordings/` are created lazily on first use.
  *
  * @param context Any context. The application context is captured internally to avoid leaks.
  */
@@ -52,22 +54,25 @@ class UserStorageManager private constructor(private val context: Context) {
      * Pass `null` to clear the configured folder and fall back to legacy storage paths.
      *
      * @param uri The tree `Uri` returned from the SAF picker, or `null` to clear.
+     *
+     * @return `true` if the URI was stored (or cleared) successfully, `false` if persistence failed.
      */
-    fun setTreeUri(uri: Uri?) {
+    fun setTreeUri(uri: Uri?): Boolean {
         if (uri == null) {
             prefs.edit().remove(PREF_TREE_URI).apply()
             Log.d(TAG, "Cleared tree Uri.")
-            return
+            return true
         }
         val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
         try {
             context.contentResolver.takePersistableUriPermission(uri, flags)
         } catch (e: SecurityException) {
             Log.e(TAG, "Could not take persistable Uri permission for $uri", e)
-            return
+            return false
         }
         prefs.edit().putString(PREF_TREE_URI, uri.toString()).apply()
         Log.d(TAG, "Stored tree Uri: $uri")
+        return true
     }
 
     /** Read the currently configured tree `Uri`, or `null` if the user hasn't picked a folder yet.
@@ -260,6 +265,58 @@ class UserStorageManager private constructor(private val context: Context) {
         return logsCount to recordingsCount
     }
 
+    /** Result of a migration pass. `error` is non-null when the operation aborted mid-way. */
+    data class MigrationResult(
+        val movedLogs: Int,
+        val movedRecordings: Int,
+        val error: String? = null,
+        val remaining: Int = 0,
+    )
+
+    /** Move or delete the files under the legacy `getExternalFilesDir/logs` and `/recordings` directories.
+     * For `"move"`, each source file is copied into the configured SAF subdirectory and then deleted on
+     * success. For `"delete"`, the source is deleted without copying. Stops at the first I/O error and
+     * returns partial counts.
+     *
+     * Skips subdirectories at the top level -- only regular files are migrated.
+     *
+     * @param mode Either `"move"` or `"delete"`.
+     *
+     * @return A `MigrationResult` summarising the outcome.
+     */
+    fun migrateLegacyFiles(mode: String): MigrationResult {
+        val root = context.getExternalFilesDir(null) ?: return MigrationResult(0, 0)
+        var movedLogs = 0
+        var movedRecordings = 0
+        val allFiles = mutableListOf<Pair<File, String>>()
+        File(root, "logs").listFiles()?.filter { it.isFile }?.forEach { allFiles.add(it to "logs") }
+        File(root, "recordings").listFiles()?.filter { it.isFile }?.forEach { allFiles.add(it to "recordings") }
+        val total = allFiles.size
+        for ((idx, pair) in allFiles.withIndex()) {
+            val (source, subdir) = pair
+            try {
+                if (mode == "move") {
+                    source.inputStream().use { input ->
+                        val out = openOutputStream(subdir, source.name) ?: throw java.io.IOException("openOutputStream returned null")
+                        out.use { input.copyTo(it) }
+                    }
+                }
+                if (!source.delete()) {
+                    // Roll back the SAF copy in "move" mode so the next pass can retry cleanly.
+                    if (mode == "move") deleteFile(subdir, source.name)
+                    return MigrationResult(movedLogs, movedRecordings, "PERMISSION_DENIED", total - idx)
+                }
+                if (subdir == "logs") movedLogs++ else movedRecordings++
+            } catch (e: java.io.IOException) {
+                val errTag = if (isOutOfSpace(e)) "OUT_OF_SPACE" else "PERMISSION_DENIED"
+                return MigrationResult(movedLogs, movedRecordings, errTag, total - idx)
+            } catch (e: Exception) {
+                return MigrationResult(movedLogs, movedRecordings, "PERMISSION_DENIED", total - idx)
+            }
+        }
+        return MigrationResult(movedLogs, movedRecordings)
+    }
+
     // //////////////////////////////////////////////////////////////////////////////////////////////////
     // //////////////////////////////////////////////////////////////////////////////////////////////////
     // Helpers
@@ -283,6 +340,18 @@ class UserStorageManager private constructor(private val context: Context) {
         val existing = tree.findFile(name)
         if (existing != null && existing.isDirectory) return existing
         return tree.createDirectory(name)
+    }
+
+    /** Decide whether an `IOException` represents an "out of disk space" failure. Walks the cause chain for an `ErrnoException` with `ENOSPC`, which is the locale-safe signal.
+     * Falls back to a message-string match for paths (notably SAF) that wrap the original errno before it reaches us.
+     */
+    private fun isOutOfSpace(e: java.io.IOException): Boolean {
+        var cause: Throwable? = e
+        while (cause != null) {
+            if (cause is ErrnoException && cause.errno == OsConstants.ENOSPC) return true
+            cause = cause.cause
+        }
+        return e.message?.contains("space", ignoreCase = true) == true
     }
 
     /** Resolve a legacy `File` under `getExternalFilesDir()/<subdir>/<filename>`, creating the
