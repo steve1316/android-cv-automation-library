@@ -124,9 +124,7 @@ class UserStorageManager private constructor(private val context: Context) {
     fun openOutputStream(subdir: String, filename: String, mimeType: String = "application/octet-stream"): OutputStream? {
         val tree = treeDocument() ?: return legacyOpenOutput(subdir, filename)
         return try {
-            val dir = subdirectory(tree, subdir) ?: return null
-            dir.findFile(filename)?.delete()
-            val file = dir.createFile(mimeType, filename) ?: return null
+            val file = createWritableSafFile(tree, subdir, filename, mimeType) ?: return null
             context.contentResolver.openOutputStream(file.uri)
         } catch (e: Exception) {
             Log.e(TAG, "openOutputStream($subdir/$filename) failed", e)
@@ -152,9 +150,7 @@ class UserStorageManager private constructor(private val context: Context) {
     fun openWriteFileDescriptor(subdir: String, filename: String, mimeType: String): ParcelFileDescriptor? {
         val tree = treeDocument() ?: return legacyOpenWriteFd(subdir, filename)
         return try {
-            val dir = subdirectory(tree, subdir) ?: return null
-            dir.findFile(filename)?.delete()
-            val file = dir.createFile(mimeType, filename) ?: return null
+            val file = createWritableSafFile(tree, subdir, filename, mimeType) ?: return null
             context.contentResolver.openFileDescriptor(file.uri, "w")
         } catch (e: Exception) {
             Log.e(TAG, "openWriteFileDescriptor($subdir/$filename) failed", e)
@@ -340,6 +336,15 @@ class UserStorageManager private constructor(private val context: Context) {
         val existing = tree.findFile(name)
         if (existing != null && existing.isDirectory) return existing
         return tree.createDirectory(name)
+    }
+
+    /** Resolve a writable SAF file inside the named subdirectory, replacing any existing entry with the same name. Returns the newly created `DocumentFile`, or `null` if the
+     * subdirectory or the file could not be created.
+     */
+    private fun createWritableSafFile(tree: DocumentFile, subdir: String, filename: String, mimeType: String): DocumentFile? {
+        val dir = subdirectory(tree, subdir) ?: return null
+        dir.findFile(filename)?.delete()
+        return dir.createFile(mimeType, filename)
     }
 
     /** Decide whether an `IOException` represents an "out of disk space" failure. Walks the cause chain for an `ErrnoException` with `ENOSPC`, which is the locale-safe signal.
