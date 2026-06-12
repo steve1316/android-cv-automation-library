@@ -11,11 +11,11 @@ import android.media.MediaCodec
 import android.media.MediaCodecInfo
 import android.media.MediaFormat
 import android.media.MediaMuxer
+import android.os.ParcelFileDescriptor
 import android.util.Log
 import android.view.Surface
 import androidx.core.graphics.createBitmap
 import com.steve1316.automation_library.data.SharedData
-import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -49,7 +49,9 @@ class ScreenRecorder(private val context: Context, private val width: Int, priva
         private const val TIMEOUT_US = 10000L
     }
 
-    val outputFile: File
+    val outputDisplayName: String
+    val outputDisplayPath: String
+    private val outputPfd: ParcelFileDescriptor
     private val _isRecording = AtomicBoolean(false)
     private val targetFrameRate: Int = SharedData.recordingFrameRate
 
@@ -78,18 +80,15 @@ class ScreenRecorder(private val context: Context, private val width: Int, priva
             Log.w(tag, "Frame rate $targetFrameRate not in [30, 60]. Using 30 FPS.")
         }
 
-        // Create recordings directory.
-        val recordingsDir = File(context.getExternalFilesDir(null), "recordings")
-        if (!recordingsDir.exists()) {
-            val created = recordingsDir.mkdirs()
-            if (created) {
-                Log.d(tag, "Created recordings directory: ${recordingsDir.absolutePath}")
-            }
-        }
-
-        // Generate unique filename.
+        // Generate unique filename and open a writable descriptor through UserStorageManager so
+        // SAF folders are honoured when configured, with a legacy external-files fallback.
         val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
-        outputFile = File(recordingsDir, "recording_$timestamp.mp4")
+        outputDisplayName = "recording_$timestamp.mp4"
+
+        val storage = UserStorageManager.getInstance(context)
+        outputPfd = storage.openWriteFileDescriptor("recordings", outputDisplayName, "video/mp4")
+            ?: throw RuntimeException("Could not open a writable descriptor for $outputDisplayName under ${storage.pathLabel()}/recordings.")
+        outputDisplayPath = "${storage.pathLabel()}/recordings/$outputDisplayName"
 
         // Initialize encoder and start threads.
         setupEncoder()
@@ -97,7 +96,7 @@ class ScreenRecorder(private val context: Context, private val width: Int, priva
         startCaptureThread()
 
         _isRecording.set(true)
-        MessageLog.i(tag, "Recording started. Output: ${outputFile.absolutePath}")
+        MessageLog.i(tag, "Recording started. Output: $outputDisplayPath")
     }
 
     /**
@@ -124,7 +123,7 @@ class ScreenRecorder(private val context: Context, private val width: Int, priva
                 start()
             }
 
-        mediaMuxer = MediaMuxer(outputFile.absolutePath, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
+        mediaMuxer = MediaMuxer(outputPfd.fileDescriptor, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
 
         MessageLog.d(tag, "Encoder configured: ${width}x$height, ${bitRate / 1_000_000}Mbps, ${targetFrameRate}fps, H.264")
     }
@@ -442,6 +441,14 @@ class ScreenRecorder(private val context: Context, private val width: Int, priva
             bitmap.recycle()
         }
 
-        MessageLog.i(tag, "Recording saved: ${outputFile.name} at ${outputFile.absolutePath}")
+        // Close the file descriptor only after the muxer has been fully released so the underlying
+        // file is flushed and the descriptor is no longer in use.
+        try {
+            outputPfd.close()
+        } catch (e: Exception) {
+            Log.w(tag, "Error closing recording file descriptor: ${e.message}")
+        }
+
+        MessageLog.i(tag, "Recording saved: $outputDisplayName at $outputDisplayPath")
     }
 }

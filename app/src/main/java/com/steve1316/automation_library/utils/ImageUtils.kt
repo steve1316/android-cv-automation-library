@@ -100,8 +100,8 @@ open class ImageUtils(protected val context: Context) {
     protected lateinit var tessDigitsBaseAPI: TessBaseAPI
 
     init {
-        // Set the file path to the /files/temp/ folder.
-        val tempMatchFilePath: String = context.getExternalFilesDir(null)?.absolutePath + "/temp"
+        // Set the match file path to the bot's internal temp folder.
+        val tempMatchFilePath: String = context.filesDir.absolutePath + "/temp"
         Log.d(tag, "Setting the temp file path for ImageUtils to \"$tempMatchFilePath\".")
         matchFilePath = tempMatchFilePath
     }
@@ -1135,22 +1135,18 @@ open class ImageUtils(protected val context: Context) {
                 traineddataFileName
             }
 
-        val externalFilesDir: File? = context.getExternalFilesDir(null)
-        val tempDirectory: String = externalFilesDir?.absolutePath + "/tesseract/tessdata/"
+        val tempDirectory: String = context.filesDir.absolutePath + "/tesseract/tessdata/"
         val newTempDirectory = File(tempDirectory)
 
-        // If the /files/temp/ folder does not exist, create it.
         if (!newTempDirectory.exists()) {
             val successfullyCreated: Boolean = newTempDirectory.mkdirs()
-
-            // If the folder was not able to be created for some reason, log the error and stop the MediaProjection Service.
             if (!successfullyCreated) {
-                MessageLog.e(tag, "Failed to create the /files/tesseract/tessdata/ folder.")
+                MessageLog.e(tag, "Failed to create the internal tesseract/tessdata/ folder.")
             } else {
-                MessageLog.d(tag, "[TESSERACT] Successfully created /files/tesseract/tessdata/ folder.")
+                MessageLog.d(tag, "[TESSERACT] Successfully created internal tesseract/tessdata/ folder.")
             }
         } else {
-            MessageLog.d(tag, "[TESSERACT] /files/tesseract/tessdata/ folder already exists.")
+            MessageLog.d(tag, "[TESSERACT] Internal tesseract/tessdata/ folder already exists.")
         }
 
         // If the .traineddata is not in the application folder, copy it there from assets.
@@ -1179,8 +1175,8 @@ open class ImageUtils(protected val context: Context) {
             }
         }
 
-        tessBaseAPI.init(context.getExternalFilesDir(null)?.absolutePath + "/tesseract/", "eng")
-        tessDigitsBaseAPI.init(context.getExternalFilesDir(null)?.absolutePath + "/tesseract/", "eng")
+        tessBaseAPI.init(context.filesDir.absolutePath + "/tesseract/", "eng")
+        tessDigitsBaseAPI.init(context.filesDir.absolutePath + "/tesseract/", "eng")
 
         tessDigitsBaseAPI.setVariable(TessBaseAPI.VAR_CHAR_BLACKLIST, "!?@#$%&*()<>_-+=/:;'\\\"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz")
         tessDigitsBaseAPI.setVariable(TessBaseAPI.VAR_CHAR_WHITELIST, "0123456789")

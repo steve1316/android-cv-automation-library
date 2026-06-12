@@ -7,7 +7,6 @@ import android.util.Log
 import com.steve1316.automation_library.data.SharedData
 import com.steve1316.automation_library.events.JSEvent
 import org.greenrobot.eventbus.EventBus
-import java.io.File
 import java.text.SimpleDateFormat
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -15,7 +14,6 @@ import java.time.format.DateTimeFormatter
 import java.util.*
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
-import kotlin.Comparator
 
 enum class LogLevel {
     VERBOSE,
@@ -75,7 +73,8 @@ class MessageLog {
         }
 
         /**
-         * Save the current Message Log into a new file inside internal storage's /logs/ folder.
+         * Save the current Message Log into a new file inside the user-chosen storage folder (or
+         * legacy external files when no SAF folder is configured) under the /logs/ subdirectory.
          *
          * @param context The context for the application.
          */
@@ -84,17 +83,11 @@ class MessageLog {
             if (!saveCheck.compareAndSet(false, true)) {
                 return
             }
-			
+
             // Set max to 49 so that when we add our new file, the total becomes 50.
             cleanLogsFolder(context, maxAmount = 49)
 
-            Log.d(TAG, "Now beginning process to save current Message Log to internal storage...")
-
-            // Generate file path to save to. All message logs will be saved to the /logs/ folder inside internal storage. Create the /logs/ folder if needed.
-            val path = File(context.getExternalFilesDir(null)?.absolutePath + "/logs/")
-            if (!path.exists()) {
-                path.mkdirs()
-            }
+            Log.d(TAG, "Now beginning process to save current Message Log to user storage...")
 
             // Generate the file name.
             val timestamp =
@@ -119,23 +112,26 @@ class MessageLog {
                     parts.joinToString("_")
                 }
 
-            // Now save the Message Log to the new text file.
-            val file = File(path, "$fileName.txt")
+            // Route the write through UserStorageManager so SAF folders are honoured when set up.
+            val storage = UserStorageManager.getInstance(context)
+            val outputStream = storage.openOutputStream("logs", "$fileName.txt", "text/plain")
+            if (outputStream == null) {
+                Log.e(TAG, "Could not open an output stream for log file \"$fileName.txt\".")
+                return
+            }
 
-            if (!file.exists()) {
-                file.createNewFile()
-                file.printWriter().use { out ->
-                    // Synchronize access to messageLog to prevent concurrent modification.
-                    synchronized(messageLogLock) {
-                        // Add the save message last, within the lock to ensure it appears at the end and is written to the file.
-                        val logString: String = "Now saving Message Log to file named \"$fileName\" at $path"
-                        Log.d(TAG, logString)
-                        messageLog.add("\n${getElapsedTimeString()} $logString")
-                        EventBus.getDefault().post(JSEvent("MessageLog", "\n$logString", disableOutput))
+            outputStream.bufferedWriter().use { writer ->
+                // Synchronize access to messageLog to prevent concurrent modification.
+                synchronized(messageLogLock) {
+                    // Add the save message last, within the lock to ensure it appears at the end and is written to the file.
+                    val logString = "Now saving Message Log to file named \"$fileName\" in ${storage.pathLabel()}/logs"
+                    Log.d(TAG, logString)
+                    messageLog.add("\n${getElapsedTimeString()} $logString")
+                    EventBus.getDefault().post(JSEvent("MessageLog", "\n$logString", disableOutput))
 
-                        messageLog.forEach {
-                            out.println(it)
-                        }
+                    messageLog.forEach {
+                        writer.write(it)
+                        writer.newLine()
                     }
                 }
             }
@@ -173,24 +169,21 @@ class MessageLog {
         }
 
         /**
-         * Clean up the logs folder if the amount of logs inside is greater than the specified amount.
+         * Clean up the logs folder if the amount of logs inside is greater than the specified
+         * amount. Sorts by file name (which embeds the timestamp) so this works uniformly across
+         * SAF and legacy storage, where SAF timestamps are not reliable for sorting.
          *
          * @param context The context for the application.
          */
         private fun cleanLogsFolder(context: Context, maxAmount: Int = 50) {
-            val directory = File(context.getExternalFilesDir(null)?.absolutePath + "/logs/")
-
-            // Delete the oldest logs if the amount inside is greater than the given max amount.
-            val files = directory.listFiles()
-            if (files != null) {
-                Arrays.sort(files, Comparator.comparingLong(File::lastModified))
-                val diff = files.size - maxAmount
-                if (diff > 0) {
-                    Log.w(TAG, "Log file limit reached. Deleting [$diff] oldest log files:")
-                    for (i in 0 until diff) {
-                        Log.w(TAG, "\t${files[i]}")
-                        files[i].delete()
-                    }
+            val storage = UserStorageManager.getInstance(context)
+            val names = storage.listFilenames("logs")
+            val diff = names.size - maxAmount
+            if (diff > 0) {
+                Log.w(TAG, "Log file limit reached. Deleting [$diff] oldest log files:")
+                for (i in 0 until diff) {
+                    Log.w(TAG, "\t${names[i]}")
+                    storage.deleteFile("logs", names[i])
                 }
             }
         }

@@ -6,7 +6,7 @@ app-buildToolsVersion = "36.0.0"
 app-minSdk = "24"
 #noinspection ExpiredTargetSdkVersion
 app-targetSdk = "30"
-app-versionName = "2.5.6"
+app-versionName = "2.5.7"
 app-jvm-toolchain = "17"
 
 
@@ -15,6 +15,7 @@ kord = "0.17.0"
 kotlinGradlePlugin = "2.2.0"
 androidx-core = "1.17.0"
 androidx-preference = "1.2.1"
+androidx-documentfile = "1.1.0"
 tesseract4android = "4.9.0"
 stringSimiliarity = "1.0.0"
 klaxon = "5.6"
@@ -31,6 +32,7 @@ kord-core = { module = "dev.kord:kord-core", version.ref = "kord" }
 kotlinGradlePlugin = { group = "org.jetbrains.kotlin", name = "kotlin-gradle-plugin", version.ref = "kotlinGradlePlugin" }
 androidx-core = { group = "androidx.core", name = "core-ktx", version.ref = "androidx-core" }
 androidx-preference = { group = "androidx.preference", name = "preference-ktx", version.ref = "androidx-preference" }
+androidx-documentfile = { group = "androidx.documentfile", name = "documentfile", version.ref = "androidx-documentfile" }
 tesseract4android = { group = "cz.adaptech.tesseract4android", name = "tesseract4android", version.ref = "tesseract4android" }
 stringSimilarity = { group = "net.ricecode", name = "string-similarity", version.ref = "stringSimiliarity"}
 klaxon = { group = "com.beust", name = "klaxon", version.ref = "klaxon" }
@@ -41,7 +43,7 @@ opencv-android-sdk = { module = "com.github.steve1316:opencv-android-sdk", versi
 twitter4j-core = { module = "org.twitter4j:twitter4j-core", version.ref = "twitter4jCore" }
 
 [bundles]
-androidApp = ["androidx-core", "androidx-preference"]
+androidApp = ["androidx-core", "androidx-preference", "androidx-documentfile"]
 
 [plugins]
 foojayJDKResolver = { id = "org.gradle.toolchains.foojay-resolver-convention", version = "1.0.0" }
