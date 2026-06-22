@@ -8,6 +8,7 @@ import android.util.Log
 import androidx.core.graphics.createBitmap
 import androidx.core.graphics.get
 import androidx.core.graphics.scale
+import com.google.mlkit.common.MlKit
 import com.google.mlkit.common.MlKitException
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
@@ -95,6 +96,17 @@ open class ImageUtils(protected val context: Context) {
     // //////////////////////////////////////////////////////////////////
     // //////////////////////////////////////////////////////////////////
     // OCR configuration
+
+    // ML Kit's automatic ContentProvider init is disabled in the manifest to avoid a rare startup double-init crash.
+    // Initialize it here before any ML Kit client is created or used, and catch IllegalStateException so a redundant init is a no-op instead of a crash.
+    init {
+        try {
+            MlKit.initialize(context)
+        } catch (e: IllegalStateException) {
+            Log.w(tag, "ML Kit was already initialized: ${e.message}")
+        }
+    }
+
     protected val googleTextRecognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
     protected lateinit var tessBaseAPI: TessBaseAPI
     protected lateinit var tessDigitsBaseAPI: TessBaseAPI
