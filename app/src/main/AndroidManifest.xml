@@ -1,3 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <application>
+        <!--Disable ML Kit's automatic ContentProvider initialization so a rare double-init race cannot crash the consuming app at startup.-->
+        <!--ML Kit is initialized manually and defensively in ImageUtils instead.-->
+        <provider
+            android:name="com.google.mlkit.common.internal.MlKitInitProvider"
+            tools:node="remove" />
+    </application>
+
 </manifest>

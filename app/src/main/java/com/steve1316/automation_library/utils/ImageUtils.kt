@@ -8,6 +8,7 @@ import android.util.Log
 import androidx.core.graphics.createBitmap
 import androidx.core.graphics.get
 import androidx.core.graphics.scale
+import com.google.mlkit.common.MlKit
 import com.google.mlkit.common.MlKitException
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
@@ -95,9 +96,23 @@ open class ImageUtils(protected val context: Context) {
     // //////////////////////////////////////////////////////////////////
     // //////////////////////////////////////////////////////////////////
     // OCR configuration
+
+    // ML Kit's automatic ContentProvider init is disabled in the manifest to avoid a rare startup double-init crash.
+    // Initialize it here before any ML Kit client is created or used, and catch IllegalStateException so a redundant init is a no-op instead of a crash.
+    init {
+        try {
+            MlKit.initialize(context)
+        } catch (e: IllegalStateException) {
+            Log.w(tag, "ML Kit was already initialized: ${e.message}")
+        }
+    }
+
     protected val googleTextRecognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
     protected lateinit var tessBaseAPI: TessBaseAPI
     protected lateinit var tessDigitsBaseAPI: TessBaseAPI
+
+    // Single lock guarding all access to the shared, non-thread-safe Tesseract API instances above.
+    private val tesseractLock = Any()
 
     init {
         // Set the match file path to the bot's internal temp folder.
@@ -1321,38 +1336,43 @@ open class ImageUtils(protected val context: Context) {
 
         // Fallback to Tesseract if ML Kit failed or didn't find result.
         if (mlKitFailed || result == "") {
-            // Use either the default Tesseract client or the Tesseract client geared towards digits to set the image to scan.
             Log.e(tag, errorMessage)
-            if (detectDigitsOnly) {
-                Log.d(tag, "[TEXT_DETECTION] Setting Tesseract image for digits only.")
-                tessDigitsBaseAPI.setImage(finalBitmap)
-            } else {
-                Log.d(tag, "[TEXT_DETECTION] Setting Tesseract image for text detection.")
-                tessBaseAPI.setImage(finalBitmap)
-            }
 
-            try {
-                // Finally, detect text on the cropped region.
-                result =
-                    if (detectDigitsOnly) {
-                        tessDigitsBaseAPI.utF8Text
-                    } else {
-                        tessBaseAPI.utF8Text
-                    }
-                Log.d(tag, "[TEXT_DETECTION] Detected text with Tesseract: $result")
-            } catch (e: Exception) {
-                Log.e(tag, "Cannot perform OCR: ${e.stackTraceToString()}")
-            }
+            // The Tesseract API instances are not thread-safe, so serialize all access to them with a single lock covering both instances.
+            // Concurrent OCR calls (e.g. reading several stats in parallel) can otherwise corrupt Tesseract state and crash the process with a native SIGABRT.
+            synchronized(tesseractLock) {
+                // Use either the default Tesseract client or the Tesseract client geared towards digits to set the image to scan.
+                if (detectDigitsOnly) {
+                    Log.d(tag, "[TEXT_DETECTION] Setting Tesseract image for digits only.")
+                    tessDigitsBaseAPI.setImage(finalBitmap)
+                } else {
+                    Log.d(tag, "[TEXT_DETECTION] Setting Tesseract image for text detection.")
+                    tessBaseAPI.setImage(finalBitmap)
+                }
 
-            // Stop Tesseract operations.
-            if (detectDigitsOnly) {
-                tessDigitsBaseAPI.stop()
-            } else {
-                tessBaseAPI.stop()
-            }
+                try {
+                    // Finally, detect text on the cropped region.
+                    result =
+                        if (detectDigitsOnly) {
+                            tessDigitsBaseAPI.utF8Text
+                        } else {
+                            tessBaseAPI.utF8Text
+                        }
+                    Log.d(tag, "[TEXT_DETECTION] Detected text with Tesseract: $result")
+                } catch (e: Exception) {
+                    Log.e(tag, "Cannot perform OCR: ${e.stackTraceToString()}")
+                }
 
-            tessBaseAPI.clear()
-            tessDigitsBaseAPI.clear()
+                // Stop Tesseract operations.
+                if (detectDigitsOnly) {
+                    tessDigitsBaseAPI.stop()
+                } else {
+                    tessBaseAPI.stop()
+                }
+
+                tessBaseAPI.clear()
+                tessDigitsBaseAPI.clear()
+            }
         } else {
             Log.d(tag, "[TEXT_DETECTION] Detected text with Google ML Kit: $result")
         }
