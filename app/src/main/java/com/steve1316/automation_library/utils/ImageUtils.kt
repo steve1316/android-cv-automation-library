@@ -680,47 +680,14 @@ open class ImageUtils(protected val context: Context) {
     // Fetching Bitmaps
 
     /**
-     * Open the source and template image files and return Bitmaps for them. Also executes swipes in order to generate new images if necessary.
+     * Open the source and template image files and return Bitmaps for them.
      *
      * @param templateName File name of the template image.
      * @param templatePath Path name of the subfolder in /assets/ that the template image is in. Defaults to the default template subfolder path name.
      * @return A Pair of source and template Bitmaps.
      */
     open fun getBitmaps(templateName: String, templatePath: String = SharedData.templateSubfolderPathName): Pair<Bitmap, Bitmap?> {
-        // Acquire the source bitmap. MediaProjectionService handles caching and retries internally,
-        // so we no longer need to swipe aggressively to force new images.
-        var sourceBitmap = MediaProjectionService.takeScreenshotNow()
-
-        if (sourceBitmap == null) {
-            Log.w(tag, "Source Bitmap is null on initial capture. Waiting a moment before trying again.")
-            sourceBitmap = MediaProjectionService.takeScreenshotNow()
-        }
-
-        if (sourceBitmap == null) {
-            throw IllegalStateException("Failed to acquire a source bitmap even after caching and retries.")
-        }
-
-        var templateBitmap: Bitmap?
-        val newTemplatePath =
-            if (templatePath.last() != '/') {
-                "$templatePath/"
-            } else {
-                templatePath
-            }
-
-        // Get the Bitmap from the template image file inside the specified folder.
-        val assetFilePath = "${newTemplatePath}$templateName.${SharedData.templateImageExt}"
-        context.assets?.open(assetFilePath).use { inputStream ->
-            // Get the Bitmap from the template image file and then start matching.
-            templateBitmap = BitmapFactory.decodeStream(inputStream)
-        }
-
-        return if (templateBitmap != null) {
-            Pair(sourceBitmap, templateBitmap)
-        } else {
-            Log.e(tag, "The template Bitmap is null.")
-            Pair(sourceBitmap, null)
-        }
+        return Pair(getSourceBitmap(saveImage = false), getTemplateBitmap(templateName, templatePath))
     }
 
     /**
@@ -829,18 +796,19 @@ open class ImageUtils(protected val context: Context) {
     }
 
     /**
-     * Acquire the Bitmap for only the source screenshot. Note that it will keep swiping the screen a bit to generate a new image for ImageReader to grab.
+     * Acquire the Bitmap for only the source screenshot.
      *
+     * @param saveImage Whether to write the capture to disk. Defaults to whether debug mode is on. Callers that capture repeatedly should pass false to avoid a write per capture.
      * @return Bitmap of the source screenshot.
      */
-    open fun getSourceBitmap(): Bitmap {
+    open fun getSourceBitmap(saveImage: Boolean = debugMode): Bitmap {
         // Acquire the source bitmap. MediaProjectionService handles caching and retries internally,
         // so we no longer need to swipe aggressively to force new images.
-        var bitmap = MediaProjectionService.takeScreenshotNow(saveImage = debugMode)
+        var bitmap = MediaProjectionService.takeScreenshotNow(saveImage = saveImage)
 
         if (bitmap == null) {
             Log.w(tag, "Source bitmap is null on initial capture. Waiting a moment before trying again.")
-            bitmap = MediaProjectionService.takeScreenshotNow(saveImage = debugMode)
+            bitmap = MediaProjectionService.takeScreenshotNow(saveImage = saveImage)
         }
 
         return bitmap ?: throw IllegalStateException("Failed to acquire a source bitmap even after caching and retries.")
@@ -899,6 +867,7 @@ open class ImageUtils(protected val context: Context) {
      * @param region Specify the region consisting of (x, y, width, height) of the source screenshot to template match. Defaults to (0, 0, 0, 0) which is equivalent to searching the full image.
      * @param suppressError Whether or not to suppress saving error messages to the log. Defaults to false.
      * @param testMode Flag to test and get a valid scale for device compatibility.
+     * @param retryDelayMs How long to pause before refreshing the screenshot for the next attempt. Defaults to 100ms. Ignored in Test Mode.
      * @return Pair object consisting of the Point object containing the location of the match and the source screenshot. Can be null.
      */
     open fun findImage(
@@ -908,6 +877,7 @@ open class ImageUtils(protected val context: Context) {
         region: IntArray = intArrayOf(0, 0, 0, 0),
         suppressError: Boolean = false,
         testMode: Boolean = false,
+        retryDelayMs: Long = 100,
     ): Pair<Point?, Bitmap> {
         var numberOfTries = tries
 
@@ -921,45 +891,53 @@ open class ImageUtils(protected val context: Context) {
             customScale = 0.20
         }
 
-        val (sourceBitmap, templateBitmap) = getBitmaps(templateName)
+        // The template never changes between attempts, so it is loaded once here and only the screenshot is refreshed inside the loop.
+        // Repeated captures pass saveImage = false so debug mode does not write a file per attempt.
+        val templateBitmap: Bitmap = getTemplateBitmap(templateName) ?: return Pair(null, getSourceBitmap(saveImage = false))
+        var sourceBitmap: Bitmap = getSourceBitmap(saveImage = false)
 
         while (numberOfTries > 0) {
-            if (templateBitmap != null) {
-                val (resultFlag, matchLocation) = match(sourceBitmap, templateBitmap, templateName, region, useSingleScale = true, customConfidence = confidence)
-                if (!resultFlag) {
-                    if (testMode) {
-                        // Increment scale by 0.01 until a match is found if Test Mode is enabled.
-                        customScale += 0.01
-                        customScale = decimalFormat.format(customScale).toDouble()
-                    }
+            val (resultFlag, matchLocation) = match(sourceBitmap, templateBitmap, templateName, region, useSingleScale = true, customConfidence = confidence)
+            if (resultFlag) {
+                if (testMode) {
+                    // Create a range of scales for user recommendation.
+                    val scale0: Double = decimalFormat.format(customScale).toDouble()
+                    val scale1: Double = decimalFormat.format(scale0 + 0.01).toDouble()
+                    val scale2: Double = decimalFormat.format(scale0 + 0.02).toDouble()
+                    val scale3: Double = decimalFormat.format(scale0 + 0.03).toDouble()
+                    val scale4: Double = decimalFormat.format(scale0 + 0.04).toDouble()
 
-                    numberOfTries -= 1
-                    if (numberOfTries <= 0) {
-                        if (!suppressError) {
-                            MessageLog.w(tag, "Failed to find the ${templateName.uppercase()} image.")
-                        }
-
-                        break
-                    }
-                } else {
-                    if (testMode) {
-                        // Create a range of scales for user recommendation.
-                        val scale0: Double = decimalFormat.format(customScale).toDouble()
-                        val scale1: Double = decimalFormat.format(scale0 + 0.01).toDouble()
-                        val scale2: Double = decimalFormat.format(scale0 + 0.02).toDouble()
-                        val scale3: Double = decimalFormat.format(scale0 + 0.03).toDouble()
-                        val scale4: Double = decimalFormat.format(scale0 + 0.04).toDouble()
-
-                        MessageLog.i(
-                            tag,
-                            "[SUCCESS] Found the ${templateName.uppercase()} at $matchLocation with scale $scale0.\n\nRecommended to use scale $scale1, $scale2, $scale3 or $scale4.",
-                        )
-                    } else if (debugMode) {
-                        MessageLog.d(tag, "[SUCCESS] Found the ${templateName.uppercase()} at $matchLocation.")
-                    }
-
-                    return Pair(matchLocation, sourceBitmap)
+                    MessageLog.i(
+                        tag,
+                        "[SUCCESS] Found the ${templateName.uppercase()} at $matchLocation with scale $scale0.\n\nRecommended to use scale $scale1, $scale2, $scale3 or $scale4.",
+                    )
+                } else if (debugMode) {
+                    MessageLog.d(tag, "[SUCCESS] Found the ${templateName.uppercase()} at $matchLocation.")
                 }
+
+                return Pair(matchLocation, sourceBitmap)
+            }
+
+            if (testMode) {
+                // Increment scale by 0.01 until a match is found if Test Mode is enabled.
+                customScale += 0.01
+                customScale = decimalFormat.format(customScale).toDouble()
+            }
+
+            numberOfTries -= 1
+            if (numberOfTries <= 0) {
+                if (!suppressError) {
+                    MessageLog.w(tag, "Failed to find the ${templateName.uppercase()} image.")
+                }
+
+                break
+            }
+
+            // Refresh the screenshot so the next attempt sees the current screen. Without this, every attempt re-matches the same frame and
+            // tries only burns CPU. Test Mode is exempt since it deliberately re-matches a single frame while stepping the scale.
+            if (!testMode) {
+                wait(retryDelayMs / 1000.0)
+                sourceBitmap = getSourceBitmap(saveImage = false)
             }
         }
 
