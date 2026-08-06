@@ -30,6 +30,10 @@ class MessageLog {
     companion object {
         private const val TAG: String = "${SharedData.loggerTag}MessageLog"
 
+        // The stamp saveLogToFile() embeds in every log file name, plus the pattern that reads it back out. These two must always agree.
+        private const val LOG_TIMESTAMP_PATTERN = "yyyy-MM-dd HH_mm_ss"
+        private val LOG_TIMESTAMP_REGEX = Regex("""\d{4}-\d{2}-\d{2} \d{2}_\d{2}_\d{2}""")
+
         private var messageLog = arrayListOf<String>()
         private var startTimeMs: Long = 0L
         private var saveCheck = AtomicBoolean(false)
@@ -93,10 +97,10 @@ class MessageLog {
             val timestamp =
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     val current = LocalDateTime.now()
-                    val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH_mm_ss")
+                    val formatter = DateTimeFormatter.ofPattern(LOG_TIMESTAMP_PATTERN)
                     current.format(formatter)
                 } else {
-                    val sdf = SimpleDateFormat("yyyy-MM-dd HH_mm_ss", Locale.getDefault())
+                    val sdf = SimpleDateFormat(LOG_TIMESTAMP_PATTERN, Locale.getDefault())
                     sdf.format(Date())
                 }
 
@@ -169,15 +173,24 @@ class MessageLog {
         }
 
         /**
-         * Clean up the logs folder if the amount of logs inside is greater than the specified
-         * amount. Sorts by file name (which embeds the timestamp) so this works uniformly across
-         * SAF and legacy storage, where SAF timestamps are not reliable for sorting.
+         * Orders log file names oldest-first by the stamp embedded in each one, which is zero-padded so lexicographic order is chronological order.
+         * Names with no stamp sort first. Sorting the whole file name would instead rank every prefixed name ahead of every "log @ ..." name.
+         *
+         * @param names The log file names to order.
+         * @return The names ordered oldest-first.
+         */
+        private fun sortLogNamesOldestFirst(names: List<String>): List<String> = names.sortedBy { LOG_TIMESTAMP_REGEX.find(it)?.value ?: "" }
+
+        /**
+         * Clean up the logs folder when it holds more logs than the specified amount. Ranks by the timestamp embedded in the file name rather than by
+         * last-modified, which migrateLegacyFiles() resets when it copies logs to their new home.
          *
          * @param context The context for the application.
+         * @param maxAmount The number of log files to keep. Anything beyond this is deleted oldest-first.
          */
         private fun cleanLogsFolder(context: Context, maxAmount: Int = 50) {
             val storage = UserStorageManager.getInstance(context)
-            val names = storage.listFilenames("logs")
+            val names = sortLogNamesOldestFirst(storage.listFilenames("logs").filter { it.endsWith(".txt", ignoreCase = true) })
             val diff = names.size - maxAmount
             if (diff > 0) {
                 Log.w(TAG, "Log file limit reached. Deleting [$diff] oldest log files:")
