@@ -268,7 +268,10 @@ class MyAccessibilityService : AccessibilityService() {
             Log.w(tag, "Thread: ${Thread.currentThread().name}, Interrupted: ${Thread.currentThread().isInterrupted}")
             return false
         }
-		
+
+        // Wait while the overlay's tray is open so the gesture never lands on it.
+        BotHold.awaitTrayClosed()
+
         // Check if thread is interrupted.
         if (Thread.currentThread().isInterrupted) {
             Log.w(tag, "Thread interrupted detected. Skipping tap.")
@@ -354,7 +357,10 @@ class MyAccessibilityService : AccessibilityService() {
             Log.w(tag, "Gestures disabled. Skipping scroll. isGestureAllowed=false")
             return false
         }
-		
+
+        // Wait while the overlay's tray is open so the gesture never lands on it.
+        BotHold.awaitTrayClosed()
+
         if (Thread.currentThread().isInterrupted) {
             Log.w(tag, "Thread interrupted detected. Skipping scroll.")
             throw InterruptedException("Thread was interrupted.")
@@ -440,7 +446,10 @@ class MyAccessibilityService : AccessibilityService() {
             Log.w(tag, "Gestures disabled. Skipping swipe. isGestureAllowed=false")
             return false
         }
-		
+
+        // Wait while the overlay's tray is open so the gesture never lands on it.
+        BotHold.awaitTrayClosed()
+
         if (Thread.currentThread().isInterrupted) {
             Log.w(tag, "Thread interrupted detected. Skipping swipe.")
             throw InterruptedException("Thread was interrupted.")

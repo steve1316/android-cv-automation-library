@@ -59,6 +59,7 @@ class MediaProjectionService : Service() {
         private lateinit var windowManager: WindowManager
         private var oldRotation: Int = 0
         private lateinit var imageReader: ImageReader
+
         @Volatile
         var isRunning: Boolean = false
 
@@ -218,6 +219,9 @@ class MediaProjectionService : Service() {
             // After the projection stops the reader can still hold old frames. Return nothing so callers fail instead of acting on a stale screen.
             if (mediaProjection == null) return null
 
+            // Wait while the overlay's tray is open so it never shows up in what the bot reads.
+            BotHold.awaitTrayClosed()
+
             val cropW: Int = cropW.coerceIn(1, SharedData.displayWidth)
             val cropH: Int = cropH.coerceIn(1, SharedData.displayHeight)
             val cropX: Int = cropX.coerceIn(0, SharedData.displayWidth - cropW)
@@ -309,6 +313,9 @@ class MediaProjectionService : Service() {
         fun takeScreenshotNow(saveImage: Boolean = false, isException: Boolean = false): Bitmap? {
             // After the projection stops the reader can still hold old frames. Return nothing so callers fail instead of acting on a stale screen.
             if (mediaProjection == null) return null
+
+            // Wait while the overlay's tray is open so it never shows up in what the bot reads.
+            BotHold.awaitTrayClosed()
 
             val image: Image? = acquireLatestImageWithRetry()
 
