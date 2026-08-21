@@ -86,104 +86,131 @@ class BotService : Service() {
 
         // Set up the listeners
         floatingOverlayButton.setOnClickListener {
-            val contentIntent: Intent = packageManager.getLaunchIntentForPackage(packageName)!!
-            val className = contentIntent.component!!.className
-
-            if (!isRunning) {
-                Log.d(tag, "BotService for $appName is now running.")
-                Log.d(tag, "Automation Library version: ${BuildConfig.VERSION_NAME}")
-
-                // Display a custom Toast for 1 second (1000ms) to notify the user.
-                AndroidComponents.showCustomToast(myContext, "BotService for $appName is now running.", 1000)
-
-                DiscordUtils.enableDiscordNotifications = SettingsHelper.getBooleanSetting("discord", "enableDiscordNotifications", false)
-                MessageLog.debugMode = SettingsHelper.getBooleanSetting("debug", "enableDebugMode", false)
-
-                isRunning = true
-                floatingOverlayButton.setRunningState(true)
-
-                // Set up the notification to send the user back to their MainActivity when pressed.
-                NotificationUtils.updateNotification(myContext, Class.forName(className), true, "Automation is now running")
-
-                // Enable gestures when starting the bot.
-                MyAccessibilityService.enableGestures()
-
-                // Clear all contents from the bot's internal temp folder to start fresh.
-                val tempDirectory = File(myContext.filesDir, "temp")
-                if (tempDirectory.exists()) {
-                    val files = tempDirectory.listFiles()
-                    if (files != null) {
-                        var deletedCount = 0
-                        for (file in files) {
-                            if (file.delete()) {
-                                deletedCount++
-                            } else {
-                                Log.w(tag, "Failed to delete file: ${file.name}")
-                            }
-                        }
-                        if (deletedCount > 0) {
-                            Log.d(tag, "Cleared $deletedCount file(s) from internal temp folder.")
-                        }
-                    }
-                }
-
-                // Reset the save check flag and start the timer for the MessageLog.
-                MessageLog.start()
-
-                thread =
-                    thread {
-                        try {
-                            // Clear the message log in the frontend.
-                            EventBus.getDefault().post(JSEvent("BotService", "Running"))
-
-                            // Start screen recording if enabled in settings.
-                            if (SharedData.enableScreenRecording) {
-                                MediaProjectionService.startRecording(myContext)
-                            }
-
-                            // Run the Discord process on a new Thread if it is enabled.
-                            if (DiscordUtils.enableDiscordNotifications) {
-                                val discordUtils = DiscordUtils(myContext)
-                                thread {
-                                    runBlocking {
-                                        DiscordUtils.queue.clear()
-                                        DiscordUtils.isRunning = true
-                                        discordUtils.main()
-                                    }
-                                }
-                            }
-
-                            // Send start message to signal the developer's module to begin running their entry point. Execution will go to the developer's module until it is all done.
-                            EventBus.getDefault().postSticky(StartEvent("Entry Point ON"))
-                        } catch (e: Exception) {
-                            if (e.toString() == "java.lang.InterruptedException" || Thread.currentThread().isInterrupted) {
-                                if (e.message?.contains("crashed") == true || e.message?.contains("stopped unexpectedly") == true) {
-                                    NotificationUtils.updateNotification(myContext, Class.forName(className), false, "Bot stopped: ${e.message}")
-                                } else {
-                                    NotificationUtils.updateNotification(myContext, Class.forName(className), false, "Bot was manually stopped.")
-                                }
-                            } else {
-                                NotificationUtils.updateNotification(myContext, Class.forName(className), false, "Encountered an Exception: $e.\nTap me to see more details.")
-                                MessageLog.e(tag, "$appName encountered an Exception: ${e.stackTraceToString()}")
-                            }
-                        } finally {
-                            Log.d(tag, "Performing cleanup in the finally block...")
-                            performCleanUp()
-                        }
-                    }
-            } else {
-                // If the entry point was already in the middle of running, stop it and perform cleanup.
-                Log.d(tag, "Overlay button was pressed while process was running. Interrupting the process now...")
-                thread.interrupt()
-                NotificationUtils.updateNotification(myContext, Class.forName(className), false, "Bot was manually stopped.")
-                performCleanUp()
-            }
+            if (!isRunning) startBot() else stopBot()
         }
 
         floatingOverlayButton.setOnDismissListener {
             dismissOverlayButton()
         }
     }
+
+    /**
+     * Starts a run on a new bot thread.
+     */
+    private fun startBot() {
+        // The last run's thread can still be unwinding after a stop. A new run started now would have its state reset by that thread's cleanup.
+        if (isBotThreadInitialized() && thread.isAlive) {
+            Log.d(tag, "Not starting a new run because the last run's thread is still stopping.")
+            AndroidComponents.showCustomToast(myContext, "Still stopping the last run. Try again in a moment.", 1500)
+            return
+        }
+
+        Log.d(tag, "BotService for $appName is now running.")
+        Log.d(tag, "Automation Library version: ${BuildConfig.VERSION_NAME}")
+
+        // Display a custom Toast for 1 second (1000ms) to notify the user.
+        AndroidComponents.showCustomToast(myContext, "BotService for $appName is now running.", 1000)
+
+        DiscordUtils.enableDiscordNotifications = SettingsHelper.getBooleanSetting("discord", "enableDiscordNotifications", false)
+        MessageLog.debugMode = SettingsHelper.getBooleanSetting("debug", "enableDebugMode", false)
+
+        // Clear the previous run's status and any leftover pause before the overlay and the notification read them.
+        BotStatus.reset()
+        BotHold.reset()
+
+        isRunning = true
+        floatingOverlayButton.setRunningState(true)
+
+        // Follow the run's status in the notification until it ends.
+        NotificationUtils.startRunUpdates(myContext, getLaunchActivityClass())
+
+        // Enable gestures when starting the bot.
+        MyAccessibilityService.enableGestures()
+
+        // Clear all contents from the bot's internal temp folder to start fresh.
+        val tempDirectory = File(myContext.filesDir, "temp")
+        if (tempDirectory.exists()) {
+            val files = tempDirectory.listFiles()
+            if (files != null) {
+                var deletedCount = 0
+                for (file in files) {
+                    if (file.delete()) {
+                        deletedCount++
+                    } else {
+                        Log.w(tag, "Failed to delete file: ${file.name}")
+                    }
+                }
+                if (deletedCount > 0) {
+                    Log.d(tag, "Cleared $deletedCount file(s) from internal temp folder.")
+                }
+            }
+        }
+
+        // Reset the save check flag and start the timer for the MessageLog.
+        MessageLog.start()
+
+        thread =
+            thread {
+                try {
+                    // Clear the message log in the frontend.
+                    EventBus.getDefault().post(JSEvent("BotService", "Running"))
+
+                    // Start screen recording if enabled in settings.
+                    if (SharedData.enableScreenRecording) {
+                        MediaProjectionService.startRecording(myContext)
+                    }
+
+                    // Run the Discord process on a new Thread if it is enabled.
+                    if (DiscordUtils.enableDiscordNotifications) {
+                        val discordUtils = DiscordUtils(myContext)
+                        thread {
+                            runBlocking {
+                                DiscordUtils.queue.clear()
+                                DiscordUtils.isRunning = true
+                                discordUtils.main()
+                            }
+                        }
+                    }
+
+                    // Send start message to signal the developer's module to begin running their entry point. Execution will go to the developer's module until it is all done.
+                    EventBus.getDefault().postSticky(StartEvent("Entry Point ON"))
+                } catch (e: Exception) {
+                    // The first outcome of a run wins, so a stop that set its own reason first, such as the device going to sleep, keeps it.
+                    if (e.toString() == "java.lang.InterruptedException" || Thread.currentThread().isInterrupted) {
+                        if (e.message?.contains("crashed") == true || e.message?.contains("stopped unexpectedly") == true) {
+                            BotStatus.setOutcome(BotStatus.Outcome.STOPPED_BY_BOT, e.message ?: "Bot stopped")
+                        } else {
+                            BotStatus.setOutcome(BotStatus.Outcome.STOPPED_BY_USER, "You stopped the bot")
+                        }
+                    } else {
+                        BotStatus.setOutcome(BotStatus.Outcome.CRASHED, e.javaClass.simpleName)
+                        MessageLog.e(tag, "$appName encountered an Exception: ${e.stackTraceToString()}")
+                    }
+                } finally {
+                    Log.d(tag, "Performing cleanup in the finally block...")
+                    performCleanUp()
+                }
+            }
+    }
+
+    /**
+     * Stops the run in progress because the user asked to.
+     */
+    private fun stopBot() {
+        if (!isRunning || !isBotThreadInitialized()) return
+        Log.d(tag, "Overlay button was pressed while process was running. Interrupting the process now...")
+        // Set the outcome before interrupting, since the first outcome of a run wins.
+        BotStatus.setOutcome(BotStatus.Outcome.STOPPED_BY_USER, "You stopped the bot")
+        thread.interrupt()
+        performCleanUp()
+    }
+
+    /**
+     * Finds the consuming app's launch Activity, which the notification opens when tapped.
+     *
+     * @return The launch Activity's class.
+     */
+    private fun getLaunchActivityClass(): Class<*> = Class.forName(packageManager.getLaunchIntentForPackage(packageName)!!.component!!.className)
 
     /**
      * Dismiss the overlay button and stop this service.
@@ -193,6 +220,7 @@ class BotService : Service() {
 
         if (isRunning && isBotThreadInitialized()) {
             Log.d(tag, "Interrupting the bot thread now from the dismiss overlay...")
+            BotStatus.setOutcome(BotStatus.Outcome.STOPPED_BY_USER, "You stopped the bot")
             thread.interrupt()
             performCleanUp()
         }
@@ -274,6 +302,8 @@ class BotService : Service() {
         // A run must not outlive this service. Otherwise the bot thread keeps tapping with no overlay or notification left to stop it.
         if (isRunning) {
             Log.d(tag, "BotService is being destroyed in the middle of a run. Stopping the run now.")
+            // This is the notification's Stop path, so the user asked for it. Set it before interrupting, since the first outcome of a run wins.
+            BotStatus.setOutcome(BotStatus.Outcome.STOPPED_BY_USER, "You stopped the bot")
             MyAccessibilityService.disableGestures()
             interruptBotThread()
             performCleanUp()
@@ -288,6 +318,7 @@ class BotService : Service() {
     /**
      * Perform cleanup upon app completion or encountering an Exception.
      *
+     * The exception path and the destroy path call this before the bot thread's own `finally` does, so the flag skips that second pass.
      */
     private fun performCleanUp() {
         // Stop any active recording first to ensure proper file finalization.
@@ -303,19 +334,17 @@ class BotService : Service() {
             // Save the message log and reset MessageLog.
             MessageLog.saveLogToFile(myContext)
 
-            // Update the app's notification with the status. After shutdown the notification has already been cancelled, so do not post it again.
-            if (!isException && !isDestroyed) {
-                val contentIntent: Intent = packageManager.getLaunchIntentForPackage(packageName)!!
-                val className = contentIntent.component!!.className
-                Log.d(tag, "Updating notification for completion success with no exception.")
-                NotificationUtils.updateNotification(myContext, Class.forName(className), false, "Completed successfully with no errors.")
-            } else {
-                skipNotificationUpdate = true
-            }
+            // A run that ended without anyone setting an outcome finished on its own.
+            BotStatus.setOutcome(BotStatus.Outcome.FINISHED, "Run ended")
+            BotHold.reset()
+            NotificationUtils.stopRunUpdates()
 
-            // Reset the overlay button's image on a separate UI thread.
-            Handler(Looper.getMainLooper()).post {
-                if (!isDestroyed && ::floatingOverlayButton.isInitialized) floatingOverlayButton.setRunningState(false)
+            // After shutdown the notification has already been cancelled, so do not post it again.
+            if (!isDestroyed) {
+                NotificationUtils.postRunEnded(myContext, getLaunchActivityClass())
+            }
+            if (isException || isDestroyed) {
+                skipNotificationUpdate = true
             }
 
             isException = false
@@ -323,7 +352,7 @@ class BotService : Service() {
             skipNotificationUpdate = false
         }
 
-        // Reset the overlay button's image and animation on a separate UI thread.
+        // Reset the overlay button's state on the UI thread.
         Handler(Looper.getMainLooper()).post {
             if (!isDestroyed && ::floatingOverlayButton.isInitialized) floatingOverlayButton.setRunningState(false)
         }
@@ -338,24 +367,13 @@ class BotService : Service() {
     fun onExceptionEvent(event: ExceptionEvent) {
         Log.d(tag, "Now executing logic for the ExceptionEvent listener.")
 
-        // Get the developer module's MainActivity class.
-        val contentIntent: Intent = packageManager.getLaunchIntentForPackage(packageName)!!
-        val className = contentIntent.component!!.className
-
         if (event.exception is InterruptedException) {
             Log.d(tag, "InterruptedException detected. Assuming process was manually stopped.")
-            NotificationUtils.updateNotification(myContext, Class.forName(className), false, "Completed successfully with no errors.")
+            BotStatus.setOutcome(BotStatus.Outcome.STOPPED_BY_USER, "You stopped the bot")
         } else {
             Log.d(tag, "Process has finished running but an exception(s) were detected.")
 
-            NotificationUtils.updateNotification(
-                myContext,
-                Class.forName(className),
-                false,
-                "${event.exception.javaClass.simpleName}\nTap me to see more details.",
-                title = "Encountered Exception",
-                displayBigText = true,
-            )
+            BotStatus.setOutcome(BotStatus.Outcome.CRASHED, event.exception.javaClass.simpleName)
 
             MessageLog.e(tag, "$appName encountered an Exception: ${event.exception.stackTraceToString()}")
 

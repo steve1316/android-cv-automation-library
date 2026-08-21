@@ -84,17 +84,15 @@ class ScreenStateReceiver : BroadcastReceiver() {
                     MyAccessibilityService.disableGestures()
                     Log.d(tag, "Gestures disabled. isGestureAllowed = ${MyAccessibilityService.isGestureAllowed}")
 					
+                    // Set the reason before interrupting, since the first outcome of a run wins over the bot thread's own "manually stopped".
+                    BotStatus.setOutcome(BotStatus.Outcome.STOPPED_BY_BOT, "Device went to sleep")
+
                     // Interrupt the bot thread to stop execution.
                     BotService.interruptBotThread()
                     Log.d(tag, "Bot thread interrupted.")
 					
                     // Log the reason for stopping.
                     MessageLog.i(tag, "Bot stopped: Device went to sleep.")
-					
-                    // Update notification with the reason.
-                    val contentIntent: Intent = context.packageManager.getLaunchIntentForPackage(context.packageName)!!
-                    val className = contentIntent.component!!.className
-                    NotificationUtils.updateNotification(context, Class.forName(className), false, "Bot stopped: Device went to sleep.")
                 } else {
                     Log.d(tag, "Bot is not running. No action needed.")
                 }

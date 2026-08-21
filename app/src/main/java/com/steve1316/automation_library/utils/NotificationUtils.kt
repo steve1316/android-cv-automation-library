@@ -15,7 +15,10 @@ import com.steve1316.automation_library.R
 import com.steve1316.automation_library.data.SharedData
 
 /**
- * Contains the utility functions for creating a Notification.
+ * Contains the utility functions for the status notification.
+ *
+ * While a run is in progress the notification follows `BotStatus` and `BotHold` and updates silently. When the run ends it is posted once more
+ * with the outcome, on the alerting channel unless the user stopped the bot.
  *
  * Source is from https://github.com/mtsahakis/MediaProjectionDemo where the Java code was converted to Kotlin and additional logic was added to
  * suit this application's purposes.
@@ -28,188 +31,207 @@ class NotificationUtils {
         private const val NOTIFICATION_ID: Int = 1
         private const val CHANNEL_ID: String = "STATUS"
 
-        // Channel without banners. Re-posting the notification on it after BANNER_DURATION_MS ends the banner early.
+        // Channel without banners. Running updates go here, and alerts are re-posted here after BANNER_DURATION_MS to end the banner early.
         private const val QUIET_CHANNEL_ID: String = "STATUS_QUIET"
         private const val BANNER_DURATION_MS: Long = 1000L
 
         // Only schedules the banner collapse, so clearing all of its callbacks never touches anything else.
         private val bannerHandler = Handler(Looper.getMainLooper())
 
+        // Posts running updates on the main thread. Cleared when the run ends so a late update cannot replace the end notification.
+        private val runHandler = Handler(Looper.getMainLooper())
+
+        // Guards the running updates against the end of the run and the final cancel, which happen on other threads.
+        private val runLock = Any()
+
+        // Listener registered on BotStatus and BotHold while a run is in progress, or null between runs.
+        @Volatile
+        private var runListener: (() -> Unit)? = null
+
+        // Last running content posted, so an unchanged update is skipped.
+        @Volatile
+        private var lastRunContent: StatusContent? = null
+
         /**
-         * Creates the NotificationChannel and the Notification object.
+         * Creates the notification channels and the "Ready" notification used to start the foreground service.
          *
          * @param context The application context.
          * @param contentClass Class of the Activity to go to when the notification is pressed on.
-         * @return Pair object containing the Notification object and its ID string.
+         * @return The notification and its ID.
          */
         fun getNewNotification(context: Context, contentClass: Class<*>): Pair<Notification, Int> {
-            // Create the NotificationChannel.
             createNewNotificationChannel(context)
-
-            // Create the Notification.
-            val newNotification = createNewNotification(context, contentClass)
-
-            // Get the NotificationManager and then send the new Notification to it.
-            postWithShortBanner(context, newNotification)
-
+            val newNotification = build(context, contentClass, StatusContentBuilder.ready(), QUIET_CHANNEL_ID, 0L)
+            notificationManager.notify(NOTIFICATION_ID, newNotification)
             return Pair(newNotification, NOTIFICATION_ID)
         }
 
         /**
-         * Create a new NotificationChannel.
+         * Starts following `BotStatus` and `BotHold`, re-posting the running notification whenever its content changes.
+         *
+         * @param context The application context.
+         * @param contentClass Class of the Activity to go to when the notification is pressed on.
+         */
+        fun startRunUpdates(context: Context, contentClass: Class<*>) {
+            stopRunUpdates()
+            val appContext = context.applicationContext
+            val listener: () -> Unit = { runHandler.post { postRunning(appContext, contentClass) } }
+            runListener = listener
+            BotStatus.addListener(listener)
+            BotHold.addListener(listener)
+            runHandler.post { postRunning(appContext, contentClass) }
+        }
+
+        /**
+         * Stops following the run. Called when the run ends, before the end notification is posted.
+         */
+        fun stopRunUpdates() {
+            synchronized(runLock) {
+                runListener?.let {
+                    BotStatus.removeListener(it)
+                    BotHold.removeListener(it)
+                }
+                runListener = null
+                lastRunContent = null
+                runHandler.removeCallbacksAndMessages(null)
+            }
+        }
+
+        /**
+         * Posts the end-of-run notification from `BotStatus`'s outcome.
+         *
+         * @param context The application context.
+         * @param contentClass Class of the Activity to go to when the notification is pressed on.
+         */
+        fun postRunEnded(context: Context, contentClass: Class<*>) {
+            synchronized(runLock) {
+                ensureManager(context)
+                val snapshot = BotStatus.snapshot()
+                val content = StatusContentBuilder.ended(snapshot)
+                if (content.alert) {
+                    postWithShortBanner(context, build(context, contentClass, content, CHANNEL_ID, snapshot.elapsedMs))
+                } else {
+                    bannerHandler.removeCallbacksAndMessages(null)
+                    notificationManager.notify(NOTIFICATION_ID, build(context, contentClass, content, QUIET_CHANNEL_ID, snapshot.elapsedMs))
+                }
+            }
+        }
+
+        /**
+         * Create the notification channels.
          *
          * https://developer.android.com/training/notify-user/channels
          *
          * @param context The application context.
          */
         private fun createNewNotificationChannel(context: Context) {
-            notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            ensureManager(context)
 
-            // Create the NotificationChannel.
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 val channelName = context.getString(R.string.app_name)
                 val mChannel = NotificationChannel(CHANNEL_ID, channelName, NotificationManager.IMPORTANCE_HIGH)
-                mChannel.description = "Displays status of $channelName, whether it is running or not."
+                mChannel.description = "Alerts when $channelName finishes, stops on its own, or crashes."
 
                 // Register the channel with the system; you can't change the importance or other notification behaviors after this.
                 notificationManager.createNotificationChannel(mChannel)
 
                 val quietChannel = NotificationChannel(QUIET_CHANNEL_ID, "$channelName (quiet)", NotificationManager.IMPORTANCE_LOW)
-                quietChannel.description = "Keeps the status of $channelName in the notification shade after its banner has closed."
+                quietChannel.description = "Shows the live status of $channelName while it runs."
                 notificationManager.createNotificationChannel(quietChannel)
             }
         }
 
         /**
-         * Create a new Notification.
+         * Gets the NotificationManager the first time it is needed.
          *
          * @param context The application context.
-         * @param contentClass Class of the Activity to go to when the notification is pressed on.
-         * @return A new Notification object.
          */
-        private fun createNewNotification(context: Context, contentClass: Class<*>): Notification {
-            // Create a PendingIntent to send the user back to the application if they tap the notification itself.
-            val contentIntent = Intent(context, contentClass)
-            val contentPendingIntent = PendingIntent.getActivity(context, NOTIFICATION_ID, contentIntent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
-
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                // Create a STOP Intent for the MediaProjection service.
-                val stopIntent = Intent(context, StopServiceReceiver::class.java)
-
-                // Create a PendingIntent in order to add a action button to stop the MediaProjection service in the notification.
-                val stopPendingIntent: PendingIntent =
-                    PendingIntent.getBroadcast(context, System.currentTimeMillis().toInt(), stopIntent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_CANCEL_CURRENT)
-
-                return NotificationCompat.Builder(context, CHANNEL_ID).apply {
-                    setSmallIcon(R.drawable.ic_baseline_control_camera_24)
-                    setContentTitle("Status")
-                    setContentText("Automation is ready to go")
-                    setContentIntent(contentPendingIntent)
-                    addAction(R.drawable.stop_circle_filled, context.getString(R.string.accessibility_service_action), stopPendingIntent)
-                    priority = NotificationManager.IMPORTANCE_HIGH
-                    setCategory(Notification.CATEGORY_SERVICE)
-                    setOngoing(true)
-                    setShowWhen(true)
-                }.build()
-            } else {
-                return NotificationCompat.Builder(context, CHANNEL_ID).apply {
-                    setSmallIcon(R.drawable.ic_baseline_control_camera_24)
-                    setContentTitle("Status")
-                    setContentText("Automation is ready to go")
-                    setContentIntent(contentPendingIntent)
-                    priority = NotificationManager.IMPORTANCE_HIGH
-                    setCategory(Notification.CATEGORY_SERVICE)
-                    setOngoing(true)
-                    setShowWhen(true)
-                }.build()
+        private fun ensureManager(context: Context) {
+            if (!::notificationManager.isInitialized) {
+                notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             }
         }
 
         /**
-         * Updates the Notification content text.
+         * Posts the running notification unless the run has ended or nothing changed.
          *
          * @param context The application context.
          * @param contentClass Class of the Activity to go to when the notification is pressed on.
-         * @param isRunning Boolean for whether or not the bot process is currently running.
-         * @param message Message to append to the Notification text body.
-         * @param title Title for the Notification. Defaults to "Status".
-         * @param displayBigText Display the big form of the text body template in place of the content text. Defaults to false which will not render it.
          */
-        fun updateNotification(context: Context, contentClass: Class<*>, isRunning: Boolean, message: String, title: String = "Status", displayBigText: Boolean = false) {
-            var contentText = "Bot process is stopped"
-            if (message != "") {
-                contentText = message
-            } else if (isRunning) {
-                contentText = "Bot process is running"
+        private fun postRunning(context: Context, contentClass: Class<*>) {
+            synchronized(runLock) {
+                if (runListener == null) return
+                val snapshot = BotStatus.snapshot()
+                if (snapshot.outcome != null) return
+                val content = StatusContentBuilder.running(snapshot, BotHold.pauseState, BotHold.hasSafePoint)
+                if (content == lastRunContent) return
+                lastRunContent = content
+                ensureManager(context)
+                bannerHandler.removeCallbacksAndMessages(null)
+                notificationManager.notify(NOTIFICATION_ID, build(context, contentClass, content, QUIET_CHANNEL_ID, snapshot.elapsedMs))
             }
+        }
 
-            // Create a PendingIntent to send the user back to the application if they tap the notification itself.
+        /**
+         * Builds a notification from its content.
+         *
+         * @param context The application context.
+         * @param contentClass Class of the Activity to go to when the notification is pressed on.
+         * @param content What the notification says and which controls it has.
+         * @param channelId The channel to post on.
+         * @param elapsedMs Running time, used as the chronometer's starting point.
+         * @return The notification.
+         */
+        private fun build(context: Context, contentClass: Class<*>, content: StatusContent, channelId: String, elapsedMs: Long): Notification {
             val contentIntent = Intent(context, contentClass)
             val contentPendingIntent = PendingIntent.getActivity(context, NOTIFICATION_ID, contentIntent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
 
-            val newNotification =
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    // Create a STOP Intent for the MediaProjection service.
-                    val stopIntent = Intent(context, StopServiceReceiver::class.java)
-
-                    // Create a PendingIntent in order to add a action button to stop the MediaProjection service in the notification.
-                    val stopPendingIntent: PendingIntent =
-                        PendingIntent.getBroadcast(context, System.currentTimeMillis().toInt(), stopIntent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_CANCEL_CURRENT)
-
-                    if (displayBigText) {
-                        NotificationCompat.Builder(context, CHANNEL_ID).apply {
-                            setSmallIcon(R.drawable.ic_baseline_control_camera_24)
-                            setContentTitle(title)
-                            setContentText("Swipe down to see more...")
-                            setStyle(NotificationCompat.BigTextStyle().bigText(message))
-                            setContentIntent(contentPendingIntent)
-                            addAction(R.drawable.stop_circle_filled, context.getString(R.string.accessibility_service_action), stopPendingIntent)
-                            priority = NotificationManager.IMPORTANCE_HIGH
-                            setCategory(Notification.CATEGORY_SERVICE)
-                            setOngoing(true)
-                            setShowWhen(true)
-                        }.build()
-                    } else {
-                        NotificationCompat.Builder(context, CHANNEL_ID).apply {
-                            setSmallIcon(R.drawable.ic_baseline_control_camera_24)
-                            setContentTitle(title)
-                            setContentText(contentText)
-                            setContentIntent(contentPendingIntent)
-                            addAction(R.drawable.stop_circle_filled, context.getString(R.string.accessibility_service_action), stopPendingIntent)
-                            priority = NotificationManager.IMPORTANCE_HIGH
-                            setCategory(Notification.CATEGORY_SERVICE)
-                            setOngoing(true)
-                            setShowWhen(true)
-                        }.build()
-                    }
-                } else {
-                    if (displayBigText) {
-                        NotificationCompat.Builder(context, CHANNEL_ID).apply {
-                            setSmallIcon(R.drawable.ic_baseline_control_camera_24)
-                            setContentTitle(title)
-                            setContentText("Swipe down to see more...")
-                            setStyle(NotificationCompat.BigTextStyle().bigText(message))
-                            setContentIntent(contentPendingIntent)
-                            priority = NotificationManager.IMPORTANCE_HIGH
-                            setCategory(Notification.CATEGORY_SERVICE)
-                            setOngoing(true)
-                            setShowWhen(true)
-                        }.build()
-                    } else {
-                        NotificationCompat.Builder(context, CHANNEL_ID).apply {
-                            setSmallIcon(R.drawable.ic_baseline_control_camera_24)
-                            setContentTitle(title)
-                            setContentText(contentText)
-                            setContentIntent(contentPendingIntent)
-                            priority = NotificationManager.IMPORTANCE_HIGH
-                            setCategory(Notification.CATEGORY_SERVICE)
-                            setOngoing(true)
-                            setShowWhen(true)
-                        }.build()
-                    }
+            return NotificationCompat.Builder(context, channelId).apply {
+                setSmallIcon(R.drawable.ic_baseline_control_camera_24)
+                setContentTitle(content.title)
+                setContentText(content.text)
+                setStyle(NotificationCompat.BigTextStyle().bigText(content.text))
+                setContentIntent(contentPendingIntent)
+                setCategory(Notification.CATEGORY_SERVICE)
+                setOngoing(true)
+                setOnlyAlertOnce(!content.alert)
+                priority = if (content.alert) NotificationCompat.PRIORITY_HIGH else NotificationCompat.PRIORITY_LOW
+                content.subText?.let { setSubText(it) }
+                content.progress?.let { (current, max) -> setProgress(max, current, false) }
+                setShowWhen(content.chronometer || content.alert)
+                if (content.chronometer) {
+                    setUsesChronometer(true)
+                    setWhen(System.currentTimeMillis() - elapsedMs)
                 }
 
-            postWithShortBanner(context, newNotification)
+                // Notification action buttons are only added from Android 8.0, as before.
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    when (content.pauseAction) {
+                        PauseAction.PAUSE -> addAction(R.drawable.pause_circle_filled, "Pause", pausePendingIntent(context, PauseActionReceiver.ACTION_PAUSE, 2))
+                        PauseAction.RESUME -> addAction(R.drawable.play_circle_filled, "Resume", pausePendingIntent(context, PauseActionReceiver.ACTION_RESUME, 3))
+                        PauseAction.NONE -> {}
+                    }
+                    if (content.showStop) {
+                        // Stops the MediaProjection service through StopServiceReceiver, as before.
+                        val stopIntent = Intent(context, StopServiceReceiver::class.java)
+                        val stopPendingIntent: PendingIntent = PendingIntent.getBroadcast(context, 4, stopIntent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+                        addAction(R.drawable.stop_circle_filled, context.getString(R.string.accessibility_service_action), stopPendingIntent)
+                    }
+                }
+            }.build()
+        }
+
+        /**
+         * Builds the PendingIntent for the Pause or Resume action.
+         *
+         * @param context The application context.
+         * @param action `PauseActionReceiver.ACTION_PAUSE` or `PauseActionReceiver.ACTION_RESUME`.
+         * @param requestCode Request code that keeps the Pause and Resume PendingIntents apart.
+         * @return The PendingIntent.
+         */
+        private fun pausePendingIntent(context: Context, action: String, requestCode: Int): PendingIntent {
+            val intent = Intent(context, PauseActionReceiver::class.java).setAction(action)
+            return PendingIntent.getBroadcast(context, requestCode, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         }
 
         /**
@@ -241,13 +263,14 @@ class NotificationUtils {
          * @param context The application context.
          */
         fun cancelAllNotifications(context: Context) {
-            if (!::notificationManager.isInitialized) {
-                notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            ensureManager(context)
+            synchronized(runLock) {
+                stopRunUpdates()
+                bannerHandler.removeCallbacksAndMessages(null)
+                Log.d(tag, "Attempting to cancel all notifications")
+                Log.d(tag, "Active notifications before cancel: ${notificationManager.activeNotifications.size}")
+                notificationManager.cancelAll()
             }
-            bannerHandler.removeCallbacksAndMessages(null)
-            Log.d(tag, "Attempting to cancel all notifications")
-            Log.d(tag, "Active notifications before cancel: ${notificationManager.activeNotifications.size}")
-            notificationManager.cancelAll()
 
             // Log active notifications after cancel.
             val activeNotifications = notificationManager.activeNotifications

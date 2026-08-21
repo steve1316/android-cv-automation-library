@@ -23,6 +23,11 @@
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
             </intent-filter>
         </receiver>
+
+        <!--Receives the notification's Pause and Resume actions. It stays in the main process because the pause state lives there.-->
+        <receiver
+            android:name=".utils.PauseActionReceiver"
+            android:exported="false" />
     </application>
 
 </manifest>
