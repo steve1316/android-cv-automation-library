@@ -11,20 +11,16 @@ import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.util.TypedValue
 import android.view.Choreographer
 import android.view.Gravity
-import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
 import android.view.WindowManager
-import android.view.animation.Animation
-import android.view.animation.AnimationUtils
 import android.widget.FrameLayout
-import android.widget.ImageButton
 import android.widget.TextView
-import com.steve1316.automation_library.R
 import com.steve1316.automation_library.data.SharedData
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -92,8 +88,8 @@ private fun getNotchHeight(windowManager: WindowManager): Int {
 }
 
 /**
- * Manages the floating overlay button, including:
- * - Rendering the button and animations.
+ * Manages the floating overlay, including:
+ * - Rendering the orb and its mini tray for the current run state.
  * - Handling drag placement and "Guidance Overlays".
  * - Handling "Drag to Dismiss" functionality.
  *
@@ -104,6 +100,16 @@ class FloatingOverlayButton(
     private val context: Context,
     private val windowManager: WindowManager,
 ) {
+    companion object {
+        private const val TRAY_AUTO_CLOSE_MS = BotHold.TRAY_HOLD_MS
+        private const val TRAY_TICK_MS = 1_000L
+        private const val TRAY_GAP_DP = 4f
+        private const val TRAY_SHOWN_FLAGS =
+            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH
+        private const val TRAY_HIDDEN_FLAGS =
+            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+    }
+
     private val overlayLayoutParamsType =
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
@@ -111,9 +117,15 @@ class FloatingOverlayButton(
             WindowManager.LayoutParams.TYPE_SYSTEM_ALERT
         }
 
-    private var buttonSizePx: Int = 0
-    private lateinit var overlayView: View
-    private lateinit var overlayButton: ImageButton
+    // Tap behavior, read from the app's settings each time the overlay is created.
+    private val style: OverlayStyle = OverlayStyle.fromSetting(SharedData.overlayStyle)
+
+    // The orb's diameter plus room for its shadow on every side. The orb window is buttonSizePx square.
+    private val orbSizePx: Int = context.dpToPx(SharedData.overlayButtonSizeDP)
+    private val shadowPadPx: Int = context.dpToPx(OverlayOrbView.SHADOW_PAD_DP)
+    private val buttonSizePx: Int = orbSizePx + shadowPadPx * 2
+
+    private lateinit var orbView: OverlayOrbView
     private val overlayLayoutParams =
         WindowManager.LayoutParams().apply {
             type = overlayLayoutParamsType
@@ -125,18 +137,35 @@ class FloatingOverlayButton(
             gravity = Gravity.TOP or Gravity.START
         }
 
-    // Animation
-    private lateinit var playButtonAnimation: Animation
-    private lateinit var playButtonAnimationAlt: Animation
-    private lateinit var stopButtonAnimation: Animation
-    private var isRunning: Boolean = false
+    // Tray window. It is added the first time it opens, then shown or hidden through its window alpha so its surface is kept.
+    private var trayView: OverlayTrayView? = null
+    private var isTrayAdded = false
+    private var isTrayOpen = false
+    private var trayClosedAtMs = 0L
+    private val trayLayoutParams =
+        WindowManager.LayoutParams().apply {
+            type = overlayLayoutParamsType
+            flags = TRAY_HIDDEN_FLAGS
+            format = PixelFormat.TRANSLUCENT
+            width = WindowManager.LayoutParams.WRAP_CONTENT
+            height = WindowManager.LayoutParams.WRAP_CONTENT
+            gravity = Gravity.TOP or Gravity.START
+            alpha = 0f
+        }
+
+    // Run state pushed by BotService. A new overlay ignores the last run's outcome until it starts a run of its own.
+    private var isRunning = false
+    private var isStopping = false
+    private var hasStartedRun = false
+    private var visual = OverlayVisual.READY
 
     // Helpers
     private val guidanceOverlays = GuidanceOverlays(context, windowManager, overlayLayoutParamsType)
     private val dragToDismiss = DragToDismiss(context, windowManager, overlayLayoutParamsType)
 
     // Callbacks
-    private var onOverlayClickListener: (() -> Unit)? = null
+    private var onStartListener: (() -> Unit)? = null
+    private var onStopListener: (() -> Unit)? = null
     private var onDismissListener: (() -> Unit)? = null
 
     // Touch Handling
@@ -146,24 +175,31 @@ class FloatingOverlayButton(
     // Frame callback that is still adding overlay windows, or null once every window has been added.
     private var addWindowsCallback: Choreographer.FrameCallback? = null
 
+    private val closeTrayRunnable = Runnable { closeTray() }
+    private val trayTickRunnable: Runnable =
+        object : Runnable {
+            override fun run() {
+                if (!isTrayOpen) return
+                refreshTray()
+                handler.postDelayed(this, TRAY_TICK_MS)
+            }
+        }
+
+    // BotStatus and BotHold call this from any thread, so it hops to the main thread.
+    private val statusListener: () -> Unit = { handler.post { refresh() } }
+
     init {
         createOverlayButton()
-        initializeAnimations()
-        startAnimations()
+        BotStatus.addListener(statusListener)
+        BotHold.addListener(statusListener)
+        refresh()
     }
 
     /**
-     * Inflates and configures the overlay button view.
+     * Creates the orb and adds its window along with the guidance and dismiss windows.
      */
-    @SuppressLint("InflateParams")
     private fun createOverlayButton() {
-        overlayView = LayoutInflater.from(context).inflate(R.layout.bot_actions, null)
-        overlayButton = overlayView.findViewById(R.id.bot_actions_overlay_button)
-
-        buttonSizePx = context.dpToPx(SharedData.overlayButtonSizeDP)
-        overlayButton.layoutParams.width = buttonSizePx
-        overlayButton.layoutParams.height = buttonSizePx
-        overlayButton.requestLayout()
+        orbView = OverlayOrbView(context, orbSizePx, shadowPadPx)
 
         setInitialOverlayPosition(forceScreenCenter = true)
 
@@ -172,8 +208,8 @@ class FloatingOverlayButton(
         overlayLayoutParams.x = prefs.getInt("lastX", overlayLayoutParams.x)
         overlayLayoutParams.y = prefs.getInt("lastY", overlayLayoutParams.y)
 
-        // Add the button last so it stays on top of the guidance and dismiss windows.
-        addWindowsOverFrames(guidanceOverlays.windows + dragToDismiss.windows + (overlayView to overlayLayoutParams))
+        // Add the orb last so it stays on top of the guidance and dismiss windows.
+        addWindowsOverFrames(guidanceOverlays.windows + dragToDismiss.windows + (orbView to overlayLayoutParams))
 
         setupTouchListener()
 
@@ -231,8 +267,8 @@ class FloatingOverlayButton(
             overlayLayoutParams.y = (screenHeight - buttonSizePx) / 2
         }
 
-        if (::overlayView.isInitialized && overlayView.isAttachedToWindow) {
-            windowManager.updateViewLayout(overlayView, overlayLayoutParams)
+        if (::orbView.isInitialized && orbView.isAttachedToWindow) {
+            windowManager.updateViewLayout(orbView, overlayLayoutParams)
         }
     }
 
@@ -243,7 +279,7 @@ class FloatingOverlayButton(
      */
     private fun getOverlayCenter(): Pair<Int, Int> {
         val location = IntArray(2)
-        overlayView.getLocationOnScreen(location)
+        orbView.getLocationOnScreen(location)
         val centerX = location[0] + buttonSizePx / 2
         val centerY = location[1] + buttonSizePx / 2
         return Pair(centerX, centerY)
@@ -256,7 +292,7 @@ class FloatingOverlayButton(
      */
     @SuppressLint("ClickableViewAccessibility")
     private fun setupTouchListener() {
-        overlayButton.setOnTouchListener(
+        orbView.setOnTouchListener(
             object : View.OnTouchListener {
                 private var initialX: Int = 0
                 private var initialY: Int = 0
@@ -267,6 +303,8 @@ class FloatingOverlayButton(
 
                 private val longPressRunnable =
                     Runnable {
+                        closeTray()
+
                         // Highlight dismiss area if it exists.
                         isLongPressTriggered = true
                         dragToDismiss.show()
@@ -306,6 +344,7 @@ class FloatingOverlayButton(
                                 if (abs(xDiffRaw) > touchSlop || abs(yDiffRaw) > touchSlop) {
                                     // Start showing UI immediately on drag.
                                     isDragging = true
+                                    closeTray()
                                     handler.removeCallbacks(longPressRunnable)
                                     dragToDismiss.show()
                                 }
@@ -317,7 +356,7 @@ class FloatingOverlayButton(
 
                                 overlayLayoutParams.x = initialX + xDiff
                                 overlayLayoutParams.y = initialY + yDiff
-                                windowManager.updateViewLayout(overlayView, overlayLayoutParams)
+                                windowManager.updateViewLayout(orbView, overlayLayoutParams)
 
                                 val (centerX, centerY) = getOverlayCenter()
 
@@ -359,7 +398,7 @@ class FloatingOverlayButton(
                                 editor.apply()
                             } else {
                                 // This was a tap.
-                                onOverlayClickListener?.invoke()
+                                handleTap(event.downTime)
                                 v?.performClick()
                             }
 
@@ -382,97 +421,178 @@ class FloatingOverlayButton(
     }
 
     /**
-     * Loads the animation resources for the floating overlay button.
+     * Registers a callback to be invoked when a tap should start the bot.
+     *
+     * @param listener Called on the main thread.
      */
-    private fun initializeAnimations() {
-        playButtonAnimation = AnimationUtils.loadAnimation(context, R.anim.play_button_animation)
-        playButtonAnimationAlt = AnimationUtils.loadAnimation(context, R.anim.play_button_animation_alt)
-        stopButtonAnimation = AnimationUtils.loadAnimation(context, R.anim.stop_button_animation)
-
-        // These listeners are used to alternate between the play and play-alt animations.
-        playButtonAnimation.setAnimationListener(
-            object : Animation.AnimationListener {
-                override fun onAnimationStart(animation: Animation?) {}
-
-                override fun onAnimationEnd(animation: Animation?) {
-                    if (!isRunning) {
-                        overlayButton.startAnimation(playButtonAnimation)
-                    }
-                }
-
-                override fun onAnimationRepeat(animation: Animation?) {}
-            },
-        )
-        playButtonAnimationAlt.setAnimationListener(
-            object : Animation.AnimationListener {
-                override fun onAnimationStart(animation: Animation?) {}
-
-                override fun onAnimationEnd(animation: Animation?) {
-                    if (!isRunning) {
-                        overlayButton.startAnimation(playButtonAnimationAlt)
-                    }
-                }
-
-                override fun onAnimationRepeat(animation: Animation?) {}
-            },
-        )
-
-        // This listener is used to alternate between the stop and play animations.
-        stopButtonAnimation.setAnimationListener(
-            object : Animation.AnimationListener {
-                override fun onAnimationStart(animation: Animation?) {}
-
-                override fun onAnimationEnd(animation: Animation?) {
-                    if (isRunning) {
-                        overlayButton.startAnimation(stopButtonAnimation)
-                    }
-                }
-
-                override fun onAnimationRepeat(animation: Animation?) {}
-            },
-        )
+    fun setOnStartListener(listener: () -> Unit) {
+        onStartListener = listener
     }
 
     /**
-     * Starts the appropriate button animation based on the current state.
+     * Registers a callback to be invoked when a tap should stop the bot.
+     *
+     * @param listener Called on the main thread.
      */
-    private fun startAnimations() {
-        overlayButton.clearAnimation()
-        if (isRunning) {
-            overlayButton.startAnimation(stopButtonAnimation)
-        } else {
-            overlayButton.startAnimation(playButtonAnimationAlt)
-        }
-    }
-
-    /**
-     * Registers a callback to be invoked when the overlay button is clicked.
-     */
-    fun setOnClickListener(listener: () -> Unit) {
-        onOverlayClickListener = listener
+    fun setOnStopListener(listener: () -> Unit) {
+        onStopListener = listener
     }
 
     /**
      * Registers a callback to be invoked when the overlay button is dismissed.
+     *
+     * @param listener Called on the main thread.
      */
     fun setOnDismissListener(listener: () -> Unit) {
         onDismissListener = listener
     }
 
     /**
-     * Updates the visual state of the button (icon and animation) based on whether the bot is running.
+     * Updates whether a run is in progress.
      *
      * @param running True if the bot is running, false otherwise.
      */
     fun setRunningState(running: Boolean) {
-        // Set the running state flag for FloatingOverlayButton.
         isRunning = running
-        if (isRunning) {
-            overlayButton.setImageResource(R.drawable.stop_circle_filled)
-        } else {
-            overlayButton.setImageResource(R.drawable.play_circle_filled)
+        if (running) hasStartedRun = true else isStopping = false
+        refresh()
+    }
+
+    /**
+     * Does what a tap on the orb means in the current state and style.
+     *
+     * @param downTimeMs When the tap's finger went down, in `SystemClock.uptimeMillis()` time.
+     */
+    private fun handleTap(downTimeMs: Long) {
+        when (OverlayStateLogic.tapActionFor(style, visual)) {
+            OverlayTapAction.START -> onStartListener?.invoke()
+            OverlayTapAction.STOP -> requestStop()
+            OverlayTapAction.RESUME -> BotHold.resume()
+            // An outside touch closes the tray at this same tap's down, so a tray closed at or after the down must not reopen.
+            OverlayTapAction.OPEN_TRAY -> if (trayClosedAtMs < downTimeMs) openTray()
+            OverlayTapAction.NONE -> {}
         }
-        startAnimations()
+    }
+
+    /**
+     * Shows the stopping state and asks BotService to stop.
+     */
+    private fun requestStop() {
+        if (!isRunning) return
+        isStopping = true
+        refresh()
+        onStopListener?.invoke()
+    }
+
+    /**
+     * Redraws the orb and the tray from the current run state. Closes the tray when the new state has no buttons.
+     */
+    private fun refresh() {
+        val snapshot = BotStatus.snapshot()
+        val outcome = if (hasStartedRun) snapshot.outcome else null
+        visual = OverlayStateLogic.visualFor(isRunning, isStopping, BotHold.pauseState, outcome)
+        orbView.render(style, visual, snapshot)
+        if (isTrayOpen) {
+            if (OverlayStateLogic.trayButtonsFor(visual, BotHold.hasSafePoint).isEmpty()) closeTray() else refreshTray()
+        }
+    }
+
+    /**
+     * Opens the tray next to the orb, toward the middle of the screen, and holds the bot while it is open.
+     */
+    private fun openTray() {
+        if (isTrayOpen || OverlayStateLogic.trayButtonsFor(visual, BotHold.hasSafePoint).isEmpty()) return
+        val tray = trayView ?: OverlayTrayView(context, orbSizePx, ::onTrayButton, ::restartTrayAutoClose) { closeTray() }.also { trayView = it }
+        tray.render(visual, BotStatus.snapshot(), BotHold.hasSafePoint)
+        positionTray(tray)
+        setTrayWindowShown(tray, true)
+        isTrayOpen = true
+        if (isRunning) BotHold.setTrayOpen(true)
+        restartTrayAutoClose()
+        handler.removeCallbacks(trayTickRunnable)
+        handler.postDelayed(trayTickRunnable, TRAY_TICK_MS)
+    }
+
+    /**
+     * Hides the tray and releases the bot.
+     */
+    private fun closeTray() {
+        handler.removeCallbacks(closeTrayRunnable)
+        handler.removeCallbacks(trayTickRunnable)
+        if (!isTrayOpen) return
+        isTrayOpen = false
+        trayClosedAtMs = SystemClock.uptimeMillis()
+        trayView?.let { setTrayWindowShown(it, false) }
+        BotHold.setTrayOpen(false)
+    }
+
+    /**
+     * Restarts the tray's 3-second auto-close.
+     */
+    private fun restartTrayAutoClose() {
+        handler.removeCallbacks(closeTrayRunnable)
+        handler.postDelayed(closeTrayRunnable, TRAY_AUTO_CLOSE_MS)
+    }
+
+    /**
+     * Re-renders the open tray and keeps it beside the orb, since its width changes with its text and buttons.
+     */
+    private fun refreshTray() {
+        val tray = trayView ?: return
+        tray.render(visual, BotStatus.snapshot(), BotHold.hasSafePoint)
+        positionTray(tray)
+        if (isTrayAdded) runCatching { windowManager.updateViewLayout(tray, trayLayoutParams) }
+    }
+
+    /**
+     * Places the tray beside the orb on the side facing the middle of the screen, vertically centered on the orb.
+     *
+     * @param tray The tray view.
+     */
+    private fun positionTray(tray: OverlayTrayView) {
+        tray.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED)
+        val screenWidth = if (SharedData.displayWidth > 0) SharedData.displayWidth else context.resources.displayMetrics.widthPixels
+        val gap = context.dpToPx(TRAY_GAP_DP)
+        // WindowManager keeps the orb window on screen, so a drag past the edge leaves params.x outside the drawn position.
+        val orbX = overlayLayoutParams.x.coerceIn(0, (screenWidth - buttonSizePx).coerceAtLeast(0))
+        val orbLeft = orbX + shadowPadPx
+        val orbRight = orbLeft + orbSizePx
+        val opensRight = orbLeft + orbSizePx / 2 < screenWidth / 2
+        val x = if (opensRight) orbRight + gap else orbLeft - gap - tray.measuredWidth
+        trayLayoutParams.x = x.coerceIn(0, (screenWidth - tray.measuredWidth).coerceAtLeast(0))
+        trayLayoutParams.y = overlayLayoutParams.y + shadowPadPx + (orbSizePx - tray.measuredHeight) / 2
+    }
+
+    /**
+     * Shows or hides the tray window. A hidden tray is untouchable so it never eats taps meant for the game.
+     *
+     * @param tray The tray view.
+     * @param shown True to show it, false to hide it.
+     */
+    private fun setTrayWindowShown(tray: OverlayTrayView, shown: Boolean) {
+        trayLayoutParams.alpha = if (shown) 1f else 0f
+        trayLayoutParams.flags = if (shown) TRAY_SHOWN_FLAGS else TRAY_HIDDEN_FLAGS
+        if (isTrayAdded) {
+            runCatching { windowManager.updateViewLayout(tray, trayLayoutParams) }
+        } else if (shown) {
+            windowManager.addView(tray, trayLayoutParams)
+            isTrayAdded = true
+        }
+    }
+
+    /**
+     * Handles a tray button tap.
+     *
+     * @param button The button that was tapped.
+     */
+    private fun onTrayButton(button: TrayButton) {
+        closeTray()
+        when (button) {
+            TrayButton.PAUSE -> BotHold.requestPause()
+            TrayButton.RESUME -> BotHold.resume()
+            TrayButton.STOP -> requestStop()
+            TrayButton.START -> onStartListener?.invoke()
+        }
     }
 
     /**
@@ -483,12 +603,18 @@ class FloatingOverlayButton(
         addWindowsCallback?.let { Choreographer.getInstance().removeFrameCallback(it) }
         addWindowsCallback = null
 
-        if (::overlayButton.isInitialized) {
-            overlayButton.clearAnimation()
-        }
-        if (::overlayView.isInitialized) {
+        BotStatus.removeListener(statusListener)
+        BotHold.removeListener(statusListener)
+        closeTray()
+        handler.removeCallbacksAndMessages(null)
+
+        trayView?.let { tray -> if (isTrayAdded) runCatching { windowManager.removeView(tray) } }
+        trayView = null
+        isTrayAdded = false
+
+        if (::orbView.isInitialized) {
             try {
-                windowManager.removeView(overlayView)
+                windowManager.removeView(orbView)
             } catch (_: IllegalArgumentException) {
                 // View was already removed or not attached.
             }

@@ -32,6 +32,10 @@ class SharedData {
                 return SettingsHelper.getFloatSetting("misc", "overlayButtonSizeDP", defaultValue)
             }
 
+        // The floating overlay style: "tray" opens a mini tray while running, "simple" starts and stops on tap.
+        val overlayStyle: String
+            get() = SettingsHelper.getStringSetting("misc", "overlayStyle", "tray")
+
         // The dismiss target button size in dp (density-independent pixels).
         val overlayDismissButtonSizeDP: Float
             get() {

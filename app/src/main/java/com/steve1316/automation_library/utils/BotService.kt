@@ -85,9 +85,8 @@ class BotService : Service() {
         floatingOverlayButton = FloatingOverlayButton(this, windowManager)
 
         // Set up the listeners
-        floatingOverlayButton.setOnClickListener {
-            if (!isRunning) startBot() else stopBot()
-        }
+        floatingOverlayButton.setOnStartListener { if (!isRunning) startBot() }
+        floatingOverlayButton.setOnStopListener { stopBot() }
 
         floatingOverlayButton.setOnDismissListener {
             dismissOverlayButton()
