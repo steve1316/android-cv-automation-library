@@ -7,6 +7,7 @@ import android.app.ActivityManager
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
 import android.content.res.Resources
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -82,6 +83,20 @@ class MyAccessibilityService : AccessibilityService() {
         fun enableGestures() {
             isGestureAllowed = true
             Log.d(tag, "Gestures have been enabled.")
+        }
+
+        /**
+         * Closes the notification shade so the screen behind it, usually the game, is visible again. Does nothing if the service is not connected.
+         *
+         * @param context Used for the broadcast fallback before Android 12.
+         */
+        fun dismissNotificationShade(context: Context) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                if (::instance.isInitialized) instance.performGlobalAction(GLOBAL_ACTION_DISMISS_NOTIFICATION_SHADE)
+            } else {
+                @Suppress("DEPRECATION")
+                context.sendBroadcast(Intent(Intent.ACTION_CLOSE_SYSTEM_DIALOGS))
+            }
         }
 
         /**
