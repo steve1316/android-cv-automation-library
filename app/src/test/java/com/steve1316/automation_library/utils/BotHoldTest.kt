@@ -20,6 +20,8 @@ class BotHoldTest {
         BotHold.reset()
         now = 0L
         BotStatus.clock = { now }
+        BotHold.clock = { now }
+        BotHold.log = {}
         BotStatus.reset()
     }
 
