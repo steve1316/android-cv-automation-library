@@ -207,15 +207,25 @@ class BotHoldMidStepTest {
         BotHold.requestPause()
         assertThrows(StepAbortedException::class.java) { BotHold.checkpoint() }
         assertTrue(BotHold.acknowledgeAbort())
-        BotHold.resume()
         staleGate.countDown()
         stale.join(1_000L)
+        assertFalse(stale.isAlive)
         assertTrue(staleThrown.get() is StepAbortedException)
+
+        // Once the pause is cancelled and nothing is raised, a stale worker (such as a pool thread) is left alone.
+        BotHold.resume()
+        val lateGate = CountDownLatch(1)
+        val (late, lateThrown) = checkpointOnNewThread(lateGate)
+        lateGate.countDown()
+        late.join(1_000L)
+        assertFalse(late.isAlive)
+        assertNull(lateThrown.get())
 
         val freshGate = CountDownLatch(1)
         val (fresh, freshThrown) = checkpointOnNewThread(freshGate)
         freshGate.countDown()
         fresh.join(1_000L)
+        assertFalse(fresh.isAlive)
         assertNull(freshThrown.get())
     }
 
@@ -229,6 +239,7 @@ class BotHoldMidStepTest {
         assertThrows(StepAbortedException::class.java) { BotHold.checkpoint() }
         gate.countDown()
         worker.join(1_000L)
+        assertFalse(worker.isAlive)
         assertTrue(thrown.get() is StepAbortedException)
     }
 
@@ -241,6 +252,7 @@ class BotHoldMidStepTest {
         BotHold.requestPause()
         gate.countDown()
         worker.join(1_000L)
+        assertFalse(worker.isAlive)
         assertNull(thrown.get())
     }
 
@@ -255,6 +267,7 @@ class BotHoldMidStepTest {
         assertThrows(StepAbortedException::class.java) { BotHold.checkpoint() }
         gate.countDown()
         outsider.join(1_000L)
+        assertFalse(outsider.isAlive)
         assertNull(thrown.get())
     }
 
@@ -274,9 +287,33 @@ class BotHoldMidStepTest {
         reachSafePoint()
         BotHold.requestPause()
         BotHold.isBotRunning = { false }
+        Thread.currentThread().interrupt()
         val thrown = assertThrows(InterruptedException::class.java) { BotHold.checkpoint() }
         assertFalse(thrown is StepAbortedException)
         assertFalse(BotHold.isAbortRaised)
+    }
+
+    @Test
+    fun acknowledgeLeavesAPendingStopInterrupted() {
+        reachSafePoint()
+        val result = AtomicReference<Boolean?>()
+        val stillInterrupted = AtomicReference<Boolean?>()
+        val acknowledger =
+            thread {
+                BotHold.enableMidStepPause(GAME_PACKAGES)
+                BotHold.requestPause()
+                runCatching { BotHold.checkpoint() }
+                // Stop sets the outcome first, then interrupts, so the abort can still be raised when the interrupt arrives.
+                BotHold.isBotRunning = { false }
+                Thread.currentThread().interrupt()
+                result.set(BotHold.acknowledgeAbort())
+                stillInterrupted.set(Thread.currentThread().isInterrupted)
+                BotHold.disableMidStepPause()
+            }
+        acknowledger.join(1_000L)
+        assertFalse(acknowledger.isAlive)
+        assertEquals(false, result.get())
+        assertEquals(true, stillInterrupted.get())
     }
 
     @Test
@@ -298,6 +335,7 @@ class BotHoldMidStepTest {
         BotHold.isBotRunning = { false }
         bot.interrupt()
         bot.join(1_000L)
+        assertFalse(bot.isAlive)
         assertTrue(thrown.get() is InterruptedException)
         assertFalse(thrown.get() is StepAbortedException)
     }
@@ -336,6 +374,7 @@ class BotHoldMidStepTest {
         waitUntil { BotHold.pauseState == BotHold.PauseState.PAUSED }
         BotHold.resume()
         worker.join(1_000L)
+        assertFalse(worker.isAlive)
         assertEquals(true, paused.get())
     }
 
@@ -349,6 +388,7 @@ class BotHoldMidStepTest {
         waitUntil { BotHold.pauseState == BotHold.PauseState.PAUSED }
         BotHold.resume()
         worker.join(1_000L)
+        assertFalse(worker.isAlive)
         assertEquals(listOf("[PAUSE] landed after 412ms"), synchronized(logged) { logged.toList() })
     }
 }

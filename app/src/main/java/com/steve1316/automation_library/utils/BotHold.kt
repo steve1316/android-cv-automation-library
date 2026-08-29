@@ -50,8 +50,8 @@ object BotHold {
     /** True when called on the main thread. Replaced in unit tests, where the Android main looper does not exist. */
     internal var isMainThread: () -> Boolean = { Looper.myLooper() == Looper.getMainLooper() }
 
-    /** True while a run is in progress. Replaced in unit tests. */
-    internal var isBotRunning: () -> Boolean = { BotService.isRunning }
+    /** True while a run is in progress and no stop is pending. Every stop sets the outcome before it interrupts the bot. Replaced in unit tests. */
+    internal var isBotRunning: () -> Boolean = { BotService.isRunning && BotStatus.snapshot().outcome == null }
 
     /** Time to let the screen redraw without the tray after a tray hold ends, in milliseconds. Changed in unit tests. */
     internal var traySettleMs: Long = 150L
@@ -182,7 +182,8 @@ object BotHold {
 
     /**
      * Opts the calling thread in to mid-step pause for this run. Call it on the bot thread itself, before its loop starts. Worker threads
-     * this thread creates afterwards inherit its lineage, so their checkpoints can tell when their step was aborted.
+     * this thread creates afterwards inherit its lineage, so their checkpoints can tell when their step was aborted. Any thread created from
+     * the bot thread inherits it, including pool threads, so a stale one only throws while a pause or abort is in progress.
      *
      * @param gamePackages Package names of the game the bot plays. A window change to any other app pauses the run. Empty turns that off.
      */
@@ -243,6 +244,7 @@ object BotHold {
         }
         val mine = lineage.get() ?: return
         if (!isBotRunning()) throw InterruptedException("The bot was stopped.")
+        if (pauseState == PauseState.NONE && !isAbortRaised) return
         if (mine.epoch != epoch || isAbortRaised || pauseState == PauseState.PAUSED) throw StepAbortedException()
     }
 
@@ -250,9 +252,12 @@ object BotHold {
      * Clears an abort once the app's loop has caught it, so the loop can restart. On the bot thread it also clears the interrupt flag, which
      * the watchdog may have set, and moves the thread to the new epoch so workers left over from the aborted step fail at their next checkpoint.
      *
+     * Does nothing when a stop is pending, so the thread stays interrupted and the stop unwinds.
+     *
      * @return True if an abort was pending, false if the interrupt or failure came from something else, such as a stop.
      */
     fun acknowledgeAbort(): Boolean {
+        if (!isBotRunning()) return false
         val newEpoch =
             lock.withLock {
                 if (!isAbortRaised) return false
