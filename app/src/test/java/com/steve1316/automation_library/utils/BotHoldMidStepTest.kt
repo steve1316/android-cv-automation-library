@@ -212,21 +212,49 @@ class BotHoldMidStepTest {
         assertFalse(stale.isAlive)
         assertTrue(staleThrown.get() is StepAbortedException)
 
-        // Once the pause is cancelled and nothing is raised, a stale worker (such as a pool thread) is left alone.
-        BotHold.resume()
-        val lateGate = CountDownLatch(1)
-        val (late, lateThrown) = checkpointOnNewThread(lateGate)
-        lateGate.countDown()
-        late.join(1_000L)
-        assertFalse(late.isAlive)
-        assertNull(lateThrown.get())
-
         val freshGate = CountDownLatch(1)
         val (fresh, freshThrown) = checkpointOnNewThread(freshGate)
         freshGate.countDown()
         fresh.join(1_000L)
         assertFalse(fresh.isAlive)
         assertNull(freshThrown.get())
+    }
+
+    /**
+     * One stale worker runs two checkpoints. The first lands while the pause is still pending and must throw. The second lands after the abort
+     * was acknowledged and the pause cancelled, and must return. The old code threw on any stale epoch, so it would fail the second check.
+     */
+    @Test
+    fun staleWorkerStopsThrowingOnceThePauseEnds() {
+        optIn()
+        reachSafePoint()
+        val firstGate = CountDownLatch(1)
+        val secondGate = CountDownLatch(1)
+        val first = AtomicReference<Throwable?>()
+        val second = AtomicReference<Throwable?>()
+        // Created on the bot thread before the abort is acknowledged, so it holds the old epoch for both checkpoints.
+        val stale =
+            thread {
+                firstGate.await()
+                first.set(runCatching { BotHold.checkpoint() }.exceptionOrNull())
+                secondGate.await()
+                second.set(runCatching { BotHold.checkpoint() }.exceptionOrNull())
+            }
+        BotHold.requestPause()
+        assertThrows(StepAbortedException::class.java) { BotHold.checkpoint() }
+        assertTrue(BotHold.acknowledgeAbort())
+        assertEquals(BotHold.PauseState.REQUESTED, BotHold.pauseState)
+        firstGate.countDown()
+        waitUntil { first.get() != null }
+        assertTrue(first.get() is StepAbortedException)
+
+        BotHold.resume()
+        assertEquals(BotHold.PauseState.NONE, BotHold.pauseState)
+        assertFalse(BotHold.isAbortRaised)
+        secondGate.countDown()
+        stale.join(1_000L)
+        assertFalse(stale.isAlive)
+        assertNull(second.get())
     }
 
     @Test
