@@ -4,6 +4,7 @@ import android.os.Looper
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.thread
 import kotlin.concurrent.withLock
 
 /**
@@ -44,6 +45,12 @@ object BotHold {
     /** How long the tray stays open before it closes by itself, in milliseconds. Also the longest the tray can hold the bot. */
     const val TRAY_HOLD_MS = 3_000L
 
+    /** Shown in the notification and the tray when the game leaving the screen paused the run. */
+    const val FOCUS_LOSS_REASON = "Paused: the game left the screen"
+
+    /** How long after a resume a window change is not treated as the game leaving, in milliseconds. Covers the notification shade closing. */
+    const val FOCUS_RESUME_GRACE_MS = 1_500L
+
     /** Longest time the tray can hold the bot, in milliseconds. Matches the tray's auto-close. Changed in unit tests. */
     internal var trayHoldMaxMs: Long = TRAY_HOLD_MS
 
@@ -61,6 +68,9 @@ object BotHold {
 
     /** Writes one line to the run's message log. Replaced in unit tests, where the message log is not set up. */
     internal var log: (String) -> Unit = { MessageLog.i(message = it) }
+
+    /** How often the watchdog looks at a bot thread that has not reached a checkpoint since the pause request, in milliseconds. 0 turns it off. */
+    internal var watchdogDelayMs: Long = 500L
 
     private val lock = ReentrantLock()
     private val changed = lock.newCondition()
@@ -105,6 +115,11 @@ object BotHold {
     var gamePackages: Set<String> = emptySet()
         private set
 
+    /** Why the pending or current pause happened, or empty when the user asked for it. Cleared on resume. */
+    @Volatile
+    var pauseReason: String = ""
+        private set
+
     /** The opted-in bot thread, or null. */
     @Volatile
     private var botThread: Thread? = null
@@ -121,17 +136,25 @@ object BotHold {
     @Volatile
     private var requestedAtMs: Long? = null
 
+    /** When the last resume happened, in `clock()` time, or null when there was none since the last reset. */
+    @Volatile
+    private var lastResumeAtMs: Long? = null
+
     /**
      * Asks the bot to pause at its next safe point, or at its next checkpoint on an opted-in run. Does nothing when no run is in progress, the
-     * run has not reached a safe point yet, or a pause is already pending.
+     * run has not reached a safe point yet, or a pause is already pending. On an opted-in run it also starts the watchdog.
+     *
+     * @param reason Why the bot is pausing, shown in the notification and the tray. Empty when the user asked for it.
      */
-    fun requestPause() {
+    fun requestPause(reason: String = "") {
         if (!isBotRunning() || !hasSafePoint) return
         lock.withLock {
             if (pauseState != PauseState.NONE) return
             pauseState = PauseState.REQUESTED
+            pauseReason = reason
             requestedAtMs = clock()
         }
+        if (isMidStepEnabled && watchdogDelayMs > 0L) startWatchdog()
         notifyListeners()
     }
 
@@ -143,10 +166,62 @@ object BotHold {
             if (pauseState == PauseState.NONE) return
             if (pauseState == PauseState.PAUSED) BotStatus.markPaused(false)
             pauseState = PauseState.NONE
+            pauseReason = ""
             requestedAtMs = null
+            lastResumeAtMs = clock()
             changed.signalAll()
         }
         notifyListeners()
+    }
+
+    /**
+     * Pauses an opted-in run because the game left the screen. Ignored when the app supplied no game packages, a pause is already pending, or
+     * a resume happened within `FOCUS_RESUME_GRACE_MS`, since the notification shade closing after a Resume can be reported late.
+     *
+     * @return True if a pause was requested.
+     */
+    fun pauseForFocusLoss(): Boolean {
+        if (!isMidStepEnabled || gamePackages.isEmpty() || pauseState != PauseState.NONE) return false
+        val resumedAt = lastResumeAtMs
+        if (resumedAt != null && clock() - resumedAt < FOCUS_RESUME_GRACE_MS) return false
+        requestPause(FOCUS_LOSS_REASON)
+        return pauseState != PauseState.NONE
+    }
+
+    /**
+     * Starts a daemon thread that runs `watchdogTick()` every `watchdogDelayMs` until the pause lands or is cancelled.
+     */
+    private fun startWatchdog() {
+        thread(isDaemon = true, name = "BotHoldWatchdog") {
+            try {
+                do {
+                    Thread.sleep(watchdogDelayMs)
+                } while (watchdogTick())
+            } catch (_: InterruptedException) {
+                // Nothing to clean up. The watchdog only reads state and interrupts the bot thread.
+            }
+        }
+    }
+
+    /**
+     * One watchdog check. When a pause is pending and the bot thread sits in a blocking wait with no checkpoint in reach, such as a latch or a
+     * join, this raises the abort and interrupts it. A running thread is never interrupted, and neither is one inside a `deferPause` block.
+     * It reads the deferral flag, raises the abort, and interrupts all under `lock`, and it skips when the abort is already raised, so a bot
+     * that acknowledges the abort by itself never gets a late interrupt.
+     *
+     * @return True to check again later, false once there is nothing left to watch.
+     */
+    internal fun watchdogTick(): Boolean {
+        lock.withLock {
+            if (!isMidStepEnabled || pauseState != PauseState.REQUESTED || isAbortRaised) return false
+            val bot = botThread ?: return false
+            if (botDeferred) return true
+            val state = bot.state
+            if (state != Thread.State.WAITING && state != Thread.State.TIMED_WAITING) return true
+            isAbortRaised = true
+            bot.interrupt()
+        }
+        return false
     }
 
     /**
@@ -299,7 +374,8 @@ object BotHold {
      */
     private fun setDeferDepth(depth: Int) {
         deferDepth.set(depth)
-        if (Thread.currentThread() === botThread) botDeferred = depth > 0
+        // Written under the lock, so the watchdog's read of it and its interrupt are atomic with respect to this change.
+        if (Thread.currentThread() === botThread) lock.withLock { botDeferred = depth > 0 }
     }
 
     /**
@@ -348,6 +424,8 @@ object BotHold {
             hasSafePoint = false
             clearMidStepStateLocked()
             requestedAtMs = null
+            pauseReason = ""
+            lastResumeAtMs = null
             changed.signalAll()
         }
         notifyListeners()

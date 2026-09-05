@@ -25,6 +25,7 @@ class BotHoldMidStepTest {
         BotHold.isBotRunning = { true }
         BotHold.trayHoldMaxMs = 3_000L
         BotHold.traySettleMs = 0L
+        BotHold.watchdogDelayMs = 0L
         BotHold.reset()
         now = 0L
         BotHold.clock = { now }
