@@ -74,6 +74,9 @@ object BotHold {
 
     private val lock = ReentrantLock()
     private val changed = lock.newCondition()
+
+    /** The lock itself, so a test can hold it to queue the bot thread on it. */
+    internal val lockForTest: ReentrantLock get() = lock
     private val listeners = CopyOnWriteArrayList<() -> Unit>()
 
     /** Set on the opted-in bot thread and inherited by the workers it creates. Unset on every other thread. */
@@ -147,15 +150,33 @@ object BotHold {
      * @param reason Why the bot is pausing, shown in the notification and the tray. Empty when the user asked for it.
      */
     fun requestPause(reason: String = "") {
-        if (!isBotRunning() || !hasSafePoint) return
+        tryRequestPause(reason, focusLoss = false)
+    }
+
+    /**
+     * Requests a pause when none is pending, then starts the watchdog and tells the listeners. The checks and the state change happen together
+     * under `lock`, so a focus-loss request never replaces the user's pause.
+     *
+     * @param reason Why the bot is pausing. Empty when the user asked for it.
+     * @param focusLoss True to also require an opted-in run with game packages and no resume within `FOCUS_RESUME_GRACE_MS`.
+     * @return True if a pause was requested.
+     */
+    private fun tryRequestPause(reason: String, focusLoss: Boolean): Boolean {
+        if (!isBotRunning() || !hasSafePoint) return false
         lock.withLock {
-            if (pauseState != PauseState.NONE) return
+            if (pauseState != PauseState.NONE) return false
+            if (focusLoss) {
+                if (!isMidStepEnabled || gamePackages.isEmpty()) return false
+                val resumedAt = lastResumeAtMs
+                if (resumedAt != null && clock() - resumedAt < FOCUS_RESUME_GRACE_MS) return false
+            }
             pauseState = PauseState.REQUESTED
             pauseReason = reason
             requestedAtMs = clock()
         }
         if (isMidStepEnabled && watchdogDelayMs > 0L) startWatchdog()
         notifyListeners()
+        return true
     }
 
     /**
@@ -180,13 +201,7 @@ object BotHold {
      *
      * @return True if a pause was requested.
      */
-    fun pauseForFocusLoss(): Boolean {
-        if (!isMidStepEnabled || gamePackages.isEmpty() || pauseState != PauseState.NONE) return false
-        val resumedAt = lastResumeAtMs
-        if (resumedAt != null && clock() - resumedAt < FOCUS_RESUME_GRACE_MS) return false
-        requestPause(FOCUS_LOSS_REASON)
-        return pauseState != PauseState.NONE
-    }
+    fun pauseForFocusLoss(): Boolean = tryRequestPause(FOCUS_LOSS_REASON, focusLoss = true)
 
     /**
      * Starts a daemon thread that runs `watchdogTick()` every `watchdogDelayMs` until the pause lands or is cancelled.
@@ -216,7 +231,9 @@ object BotHold {
             if (!isMidStepEnabled || pauseState != PauseState.REQUESTED || isAbortRaised) return false
             val bot = botThread ?: return false
             if (botDeferred) return true
+            // Read the state first, then the queue. A thread queued on `lock` shows as WAITING, so it must not be mistaken for a stuck bot.
             val state = bot.state
+            if (lock.hasQueuedThread(bot)) return true
             if (state != Thread.State.WAITING && state != Thread.State.TIMED_WAITING) return true
             isAbortRaised = true
             bot.interrupt()

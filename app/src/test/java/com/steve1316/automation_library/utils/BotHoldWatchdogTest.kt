@@ -155,17 +155,74 @@ class BotHoldWatchdogTest {
     @Test
     fun watchdogDoesNotInterruptTwice() {
         reachSafePoint()
-        val blocker = CountDownLatch(1)
-        val run = startBot { blocker.await() }
-        waitUntil { run.thread.state == Thread.State.WAITING }
+        val first = CountDownLatch(1)
+        val second = CountDownLatch(1)
+        val caught = CountDownLatch(1)
+        val abortSeenInBot = AtomicBoolean(false)
+        val secondInterrupt = AtomicBoolean(false)
+        val ready = CountDownLatch(1)
+        val bot =
+            thread {
+                BotHold.enableMidStepPause(GAME_PACKAGES)
+                ready.countDown()
+                try {
+                    first.await()
+                } catch (_: InterruptedException) {
+                    // Record the abort from inside the bot and clear the interrupt, without acknowledging, so the abort stays raised.
+                    abortSeenInBot.set(BotHold.isAbortRaised)
+                    Thread.interrupted()
+                    caught.countDown()
+                }
+                try {
+                    second.await()
+                } catch (_: InterruptedException) {
+                    secondInterrupt.set(true)
+                }
+                BotHold.acknowledgeAbort()
+                BotHold.disableMidStepPause()
+            }
+        ready.await(1, TimeUnit.SECONDS)
+        waitUntil { bot.state == Thread.State.WAITING }
         BotHold.requestPause()
         assertFalse(BotHold.watchdogTick())
-        assertTrue(BotHold.isAbortRaised)
-        run.thread.join(1_000L)
-        assertTrue(run.interrupted.get())
-        // The abort was already raised by the first tick, so a second tick must skip and leave no interrupt behind.
+        assertTrue(caught.await(1, TimeUnit.SECONDS))
+        assertTrue(abortSeenInBot.get())
+        // The bot is alive and waiting again with the pause still pending. Only the raised abort keeps the watchdog from interrupting it.
+        waitUntil { bot.state == Thread.State.WAITING }
         assertFalse(BotHold.watchdogTick())
-        assertFalse(run.thread.isInterrupted)
+        assertFalse(bot.isInterrupted)
+        second.countDown()
+        bot.join(1_000L)
+        assertFalse(bot.isAlive)
+        assertFalse(secondInterrupt.get())
+    }
+
+    @Test
+    fun watchdogIgnoresABotThreadQueuedOnTheLock() {
+        reachSafePoint()
+        val go = CountDownLatch(1)
+        val run =
+            startBot {
+                go.await()
+                BotHold.awaitIfPaused()
+            }
+        BotHold.requestPause()
+        val lock = BotHold.lockForTest
+        lock.lock()
+        try {
+            go.countDown()
+            waitUntil { run.thread.state == Thread.State.WAITING && lock.hasQueuedThread(run.thread) }
+            assertTrue(BotHold.watchdogTick())
+            assertFalse(BotHold.isAbortRaised)
+            assertFalse(run.thread.isInterrupted)
+        } finally {
+            lock.unlock()
+        }
+        waitUntil { BotHold.pauseState == BotHold.PauseState.PAUSED }
+        BotHold.resume()
+        run.thread.join(1_000L)
+        assertFalse(run.thread.isAlive)
+        assertFalse(run.interrupted.get())
     }
 
     @Test
