@@ -241,15 +241,21 @@ internal object OverlayStateLogic {
     }
 
     /**
-     * Builds the tray's second line: the running time, then the last action or the end reason.
+     * Builds the tray's second line: the running time, then the pause reason, the last action, or the end reason.
      *
      * @param visual What the overlay is showing.
      * @param snapshot The current run status.
+     * @param pauseReason Why the bot is pausing, or empty when the user asked for it. Shown only while pausing or paused.
      * @return The line, such as "1:12:05 - Trained Speed".
      */
-    fun trayDetailFor(visual: OverlayVisual, snapshot: BotStatus.Snapshot): String {
+    fun trayDetailFor(visual: OverlayVisual, snapshot: BotStatus.Snapshot, pauseReason: String = ""): String {
         val time = formatElapsed(snapshot.elapsedMs)
-        val extra = if (visual == OverlayVisual.FINISHED || visual == OverlayVisual.STOPPED) snapshot.reason else snapshot.detail
+        val extra =
+            when {
+                visual == OverlayVisual.FINISHED || visual == OverlayVisual.STOPPED -> snapshot.reason
+                (visual == OverlayVisual.PAUSED || visual == OverlayVisual.PAUSING) && pauseReason.isNotEmpty() -> pauseReason
+                else -> snapshot.detail
+            }
         return if (extra.isEmpty()) time else "$time · $extra"
     }
 

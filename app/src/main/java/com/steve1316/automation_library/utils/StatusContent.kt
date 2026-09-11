@@ -47,9 +47,11 @@ internal object StatusContentBuilder {
      * @param snapshot The current run status.
      * @param pauseState The current pause state.
      * @param canPause True when the run has reached a safe point, so a pause can land. Without one, no Pause action is shown.
+     * @param midStep True when a pause aborts the current step instead of waiting for it to end.
+     * @param pauseReason Why the bot is pausing, or empty when the user asked for it.
      * @return The running content.
      */
-    fun running(snapshot: BotStatus.Snapshot, pauseState: BotHold.PauseState, canPause: Boolean): StatusContent {
+    fun running(snapshot: BotStatus.Snapshot, pauseState: BotHold.PauseState, canPause: Boolean, midStep: Boolean = false, pauseReason: String = ""): StatusContent {
         val label = snapshot.label.ifEmpty { "Running" }
         val progress = if (snapshot.total > 0) minOf(snapshot.current, snapshot.total) to snapshot.total else null
         return when (pauseState) {
@@ -62,11 +64,17 @@ internal object StatusContentBuilder {
                     chronometer = true,
                 )
             BotHold.PauseState.REQUESTED ->
-                StatusContent(title = "$label · Pausing", text = "Pausing after the current step", pauseAction = PauseAction.RESUME, progress = progress, chronometer = true)
+                StatusContent(
+                    title = "$label · Pausing",
+                    text = if (midStep) "Pausing..." else "Pausing after the current step",
+                    pauseAction = PauseAction.RESUME,
+                    progress = progress,
+                    chronometer = true,
+                )
             BotHold.PauseState.PAUSED ->
                 StatusContent(
                     title = "$label · Paused",
-                    text = "Tap Resume when you are back in the game",
+                    text = pauseReason.ifEmpty { "Tap Resume when you are back in the game" },
                     pauseAction = PauseAction.RESUME,
                     progress = progress,
                     subText = OverlayStateLogic.formatElapsed(snapshot.elapsedMs),

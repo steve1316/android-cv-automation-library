@@ -120,6 +120,14 @@ class OverlayStateLogicTest {
     }
 
     @Test
+    fun trayDetailShowsThePauseReasonWhilePausingOrPaused() {
+        assertEquals("1:12:05 · Paused: the game left the screen", OverlayStateLogic.trayDetailFor(OverlayVisual.PAUSED, running, BotHold.FOCUS_LOSS_REASON))
+        assertEquals("1:12:05 · Paused: the game left the screen", OverlayStateLogic.trayDetailFor(OverlayVisual.PAUSING, running, BotHold.FOCUS_LOSS_REASON))
+        assertEquals("1:12:05 · Trained Speed", OverlayStateLogic.trayDetailFor(OverlayVisual.PAUSED, running))
+        assertEquals("1:12:05 · Trained Speed", OverlayStateLogic.trayDetailFor(OverlayVisual.RUNNING, running, BotHold.FOCUS_LOSS_REASON))
+    }
+
+    @Test
     fun formatElapsedDropsHoursUnderAnHour() {
         assertEquals("0:00", OverlayStateLogic.formatElapsed(0L))
         assertEquals("0:59", OverlayStateLogic.formatElapsed(59_999L))

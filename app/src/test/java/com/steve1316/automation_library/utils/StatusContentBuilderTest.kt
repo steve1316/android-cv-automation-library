@@ -82,6 +82,21 @@ class StatusContentBuilderTest {
     }
 
     @Test
+    fun pausingMidStepSaysPausing() {
+        val content = StatusContentBuilder.running(snap(), BotHold.PauseState.REQUESTED, true, midStep = true)
+        assertEquals("Turn 34/72 · Pausing", content.title)
+        assertEquals("Pausing...", content.text)
+        assertEquals(PauseAction.RESUME, content.pauseAction)
+    }
+
+    @Test
+    fun pausedSaysWhyWhenThereIsAReason() {
+        val content = StatusContentBuilder.running(snap(), BotHold.PauseState.PAUSED, true, midStep = true, pauseReason = BotHold.FOCUS_LOSS_REASON)
+        assertEquals("Turn 34/72 · Paused", content.title)
+        assertEquals("Paused: the game left the screen", content.text)
+    }
+
+    @Test
     fun finishedAlerts() {
         val content = StatusContentBuilder.ended(snap(current = 72, outcome = BotStatus.Outcome.FINISHED, reason = "Career complete", elapsedMs = 6_500_000L))
         assertEquals("Finished", content.title)
