@@ -32,6 +32,7 @@ import org.greenrobot.eventbus.EventBus
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
+import java.nio.ByteBuffer
 import java.util.*
 
 /**
@@ -56,10 +57,13 @@ class MediaProjectionService : Service() {
         private lateinit var windowManager: WindowManager
         private var oldRotation: Int = 0
         private lateinit var imageReader: ImageReader
+        @Volatile
         var isRunning: Boolean = false
 
         @SuppressLint("StaticFieldLeak")
         private var recording: ScreenRecorder? = null
+
+        @Volatile
         private var lastBitmap: Bitmap? = null
         private var lastBitmapIsFromException: Boolean = false
 
@@ -214,23 +218,7 @@ class MediaProjectionService : Service() {
             val cropX: Int = cropX.coerceIn(0, SharedData.displayWidth - cropW)
             val cropY: Int = cropY.coerceIn(0, SharedData.displayHeight - cropH)
 
-            var image: Image? = imageReader.acquireLatestImage()
-
-            // If no image is available, retry for up to 50ms. This handles cases
-            // where the screen is static or the ScreenRecorder has just consumed
-            // the latest frame.
-            if (image == null) {
-                var retries = 5
-                while (retries > 0) {
-                    Thread.sleep(10)
-                    image = imageReader.acquireLatestImage()
-                    if (image != null) break
-                    retries--
-                }
-            }
-
-            var useCachedBitmap: Boolean = false
-
+            val image: Image? = acquireLatestImageWithRetry()
             var newBitmap: Bitmap? = null
             val prevBitmap: Bitmap? = lastBitmap
 
@@ -240,19 +228,18 @@ class MediaProjectionService : Service() {
                     val buffer = plane.buffer
                     val pixelStride = plane.pixelStride
                     val rowStride = plane.rowStride
-                    newBitmap = Bitmap.createBitmap(cropW, cropH, Bitmap.Config.ARGB_8888)
 
+                    // Copy the raw RGBA bytes of each cropped row into one array. copyPixelsFromBuffer() expects the same RGBA byte order, so the
+                    // colors stay correct. Reading the rows through an IntBuffer instead would swap the red and blue channels on little-endian devices.
+                    val rowBytes = cropW * pixelStride
+                    val pixels = ByteArray(rowBytes * cropH)
                     for (y in 0 until cropH) {
-                        val sourceOffset = ((cropY + y) * rowStride) + (cropX * pixelStride)
-                        buffer.position(sourceOffset)
-                        val rowPixels = IntArray(cropW)
-                        buffer.asIntBuffer().get(rowPixels)
-                        newBitmap.setPixels(rowPixels, 0, cropW, 0, y, cropW, 1)
+                        buffer.position(((cropY + y) * rowStride) + (cropX * pixelStride))
+                        buffer.get(pixels, y * rowBytes, rowBytes)
                     }
 
-                    // We don't update the cache with the cropped bitmap since we only
-                    // want to allow full screenshots in the cache, not cropped ones.
-                    useCachedBitmap = newBitmap == null
+                    newBitmap = Bitmap.createBitmap(cropW, cropH, Bitmap.Config.ARGB_8888)
+                    newBitmap.copyPixelsFromBuffer(ByteBuffer.wrap(pixels))
                 } finally {
                     image.close()
                 }
@@ -264,18 +251,10 @@ class MediaProjectionService : Service() {
                 }
             }
 
+            // Fall back to cropping the cached full screenshot when no new frame arrived. The crop itself is never cached.
+            val bitmapToReturn = newBitmap ?: prevBitmap?.let { Bitmap.createBitmap(it, cropX, cropY, cropW, cropH) }
+
             // Save the Bitmap (either fresh or cached) if requested.
-            val bitmapToReturn =
-                if (useCachedBitmap) {
-                    if (prevBitmap == null) {
-                        null
-                    } else {
-                        // Crop the cached bitmap if it exists.
-                        Bitmap.createBitmap(prevBitmap, cropX, cropY, cropW, cropH)
-                    }
-                } else {
-                    newBitmap
-                }
             if (saveImage && bitmapToReturn != null) {
                 // Only save if it's an exception or if it's a fresh normal bitmap (to avoid redundant disk I/O on identical cached frames).
                 // We allow re-saving if it's an exception even if it's from cache, but we mark it.
@@ -298,6 +277,23 @@ class MediaProjectionService : Service() {
         }
 
         /**
+         * Grab the latest frame from the ImageReader, retrying for up to 50ms when none is ready.
+         * This handles cases where the screen is static or the ScreenRecorder has just consumed the latest frame.
+         *
+         * @return The latest Image, or null if no new frame arrived in time. The caller must close it.
+         */
+        private fun acquireLatestImageWithRetry(): Image? {
+            var image: Image? = imageReader.acquireLatestImage()
+            var retries = 5
+            while (image == null && retries > 0) {
+                Thread.sleep(10)
+                image = imageReader.acquireLatestImage()
+                retries--
+            }
+            return image
+        }
+
+        /**
          * Tell the ImageReader to grab the latest acquired screenshot and process it into a Bitmap.
          * If no image is available, this will retry for a short duration before falling back to the last cached Bitmap.
          *
@@ -306,19 +302,7 @@ class MediaProjectionService : Service() {
          * @return Bitmap of the latest acquired screenshot, or the last cached Bitmap if no new image is available.
          */
         fun takeScreenshotNow(saveImage: Boolean = false, isException: Boolean = false): Bitmap? {
-            var image: Image? = imageReader.acquireLatestImage()
-
-            // If no image is available, retry for up to 50ms. This handles cases where the screen is static
-            // or the ScreenRecorder has just consumed the latest frame.
-            if (image == null) {
-                var retries = 5
-                while (retries > 0) {
-                    Thread.sleep(10)
-                    image = imageReader.acquireLatestImage()
-                    if (image != null) break
-                    retries--
-                }
-            }
+            val image: Image? = acquireLatestImageWithRetry()
 
             if (image != null) {
                 try {
