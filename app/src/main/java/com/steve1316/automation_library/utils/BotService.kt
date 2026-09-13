@@ -40,6 +40,8 @@ class BotService : Service() {
         private lateinit var thread: Thread
         private lateinit var windowManager: WindowManager
 
+        // Read from the bot thread and written from the UI thread, so it must be volatile.
+        @Volatile
         var isRunning = false
 
         /**
