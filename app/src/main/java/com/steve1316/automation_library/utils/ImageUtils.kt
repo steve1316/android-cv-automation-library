@@ -32,6 +32,7 @@ import java.text.DecimalFormatSymbols
 import java.util.*
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicReference
 import kotlin.collections.ArrayList
 import kotlin.math.abs
 import kotlin.math.max
@@ -111,7 +112,7 @@ open class ImageUtils(protected val context: Context) {
     protected lateinit var tessBaseAPI: TessBaseAPI
     protected lateinit var tessDigitsBaseAPI: TessBaseAPI
 
-    // Single lock guarding all access to the shared, non-thread-safe Tesseract API instances above.
+    // Single lock guarding all access to the shared, non-thread-safe Tesseract API instances above. Subclasses use readTextWithTesseract() instead.
     private val tesseractLock = Any()
 
     init {
@@ -1179,6 +1180,34 @@ open class ImageUtils(protected val context: Context) {
     }
 
     /**
+     * Read text from a Bitmap with Tesseract while holding the shared lock, since the Tesseract instances are not thread-safe.
+     * Concurrent OCR calls (e.g. reading several stats in parallel) can otherwise corrupt Tesseract state and crash the process with a native SIGABRT.
+     *
+     * @param bitmap The already-processed Bitmap to read.
+     * @param digitsOnly True to use the Tesseract instance limited to digits.
+     * @return The detected text, or null if Tesseract was never initialized or the read failed.
+     */
+    protected fun readTextWithTesseract(bitmap: Bitmap, digitsOnly: Boolean = false): String? {
+        synchronized(tesseractLock) {
+            if (!this::tessBaseAPI.isInitialized || !this::tessDigitsBaseAPI.isInitialized) {
+                Log.w(tag, "[TEXT_DETECTION] Tesseract was never initialized so it cannot be used. Call initTesseract() to enable it.")
+                return null
+            }
+
+            val api = if (digitsOnly) tessDigitsBaseAPI else tessBaseAPI
+            return try {
+                api.setImage(bitmap)
+                api.utF8Text
+            } catch (e: Exception) {
+                Log.e(tag, "Cannot perform OCR with Tesseract: ${e.stackTraceToString()}")
+                null
+            } finally {
+                api.clear()
+            }
+        }
+    }
+
+    /**
      * Perform OCR text detection along with some image manipulation via thresholding to make the cropped screenshot black and white using OpenCV.
      *
      * @param cropRegion The region consisting of (x, y, width, height) of the cropped region.
@@ -1190,6 +1219,7 @@ open class ImageUtils(protected val context: Context) {
      * @param sourceBitmap The source bitmap to use for OCR. If null, a new source bitmap will be obtained. Defaults to null.
      * @param detectDigitsOnly True if detection should focus on digits only.
      * @param debugName Optional name for debug image saving. Defaults to "ocr".
+     * @param joinAllBlocks True to return every ML Kit text block joined by newlines in reading order. False keeps the old behavior of returning only the last block. Defaults to false.
      *
      * @return The detected String in the cropped region.
      */
@@ -1203,6 +1233,7 @@ open class ImageUtils(protected val context: Context) {
         sourceBitmap: Bitmap? = null,
         detectDigitsOnly: Boolean = false,
         debugName: String = "ocr",
+        joinAllBlocks: Boolean = false,
     ): String {
         val startTime: Long = System.currentTimeMillis()
         var result = ""
@@ -1211,152 +1242,147 @@ open class ImageUtils(protected val context: Context) {
 
         if (debugMode) Log.d(tag, "\n[TEXT_DETECTION] Starting text detection now...")
 
-        // Crop and convert the source bitmap to Mat.
-        // Google ML Kit requires a minimum of 32x32 pixels, so clamp the dimensions.
+        // Crop and convert the source bitmap to Mat. Google ML Kit requires a minimum of 32x32 pixels, so widen smaller regions first.
         val (x, y, width, height) = cropRegion
         val minDimension = 32
-        val clampedWidth = maxOf(width, minDimension).coerceAtMost(finalSourceBitmap.width - x)
-        val clampedHeight = maxOf(height, minDimension).coerceAtMost(finalSourceBitmap.height - y)
-
-        // Log if the dimensions were clamped to meet the minimum requirement.
         if (width < minDimension || height < minDimension) {
-            Log.w(tag, "[TEXT_DETECTION] Crop region clamped from ${width}x$height to ${clampedWidth}x$clampedHeight to meet ML Kit's minimum 32x32 requirement.")
+            Log.w(tag, "[TEXT_DETECTION] Crop region widened from ${width}x$height to meet ML Kit's minimum 32x32 requirement.")
         }
 
-        val croppedBitmap = Bitmap.createBitmap(finalSourceBitmap, x, y, clampedWidth, clampedHeight)
+        val croppedBitmap = createSafeBitmap(finalSourceBitmap, x, y, maxOf(width, minDimension), maxOf(height, minDimension), "findText $debugName") ?: return ""
         val cvImage = Mat()
-        Utils.bitmapToMat(croppedBitmap, cvImage)
-
-        // Save the cropped image before converting it to black and white in order to troubleshoot issues related to differing device sizes and cropping.
-        if (debugMode) {
-            Imgcodecs.imwrite("$matchFilePath/debug_${debugName}_cropped.png", cvImage)
-        }
-
-        // Grayscale the cropped image.
         val grayImage = Mat()
-        val imageForProcessing: Mat =
-            if (grayscale) {
-                Imgproc.cvtColor(cvImage, grayImage, Imgproc.COLOR_RGB2GRAY)
-                grayImage
-            } else {
-                cvImage
-            }
+        val bwImage = Mat()
 
-        // Thresh the grayscale cropped image to make black and white.
-        val processedMat: Mat =
-            if (thresh) {
-                val bwImage = Mat()
-                Imgproc.threshold(imageForProcessing, bwImage, threshold, thresholdMax, Imgproc.THRESH_BINARY)
-
-                // Save the cropped image before converting it to black and white in order to troubleshoot issues related to differing device sizes and cropping.
-                if (debugMode) {
-                    Imgcodecs.imwrite("$matchFilePath/debug_${debugName}_threshold.png", bwImage)
-                }
-                bwImage
-            } else {
-                imageForProcessing
-            }
-
-        // Convert the processed Mat to Bitmap and apply scaling if needed.
-        val clampedScale = max(0.0, scale)
-        val baseBitmap = createBitmap(processedMat.cols(), processedMat.rows())
-        Utils.matToBitmap(processedMat, baseBitmap)
-        val finalBitmap =
-            if (clampedScale != 1.0) {
-                baseBitmap.scale((baseBitmap.width * clampedScale).toInt(), (baseBitmap.height * clampedScale).toInt())
-            } else {
-                baseBitmap
-            }
-
-        // Create a InputImage object for Google's ML OCR.
-        val inputImage: InputImage = InputImage.fromBitmap(finalBitmap, 0)
-
-        // Use CountDownLatch to make the async operation synchronous.
-        val latch = CountDownLatch(1)
-        var mlKitFailed = false
-        var errorMessage = "Google ML Kit failed to do text detection."
-
-        googleTextRecognizer.process(inputImage)
-            .addOnSuccessListener { text ->
-                if (text.textBlocks.isNotEmpty()) {
-                    for (block in text.textBlocks) {
-                        result = block.text
-                    }
-                }
-                latch.countDown()
-            }
-            .addOnFailureListener { exception ->
-                // Check if it's an MlKitException and extract error code information.
-                if (exception is MlKitException) {
-                    val errorCode = exception.errorCode
-                    errorMessage += " Error code: $errorCode."
-                }
-				
-                // Include the exception message if available.
-                exception.message?.let {
-                    errorMessage += " Exception message: $it"
-                }
-				
-                mlKitFailed = true
-                latch.countDown()
-            }
-
-        // Wait for the async operation to complete.
+        // Release the native Mats on every exit path, including the early return when the bot is stopped.
         try {
-            latch.await(5, TimeUnit.SECONDS)
-        } catch (_: InterruptedException) {
-            Log.e(tag, "Google ML Kit operation timed out.")
-        }
+            Utils.bitmapToMat(croppedBitmap, cvImage)
 
-        // Fallback to Tesseract if ML Kit failed or didn't find result.
-        if (mlKitFailed || result == "") {
-            Log.e(tag, errorMessage)
-
-            // The Tesseract API instances are not thread-safe, so serialize all access to them with a single lock covering both instances.
-            // Concurrent OCR calls (e.g. reading several stats in parallel) can otherwise corrupt Tesseract state and crash the process with a native SIGABRT.
-            synchronized(tesseractLock) {
-                // Use either the default Tesseract client or the Tesseract client geared towards digits to set the image to scan.
-                if (detectDigitsOnly) {
-                    Log.d(tag, "[TEXT_DETECTION] Setting Tesseract image for digits only.")
-                    tessDigitsBaseAPI.setImage(finalBitmap)
-                } else {
-                    Log.d(tag, "[TEXT_DETECTION] Setting Tesseract image for text detection.")
-                    tessBaseAPI.setImage(finalBitmap)
-                }
-
-                try {
-                    // Finally, detect text on the cropped region.
-                    result =
-                        if (detectDigitsOnly) {
-                            tessDigitsBaseAPI.utF8Text
-                        } else {
-                            tessBaseAPI.utF8Text
-                        }
-                    Log.d(tag, "[TEXT_DETECTION] Detected text with Tesseract: $result")
-                } catch (e: Exception) {
-                    Log.e(tag, "Cannot perform OCR: ${e.stackTraceToString()}")
-                }
-
-                // Stop Tesseract operations.
-                if (detectDigitsOnly) {
-                    tessDigitsBaseAPI.stop()
-                } else {
-                    tessBaseAPI.stop()
-                }
-
-                tessBaseAPI.clear()
-                tessDigitsBaseAPI.clear()
+            // Save the cropped image before converting it to black and white in order to troubleshoot issues related to differing device sizes and cropping.
+            if (debugMode) {
+                Imgcodecs.imwrite("$matchFilePath/debug_${debugName}_cropped.png", cvImage)
             }
-        } else {
-            Log.d(tag, "[TEXT_DETECTION] Detected text with Google ML Kit: $result")
+
+            // Grayscale the cropped image.
+            val imageForProcessing: Mat =
+                if (grayscale) {
+                    Imgproc.cvtColor(cvImage, grayImage, Imgproc.COLOR_RGB2GRAY)
+                    grayImage
+                } else {
+                    cvImage
+                }
+
+            // Thresh the grayscale cropped image to make black and white.
+            val processedMat: Mat =
+                if (thresh) {
+                    Imgproc.threshold(imageForProcessing, bwImage, threshold, thresholdMax, Imgproc.THRESH_BINARY)
+
+                    // Save the cropped image before converting it to black and white in order to troubleshoot issues related to differing device sizes and cropping.
+                    if (debugMode) {
+                        Imgcodecs.imwrite("$matchFilePath/debug_${debugName}_threshold.png", bwImage)
+                    }
+                    bwImage
+                } else {
+                    imageForProcessing
+                }
+
+            // Convert the processed Mat to Bitmap and apply scaling if needed.
+            val clampedScale = max(0.0, scale)
+            val baseBitmap = createBitmap(processedMat.cols(), processedMat.rows())
+            Utils.matToBitmap(processedMat, baseBitmap)
+            val finalBitmap =
+                if (clampedScale != 1.0) {
+                    baseBitmap.scale((baseBitmap.width * clampedScale).toInt(), (baseBitmap.height * clampedScale).toInt())
+                } else {
+                    baseBitmap
+                }
+
+            // Create a InputImage object for Google's ML OCR.
+            val inputImage: InputImage = InputImage.fromBitmap(finalBitmap, 0)
+
+            // Use CountDownLatch to make the async operation synchronous. The listeners run on another thread, so they only write these thread-safe holders.
+            // That also stops a callback arriving after the timeout from overwriting the Tesseract result below. A null error means ML Kit succeeded.
+            val latch = CountDownLatch(1)
+            val mlKitResult = AtomicReference("")
+            val mlKitError = AtomicReference<String?>(null)
+
+            googleTextRecognizer.process(inputImage)
+                .addOnSuccessListener { text ->
+                    val blocks = text.textBlocks
+                    if (blocks.isNotEmpty()) {
+                        if (joinAllBlocks) {
+                            // ML Kit does not promise any block order, so sort top-to-bottom and then left-to-right.
+                            val ordered = blocks.sortedWith(compareBy({ it.boundingBox?.top ?: 0 }, { it.boundingBox?.left ?: 0 }))
+                            mlKitResult.set(ordered.joinToString("\n") { it.text })
+                        } else {
+                            mlKitResult.set(blocks.last().text)
+                            if (blocks.size > 1) {
+                                Log.d(tag, "[TEXT_DETECTION] ML Kit found ${blocks.size} text blocks for \"$debugName\" but only the last was kept: ${blocks.map { it.text }}")
+                            }
+                        }
+                    }
+                    latch.countDown()
+                }
+                .addOnFailureListener { exception ->
+                    var message = "Google ML Kit failed to do text detection."
+
+                    // Check if it's an MlKitException and extract error code information.
+                    if (exception is MlKitException) {
+                        message += " Error code: ${exception.errorCode}."
+                    }
+
+                    // Include the exception message if available.
+                    exception.message?.let {
+                        message += " Exception message: $it"
+                    }
+
+                    mlKitError.set(message)
+                    latch.countDown()
+                }
+
+            // Wait for the async operation to complete.
+            try {
+                if (!latch.await(5, TimeUnit.SECONDS)) {
+                    mlKitError.compareAndSet(null, "Google ML Kit text detection timed out after 5 seconds.")
+                }
+            } catch (_: InterruptedException) {
+                // The bot is being stopped. Restore the interrupt flag so the next wait on the bot thread stops it, and skip the Tesseract fallback.
+                // Rethrowing here instead could crash the app when OCR runs on a worker thread.
+                Thread.currentThread().interrupt()
+                Log.w(tag, "[TEXT_DETECTION] Interrupted while waiting for Google ML Kit.")
+                return ""
+            }
+
+            // Read the error once so a late callback cannot change the answer halfway through.
+            val error = mlKitError.get()
+            if (error == null) {
+                result = mlKitResult.get()
+            }
+
+            // Fallback to Tesseract if ML Kit failed or didn't find result.
+            if (error != null || result == "") {
+                if (error != null) {
+                    Log.e(tag, error)
+                } else if (debugMode) {
+                    Log.d(tag, "[TEXT_DETECTION] Google ML Kit found no text. Falling back to Tesseract.")
+                }
+
+                val tesseractResult = readTextWithTesseract(finalBitmap, detectDigitsOnly)
+                if (tesseractResult != null) {
+                    result = tesseractResult
+                    Log.d(tag, "[TEXT_DETECTION] Detected text with Tesseract: $result")
+                }
+            } else {
+                Log.d(tag, "[TEXT_DETECTION] Detected text with Google ML Kit: $result")
+            }
+
+            if (debugMode) Log.d(tag, "[TEXT_DETECTION] Text detection finished in ${System.currentTimeMillis() - startTime}ms.")
+
+            return result
+        } finally {
+            cvImage.release()
+            grayImage.release()
+            bwImage.release()
         }
-
-        if (debugMode) Log.d(tag, "[TEXT_DETECTION] Text detection finished in ${System.currentTimeMillis() - startTime}ms.")
-
-        cvImage.release()
-        grayImage.release()
-        processedMat.release()
-
-        return result
     }
 }
