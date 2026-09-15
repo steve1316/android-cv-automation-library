@@ -284,8 +284,8 @@ class MyAccessibilityService : AccessibilityService() {
             return false
         }
 
-        // Wait while the overlay's tray is open so the gesture never lands on it.
-        BotHold.awaitTrayClosed()
+        // Hold for the open tray, and on an opted-in run abort the step here when a pause is pending.
+        BotHold.checkpoint()
 
         // Check if thread is interrupted.
         if (Thread.currentThread().isInterrupted) {
@@ -337,8 +337,9 @@ class MyAccessibilityService : AccessibilityService() {
         var tries = taps - 1
 
         while (tries > 0) {
-            // Check interruption before each additional tap.
+            // Check interruption and a pending pause before each additional tap.
             checkInterruption()
+            BotHold.checkpoint()
             if (!isGestureAllowed) {
                 Log.d(tag, "Gestures disabled during tap loop. Stopping.")
                 break
@@ -373,8 +374,8 @@ class MyAccessibilityService : AccessibilityService() {
             return false
         }
 
-        // Wait while the overlay's tray is open so the gesture never lands on it.
-        BotHold.awaitTrayClosed()
+        // Hold for the open tray, and on an opted-in run abort the step here when a pause is pending.
+        BotHold.checkpoint()
 
         if (Thread.currentThread().isInterrupted) {
             Log.w(tag, "Thread interrupted detected. Skipping scroll.")
@@ -462,8 +463,8 @@ class MyAccessibilityService : AccessibilityService() {
             return false
         }
 
-        // Wait while the overlay's tray is open so the gesture never lands on it.
-        BotHold.awaitTrayClosed()
+        // Hold for the open tray, and on an opted-in run abort the step here when a pause is pending.
+        BotHold.checkpoint()
 
         if (Thread.currentThread().isInterrupted) {
             Log.w(tag, "Thread interrupted detected. Skipping swipe.")

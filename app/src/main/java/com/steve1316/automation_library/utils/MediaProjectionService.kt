@@ -219,8 +219,8 @@ class MediaProjectionService : Service() {
             // After the projection stops the reader can still hold old frames. Return nothing so callers fail instead of acting on a stale screen.
             if (mediaProjection == null) return null
 
-            // Wait while the overlay's tray is open so it never shows up in what the bot reads.
-            BotHold.awaitTrayClosed()
+            // Hold for the open tray, and on an opted-in run abort the step here when a pause is pending. Exception screenshots only hold.
+            if (isException) BotHold.awaitTrayClosed() else BotHold.checkpoint()
 
             val cropW: Int = cropW.coerceIn(1, SharedData.displayWidth)
             val cropH: Int = cropH.coerceIn(1, SharedData.displayHeight)
@@ -314,8 +314,8 @@ class MediaProjectionService : Service() {
             // After the projection stops the reader can still hold old frames. Return nothing so callers fail instead of acting on a stale screen.
             if (mediaProjection == null) return null
 
-            // Wait while the overlay's tray is open so it never shows up in what the bot reads.
-            BotHold.awaitTrayClosed()
+            // Hold for the open tray, and on an opted-in run abort the step here when a pause is pending. Exception screenshots only hold.
+            if (isException) BotHold.awaitTrayClosed() else BotHold.checkpoint()
 
             val image: Image? = acquireLatestImageWithRetry()
 
