@@ -116,7 +116,7 @@ internal class OverlayTrayView(
                     setSpan(RelativeSizeSpan(0.75f), start, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
                 }
             }
-        detail.text = OverlayStateLogic.trayDetailFor(visual, snapshot)
+        detail.text = OverlayStateLogic.trayDetailFor(visual, snapshot, BotHold.pauseReason)
 
         val buttons = OverlayStateLogic.trayButtonsFor(visual, canPause)
         if (buttons != shownButtons) {

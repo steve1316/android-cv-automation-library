@@ -163,7 +163,7 @@ class NotificationUtils {
                 if (runListener == null) return
                 val snapshot = BotStatus.snapshot()
                 if (snapshot.outcome != null) return
-                val content = StatusContentBuilder.running(snapshot, BotHold.pauseState, BotHold.hasSafePoint)
+                val content = StatusContentBuilder.running(snapshot, BotHold.pauseState, BotHold.hasSafePoint, BotHold.isMidStepEnabled, BotHold.pauseReason)
                 if (content == lastRunContent) return
                 lastRunContent = content
                 ensureManager(context)
