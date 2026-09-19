@@ -17,6 +17,7 @@ import android.os.Bundle
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
 import com.steve1316.automation_library.R
 import com.steve1316.automation_library.data.SharedData
@@ -33,6 +34,11 @@ class MyAccessibilityService : AccessibilityService() {
 
     // The service is its own context, so this is usable before onServiceConnected() runs, e.g. in onDestroy() after an early stop.
     private val myContext: Context get() = this
+
+    /** Packages of the enabled keyboards, read once. A keyboard opening over the game never pauses the run. */
+    private val inputMethodPackages: Set<String> by lazy {
+        (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager).enabledInputMethodList.map { it.packageName }.toSet()
+    }
 
     companion object {
         private const val tag: String = "${SharedData.loggerTag}MyAccessibilityService"
@@ -136,6 +142,9 @@ class MyAccessibilityService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+        // Track the app in front, and pause an opted-in run when the game leaves the screen.
+        if (event?.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) onWindowStateChanged(event)
+
         if (enableTextToPaste &&
             event?.source != null &&
             textToPaste != "" &&
@@ -179,6 +188,29 @@ class MyAccessibilityService : AccessibilityService() {
 
         return
     }
+
+    /**
+     * Passes a window change on to `FocusWatch`, which tracks the app in front and pauses an opted-in run when the game leaves the screen.
+     *
+     * @param event The `TYPE_WINDOW_STATE_CHANGED` event.
+     */
+    private fun onWindowStateChanged(event: AccessibilityEvent) {
+        val change = WindowChange(event.packageName?.toString(), event.className?.toString(), activeWindowPackage())
+        Log.d(tag, "Window change: $change")
+        FocusWatch.onWindowChange(change, packageName, inputMethodPackages)
+    }
+
+    /**
+     * Reads the package of the window that has input focus.
+     *
+     * @return The package name, or null when it cannot be read.
+     */
+    private fun activeWindowPackage(): String? =
+        try {
+            rootInActiveWindow?.packageName?.toString()
+        } catch (_: Exception) {
+            null
+        }
 
     override fun onInterrupt() {
         return
