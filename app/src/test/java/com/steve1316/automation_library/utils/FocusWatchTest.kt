@@ -41,12 +41,6 @@ class FocusWatchTest {
     }
 
     @Test
-    fun ignoredSystemUiClassesAreIgnored() {
-        val withHeadsUp = rules.copy(systemUiIgnoredClasses = setOf("com.android.systemui.statusbar.notification.HeadsUpView"))
-        assertEquals(FocusVerdict.IGNORE, FocusWatch.classify(WindowChange(SYSTEM_UI, "com.android.systemui.statusbar.notification.HeadsUpView", null), withHeadsUp))
-    }
-
-    @Test
     fun keyboardIsIgnored() {
         assertEquals(FocusVerdict.IGNORE, FocusWatch.classify(WindowChange(KEYBOARD, "android.inputmethodservice.SoftInputWindow", GAME), rules))
     }
@@ -54,6 +48,19 @@ class FocusWatchTest {
     @Test
     fun ownAppScreenInFrontLeavesTheGame() {
         assertEquals(FocusVerdict.GAME_LEFT, FocusWatch.classify(WindowChange(OWN, "com.steve1316.uma_android_automation.MainActivity", OWN), rules))
+    }
+
+    @Test
+    fun ownActivityLeavesTheGameEvenWhenTheActiveWindowIsUnknown() {
+        assertEquals(FocusVerdict.GAME_LEFT, FocusWatch.classify(WindowChange(OWN, "com.steve1316.uma_android_automation.MainActivity", null), rules))
+    }
+
+    @Test
+    fun keyboardOverAnotherAppCountsAsThatApp() {
+        // Bringing this app forward with its search box focused only reports the keyboard, so the app under it decides.
+        assertEquals(FocusVerdict.GAME_LEFT, FocusWatch.classify(WindowChange(KEYBOARD, "android.inputmethodservice.SoftInputWindow", OWN), rules))
+        assertEquals(FocusVerdict.GAME_LEFT, FocusWatch.classify(WindowChange(KEYBOARD, "android.inputmethodservice.SoftInputWindow", SETTINGS), rules))
+        assertEquals(FocusVerdict.IGNORE, FocusWatch.classify(WindowChange(KEYBOARD, "android.inputmethodservice.SoftInputWindow", null), rules))
     }
 
     @Test
@@ -85,5 +92,13 @@ class FocusWatchTest {
     @Test
     fun foregroundBecomesOwnPackageWhenItsScreenIsFocused() {
         assertEquals(OWN, FocusWatch.nextForeground(WindowChange(OWN, null, OWN), rules, GAME))
+        assertEquals(OWN, FocusWatch.nextForeground(WindowChange(OWN, "com.steve1316.uma_android_automation.MainActivity", null), rules, GAME))
+    }
+
+    @Test
+    fun foregroundFollowsTheAppUnderAKeyboard() {
+        assertEquals(OWN, FocusWatch.nextForeground(WindowChange(KEYBOARD, null, OWN), rules, GAME))
+        assertEquals(SETTINGS, FocusWatch.nextForeground(WindowChange(KEYBOARD, null, SETTINGS), rules, GAME))
+        assertEquals(GAME, FocusWatch.nextForeground(WindowChange(KEYBOARD, null, null), rules, GAME))
     }
 }
