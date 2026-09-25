@@ -141,7 +141,7 @@ internal class OverlayTrayView(
  */
 @SuppressLint("ViewConstructor")
 private class OverlayTrayButtonView(context: Context, private val button: TrayButton, private val sizePx: Int) : View(context) {
-    private val backgroundPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = button.color }
+    private val backgroundPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = button.topColor }
 
     init {
         contentDescription = button.label
