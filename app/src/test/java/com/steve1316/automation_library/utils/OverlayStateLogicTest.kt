@@ -151,4 +151,17 @@ class OverlayStateLogicTest {
         assertEquals("Stop automation", OverlayStateLogic.describe(OverlayStyle.SIMPLE, OverlayVisual.RUNNING))
         assertEquals("Resume automation", OverlayStateLogic.describe(OverlayStyle.SIMPLE, OverlayVisual.PAUSED))
     }
+
+    @Test
+    fun trayIsCenteredOnTheOrb() {
+        // Orb window 160 px square with a 20 px shadow pad (orb 120 px), tray 60 px tall: the tray sits 20 + 30 px below the window top.
+        assertEquals(850, OverlayStateLogic.trayTopFor(orbWindowY = 800, screenHeight = 1920, buttonSizePx = 160, shadowPadPx = 20, trayHeight = 60))
+    }
+
+    @Test
+    fun trayFollowsTheDrawnOrbWhenItWasDraggedPastAnEdge() {
+        // WindowManager draws the orb window at 1920 - 160 = 1760 however far past the bottom it was dragged, so the tray centers there.
+        assertEquals(1810, OverlayStateLogic.trayTopFor(orbWindowY = 1900, screenHeight = 1920, buttonSizePx = 160, shadowPadPx = 20, trayHeight = 60))
+        assertEquals(50, OverlayStateLogic.trayTopFor(orbWindowY = -40, screenHeight = 1920, buttonSizePx = 160, shadowPadPx = 20, trayHeight = 60))
+    }
 }

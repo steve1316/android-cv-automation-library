@@ -260,6 +260,23 @@ internal object OverlayStateLogic {
     }
 
     /**
+     * Where the tray's top edge goes so the tray is vertically centered on the orb. WindowManager keeps the orb window on screen, so a drag
+     * past the top or bottom edge leaves the stored y outside the drawn position. The orb's drawn position is used instead.
+     *
+     * @param orbWindowY The orb window's stored y, which can be past an edge after a drag.
+     * @param screenHeight The screen height in pixels.
+     * @param buttonSizePx The orb window's size, the orb plus its shadow pad on both sides.
+     * @param shadowPadPx The shadow pad on each side of the orb.
+     * @param trayHeight The tray's measured height.
+     * @return The tray window's y.
+     */
+    fun trayTopFor(orbWindowY: Int, screenHeight: Int, buttonSizePx: Int, shadowPadPx: Int, trayHeight: Int): Int {
+        val drawnY = orbWindowY.coerceIn(0, (screenHeight - buttonSizePx).coerceAtLeast(0))
+        val orbSizePx = buttonSizePx - shadowPadPx * 2
+        return drawnY + shadowPadPx + (orbSizePx - trayHeight) / 2
+    }
+
+    /**
      * Formats a duration as h:mm:ss, or m:ss under an hour.
      *
      * @param ms The duration in milliseconds.

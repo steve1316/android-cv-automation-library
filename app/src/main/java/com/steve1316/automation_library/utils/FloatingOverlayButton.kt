@@ -88,6 +88,20 @@ private fun getNotchHeight(windowManager: WindowManager): Int {
 }
 
 /**
+ * Gets the screen width, preferring the captured display size over the system metrics.
+ *
+ * @return The width in pixels.
+ */
+private fun Context.screenWidthPx(): Int = if (SharedData.displayWidth > 0) SharedData.displayWidth else resources.displayMetrics.widthPixels
+
+/**
+ * Gets the screen height, preferring the captured display size over the system metrics.
+ *
+ * @return The height in pixels.
+ */
+private fun Context.screenHeightPx(): Int = if (SharedData.displayHeight > 0) SharedData.displayHeight else resources.displayMetrics.heightPixels
+
+/**
  * Manages the floating overlay, including:
  * - Rendering the orb and its mini tray for the current run state.
  * - Handling drag placement and "Guidance Overlays".
@@ -250,8 +264,8 @@ class FloatingOverlayButton(
      * @param forceScreenCenter If true, centers on screen regardless of allowed regions.
      */
     private fun setInitialOverlayPosition(forceScreenCenter: Boolean) {
-        val screenWidth = if (SharedData.displayWidth > 0) SharedData.displayWidth else context.resources.displayMetrics.widthPixels
-        val screenHeight = if (SharedData.displayHeight > 0) SharedData.displayHeight else context.resources.displayMetrics.heightPixels
+        val screenWidth = context.screenWidthPx()
+        val screenHeight = context.screenHeightPx()
 
         if (!forceScreenCenter && !guidanceOverlays.isFullScreenGuidance) {
             val region = guidanceOverlays.getFirstGuidanceRegion()
@@ -551,7 +565,7 @@ class FloatingOverlayButton(
      */
     private fun positionTray(tray: OverlayTrayView) {
         tray.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED)
-        val screenWidth = if (SharedData.displayWidth > 0) SharedData.displayWidth else context.resources.displayMetrics.widthPixels
+        val screenWidth = context.screenWidthPx()
         val gap = context.dpToPx(TRAY_GAP_DP)
         // WindowManager keeps the orb window on screen, so a drag past the edge leaves params.x outside the drawn position.
         val orbX = overlayLayoutParams.x.coerceIn(0, (screenWidth - buttonSizePx).coerceAtLeast(0))
@@ -560,7 +574,8 @@ class FloatingOverlayButton(
         val opensRight = orbLeft + orbSizePx / 2 < screenWidth / 2
         val x = if (opensRight) orbRight + gap else orbLeft - gap - tray.measuredWidth
         trayLayoutParams.x = x.coerceIn(0, (screenWidth - tray.measuredWidth).coerceAtLeast(0))
-        trayLayoutParams.y = overlayLayoutParams.y + shadowPadPx + (orbSizePx - tray.measuredHeight) / 2
+        val screenHeight = context.screenHeightPx()
+        trayLayoutParams.y = OverlayStateLogic.trayTopFor(overlayLayoutParams.y, screenHeight, buttonSizePx, shadowPadPx, tray.measuredHeight)
     }
 
     /**
@@ -737,8 +752,8 @@ private class GuidanceOverlays(
      * Scales the regions from the baseline configuration (1080x2340) to the current device resolution.
      */
     private fun initializeGuidanceRegions() {
-        val screenWidth = if (SharedData.displayWidth > 0) SharedData.displayWidth else context.resources.displayMetrics.widthPixels
-        val screenHeight = if (SharedData.displayHeight > 0) SharedData.displayHeight else context.resources.displayMetrics.heightPixels
+        val screenWidth = context.screenWidthPx()
+        val screenHeight = context.screenHeightPx()
 
         val rawRegions = SharedData.guidanceRegions
         if (rawRegions.isEmpty() || !OverlayConfig.ENABLE_GUIDANCE_OVERLAYS) {
@@ -1085,8 +1100,8 @@ private class DragToDismiss(
         val targetSizePx = context.dpToPx(SharedData.overlayDismissButtonSizeDP)
         val containerSizePx = (targetSizePx * 1.5f).roundToInt()
 
-        val screenWidth = if (SharedData.displayWidth > 0) SharedData.displayWidth else context.resources.displayMetrics.widthPixels
-        val screenHeight = if (SharedData.displayHeight > 0) SharedData.displayHeight else context.resources.displayMetrics.heightPixels
+        val screenWidth = context.screenWidthPx()
+        val screenHeight = context.screenHeightPx()
         val bottomMargin = context.dpToPx(32f) + if (SharedData.displayDPI >= 400) 150 else 50
 
         dismissTargetView =
