@@ -149,6 +149,16 @@ internal data class TrayHeadline(
     val tagColor: Int,
 )
 
+/** How the tray view is drawn at rest or at the start or end of an animation. */
+internal data class TrayPose(
+    /** Horizontal scale around the unfurl pivot. */
+    val scaleX: Float,
+    /** Alpha of the whole tray, pill included. */
+    val alpha: Float,
+    /** Alpha of the tray's text and buttons. */
+    val contentAlpha: Float,
+)
+
 /** Timings and scales for the overlay's motion, in one place so the views and tests agree. */
 internal object OverlayMotion {
     /** How long the tray takes to unfurl out of the orb, including its overshoot. */
@@ -186,6 +196,15 @@ internal object OverlayMotion {
 
     /** A tray button's alpha while it is pressed. */
     const val PRESSED_BUTTON_ALPHA = 0.75f
+
+    /** The tray fully open. */
+    val OPEN_POSE = TrayPose(1f, 1f, 1f)
+
+    /**
+     * The tray closed: invisible at its unfurl start. A closed tray rests here, since its hidden window keeps the last frame drawn and shows
+     * it for a moment on the next open.
+     */
+    val HIDDEN_POSE = TrayPose(UNFURL_START_SCALE, 0f, 0f)
 }
 
 /** Rules that map the run state to what the overlay draws and does. Kept free of Android views so they can be unit tested. */

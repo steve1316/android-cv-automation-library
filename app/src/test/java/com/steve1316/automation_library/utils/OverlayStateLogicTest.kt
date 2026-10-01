@@ -232,4 +232,18 @@ class OverlayStateLogicTest {
     fun tagTintKeepsTheHueAtLowAlpha() {
         assertEquals(0x29FBBF24, OverlayColors.tintOf(OverlayColors.AMBER))
     }
+
+    @Test
+    fun aClosedTrayRestsInvisibleAtTheUnfurlStart() {
+        // The hidden window keeps its last frame, so a closed tray must rest invisible or it flashes full size on the next open.
+        assertEquals(TrayPose(OverlayMotion.UNFURL_START_SCALE, 0f, 0f), OverlayMotion.HIDDEN_POSE)
+        assertEquals(TrayPose(1f, 1f, 1f), OverlayMotion.OPEN_POSE)
+    }
+
+    @Test
+    fun shadowRoomScalesWithTheOrb() {
+        assertEquals(8f, OverlayStateLogic.shadowPadDpFor(40f), 0f)
+        assertEquals(12f, OverlayStateLogic.shadowPadDpFor(60f), 0f)
+        assertEquals(6f, OverlayStateLogic.shadowPadDpFor(30f), 0f)
+    }
 }

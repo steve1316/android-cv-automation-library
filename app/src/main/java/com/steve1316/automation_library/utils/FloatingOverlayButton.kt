@@ -156,6 +156,9 @@ class FloatingOverlayButton(
     private var isTrayAdded = false
     private var isTrayOpen = false
     private var trayClosedAtMs = 0L
+
+    // Which side of the orb the tray opened on, set by positionTray(). The unfurl pivots on the side facing the orb.
+    private var trayOpensRight = true
     private val trayLayoutParams =
         WindowManager.LayoutParams().apply {
             type = overlayLayoutParamsType
@@ -521,8 +524,8 @@ class FloatingOverlayButton(
      */
     private fun openTray() {
         if (isTrayOpen || OverlayStateLogic.trayButtonsFor(visual, BotHold.hasSafePoint).isEmpty()) return
-        val tray = trayView ?: OverlayTrayView(context, orbSizePx, ::onTrayButton, ::restartTrayAutoClose) { closeTray() }.also { trayView = it }
-        tray.render(visual, BotStatus.snapshot(), BotHold.hasSafePoint)
+        val tray = trayView ?: OverlayTrayView(context, orbSizePx, shadowPadPx, ::onTrayButton, ::restartTrayAutoClose) { closeTray() }.also { trayView = it }
+        tray.render(visual, BotStatus.snapshot(), BotHold.hasSafePoint, isHeld = visual == OverlayVisual.RUNNING)
         positionTray(tray)
         setTrayWindowShown(tray, true)
         isTrayOpen = true
@@ -558,13 +561,14 @@ class FloatingOverlayButton(
      */
     private fun refreshTray() {
         val tray = trayView ?: return
-        tray.render(visual, BotStatus.snapshot(), BotHold.hasSafePoint)
+        tray.render(visual, BotStatus.snapshot(), BotHold.hasSafePoint, isHeld = visual == OverlayVisual.RUNNING)
         positionTray(tray)
         if (isTrayAdded) runCatching { windowManager.updateViewLayout(tray, trayLayoutParams) }
     }
 
     /**
-     * Places the tray beside the orb on the side facing the middle of the screen, vertically centered on the orb.
+     * Places the tray beside the orb on the side facing the middle of the screen, vertically centered on the orb. The tray window carries
+     * shadow room around its pill, which the placement accounts for.
      *
      * @param tray The tray view.
      */
@@ -572,15 +576,9 @@ class FloatingOverlayButton(
         tray.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED)
         val screenWidth = context.screenWidthPx()
         val gap = context.dpToPx(TRAY_GAP_DP)
-        // WindowManager keeps the orb window on screen, so a drag past the edge leaves params.x outside the drawn position.
-        val orbX = overlayLayoutParams.x.coerceIn(0, (screenWidth - buttonSizePx).coerceAtLeast(0))
-        val orbLeft = orbX + shadowPadPx
-        val orbRight = orbLeft + orbSizePx
-        val opensRight = orbLeft + orbSizePx / 2 < screenWidth / 2
-        val x = if (opensRight) orbRight + gap else orbLeft - gap - tray.measuredWidth
-        trayLayoutParams.x = x.coerceIn(0, (screenWidth - tray.measuredWidth).coerceAtLeast(0))
-        val screenHeight = context.screenHeightPx()
-        trayLayoutParams.y = OverlayStateLogic.trayTopFor(overlayLayoutParams.y, screenHeight, buttonSizePx, shadowPadPx, tray.measuredHeight)
+        trayOpensRight = OverlayStateLogic.trayOpensRight(overlayLayoutParams.x, screenWidth, buttonSizePx)
+        trayLayoutParams.x = OverlayStateLogic.trayLeftFor(overlayLayoutParams.x, screenWidth, buttonSizePx, shadowPadPx, gap, tray.measuredWidth, tray.shadowPadPx)
+        trayLayoutParams.y = OverlayStateLogic.trayTopFor(overlayLayoutParams.y, context.screenHeightPx(), buttonSizePx, shadowPadPx, tray.measuredHeight)
     }
 
     /**
