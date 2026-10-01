@@ -405,6 +405,14 @@ internal object OverlayStateLogic {
     fun unfurlPivotX(opensRight: Boolean, trayPadPx: Int, trayWidth: Int): Float = if (opensRight) trayPadPx.toFloat() else (trayWidth - trayPadPx).toFloat()
 
     /**
+     * The room around the orb and the tray for their shadows. It grows with the orb, since the shadows are drawn in design units.
+     *
+     * @param orbSizeDp The orb's diameter in dp.
+     * @return The shadow room on each side, in dp.
+     */
+    fun shadowPadDpFor(orbSizeDp: Float): Float = orbSizeDp * OverlayOrbView.SHADOW_PAD_UNITS / OverlayOrbView.BASE_SIZE_DP
+
+    /**
      * Formats a duration as h:mm:ss, or m:ss under an hour.
      *
      * @param ms The duration in milliseconds.

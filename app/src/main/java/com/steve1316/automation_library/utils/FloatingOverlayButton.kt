@@ -136,7 +136,7 @@ class FloatingOverlayButton(
 
     // The orb's diameter plus room for its shadow on every side. The orb window is buttonSizePx square.
     private val orbSizePx: Int = context.dpToPx(SharedData.overlayButtonSizeDP)
-    private val shadowPadPx: Int = context.dpToPx(OverlayOrbView.SHADOW_PAD_DP)
+    private val shadowPadPx: Int = context.dpToPx(OverlayStateLogic.shadowPadDpFor(SharedData.overlayButtonSizeDP))
     private val buttonSizePx: Int = orbSizePx + shadowPadPx * 2
 
     private lateinit var orbView: OverlayOrbView
@@ -318,6 +318,7 @@ class FloatingOverlayButton(
                 private val longPressRunnable =
                     Runnable {
                         closeTray()
+                        orbView.setPressedDip(false)
 
                         // Highlight dismiss area if it exists.
                         isLongPressTriggered = true
@@ -341,6 +342,7 @@ class FloatingOverlayButton(
                             initialTouchY = event.rawY
                             isDragging = false
                             isLongPressTriggered = false
+                            orbView.setPressedDip(true)
 
                             // Stop any ongoing flashing animation when the button itself is tapped.
                             guidanceOverlays.stopFlashing()
@@ -358,6 +360,7 @@ class FloatingOverlayButton(
                                 if (abs(xDiffRaw) > touchSlop || abs(yDiffRaw) > touchSlop) {
                                     // Start showing UI immediately on drag.
                                     isDragging = true
+                                    orbView.setPressedDip(false)
                                     closeTray()
                                     handler.removeCallbacks(longPressRunnable)
                                     dragToDismiss.show()
@@ -393,6 +396,7 @@ class FloatingOverlayButton(
                         }
                         MotionEvent.ACTION_UP -> {
                             handler.removeCallbacks(longPressRunnable)
+                            orbView.setPressedDip(false)
 
                             // If we were dragging or holding, handle the end of that interaction.
                             if (isDragging || isLongPressTriggered) {
@@ -422,6 +426,7 @@ class FloatingOverlayButton(
                         }
                         MotionEvent.ACTION_CANCEL -> {
                             handler.removeCallbacks(longPressRunnable)
+                            orbView.setPressedDip(false)
                             dragToDismiss.hide()
                             guidanceOverlays.hideGuidance()
                             isDragging = false
