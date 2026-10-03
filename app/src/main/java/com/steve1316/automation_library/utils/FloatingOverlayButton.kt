@@ -320,7 +320,7 @@ class FloatingOverlayButton(
 
                 private val longPressRunnable =
                     Runnable {
-                        closeTray()
+                        closeTray(animate = false)
                         orbView.setPressedDip(false)
 
                         // Highlight dismiss area if it exists.
@@ -364,7 +364,7 @@ class FloatingOverlayButton(
                                     // Start showing UI immediately on drag.
                                     isDragging = true
                                     orbView.setPressedDip(false)
-                                    closeTray()
+                                    closeTray(animate = false)
                                     handler.removeCallbacks(longPressRunnable)
                                     dragToDismiss.show()
                                 }
@@ -430,6 +430,7 @@ class FloatingOverlayButton(
                         MotionEvent.ACTION_CANCEL -> {
                             handler.removeCallbacks(longPressRunnable)
                             orbView.setPressedDip(false)
+
                             dragToDismiss.hide()
                             guidanceOverlays.hideGuidance()
                             isDragging = false
@@ -520,7 +521,8 @@ class FloatingOverlayButton(
     }
 
     /**
-     * Opens the tray next to the orb, toward the middle of the screen, and holds the bot while it is open.
+     * Opens the tray next to the orb, toward the middle of the screen, and holds the bot while it is open. Tapping the orb while the tray is
+     * still closing turns the close around without releasing the bot.
      */
     private fun openTray() {
         if (isTrayOpen || OverlayStateLogic.trayButtonsFor(visual, BotHold.hasSafePoint).isEmpty()) return
@@ -528,6 +530,7 @@ class FloatingOverlayButton(
         tray.render(visual, BotStatus.snapshot(), BotHold.hasSafePoint, isHeld = visual == OverlayVisual.RUNNING)
         positionTray(tray)
         setTrayWindowShown(tray, true)
+        tray.animateOpen(trayOpensRight)
         isTrayOpen = true
         if (isRunning) BotHold.setTrayOpen(true)
         restartTrayAutoClose()
@@ -536,16 +539,50 @@ class FloatingOverlayButton(
     }
 
     /**
-     * Hides the tray and releases the bot.
+     * Closes the tray. It stops taking taps at once, plays its close animation, and only then hides its window and releases the bot, so the bot
+     * never reads a half-closed tray.
+     *
+     * @param animate False to hide the tray and release the bot at once, as for a drag or when the overlay goes away.
      */
-    private fun closeTray() {
+    private fun closeTray(animate: Boolean = true) {
         handler.removeCallbacks(closeTrayRunnable)
         handler.removeCallbacks(trayTickRunnable)
-        if (!isTrayOpen) return
+        val tray = trayView
+        if (!isTrayOpen) {
+            // A close that is still animating finishes now when an instant close is asked for.
+            if (!animate && tray != null && tray.isAnimating) finishTrayClose()
+            return
+        }
         isTrayOpen = false
         trayClosedAtMs = SystemClock.uptimeMillis()
-        trayView?.let { setTrayWindowShown(it, false) }
+        if (tray == null) {
+            BotHold.setTrayOpen(false)
+            return
+        }
+        setTrayTouchable(tray, false)
+        if (animate) tray.animateClose { finishTrayClose() } else finishTrayClose()
+    }
+
+    /**
+     * Hides the tray window and releases the bot once the tray is gone.
+     */
+    private fun finishTrayClose() {
+        trayView?.let {
+            it.restHidden()
+            setTrayWindowShown(it, false)
+        }
         BotHold.setTrayOpen(false)
+    }
+
+    /**
+     * Turns the tray's touches off while it closes, leaving it visible.
+     *
+     * @param tray The tray view.
+     * @param touchable False to let taps pass through to the game.
+     */
+    private fun setTrayTouchable(tray: OverlayTrayView, touchable: Boolean) {
+        trayLayoutParams.flags = if (touchable) TRAY_SHOWN_FLAGS else TRAY_HIDDEN_FLAGS
+        if (isTrayAdded) runCatching { windowManager.updateViewLayout(tray, trayLayoutParams) }
     }
 
     /**
@@ -563,6 +600,7 @@ class FloatingOverlayButton(
         val tray = trayView ?: return
         tray.render(visual, BotStatus.snapshot(), BotHold.hasSafePoint, isHeld = visual == OverlayVisual.RUNNING)
         positionTray(tray)
+        tray.updatePivot(trayOpensRight)
         if (isTrayAdded) runCatching { windowManager.updateViewLayout(tray, trayLayoutParams) }
     }
 
@@ -623,7 +661,7 @@ class FloatingOverlayButton(
 
         BotStatus.removeListener(statusListener)
         BotHold.removeListener(statusListener)
-        closeTray()
+        closeTray(animate = false)
         handler.removeCallbacksAndMessages(null)
 
         trayView?.let { tray -> if (isTrayAdded) runCatching { windowManager.removeView(tray) } }
