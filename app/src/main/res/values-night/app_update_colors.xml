@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- App update dialog colors (dark mode). Apps can restyle the dialog by defining colors with the same names. -->
+    <color name="app_update_background">#2D2D2D</color>
+    <color name="app_update_title">#E0E0E0</color>
+    <color name="app_update_subtitle">#9E9E9E</color>
+    <color name="app_update_body">#BDBDBD</color>
+    <color name="app_update_divider">#424242</color>
+    <color name="app_update_btn_dismiss">#9E9E9E</color>
+    <color name="app_update_btn_update">#64B5F6</color>
+    <color name="app_update_code_background">#40FFFFFF</color>
+    <color name="app_update_code_text">#E0E0E0</color>
+</resources>

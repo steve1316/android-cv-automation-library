@@ -29,7 +29,9 @@ import java.io.FileNotFoundException
 @SuppressLint("AccessibilityPolicy")
 class MyAccessibilityService : AccessibilityService() {
     private var appName: String = ""
-    private lateinit var myContext: Context
+
+    // The service is its own context, so this is usable before onServiceConnected() runs, e.g. in onDestroy() after an early stop.
+    private val myContext: Context get() = this
 
     companion object {
         private const val tag: String = "${SharedData.loggerTag}MyAccessibilityService"
@@ -112,7 +114,6 @@ class MyAccessibilityService : AccessibilityService() {
 
     override fun onServiceConnected() {
         instance = this
-        myContext = this
         appName = myContext.getString(R.string.app_name)
 
         Log.d(tag, "Accessibility Service for $appName is now running.")

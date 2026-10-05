@@ -8,6 +8,21 @@
         <provider
             android:name="com.google.mlkit.common.internal.MlKitInitProvider"
             tools:node="remove" />
+
+        <!--Receives the result of an in-app update install from AppUpdater and opens Android's Install screen when the user has to confirm.-->
+        <receiver
+            android:name=".utils.InstallResultReceiver"
+            android:exported="false" />
+
+        <!--Reopens the app after an in-app update. Disabled until AppUpdateInstaller arms it right before an install.-->
+        <receiver
+            android:name=".utils.AppUpdatedReceiver"
+            android:enabled="false"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
     </application>
 
 </manifest>

@@ -42,6 +42,11 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
+
+    // Android framework calls in unit tests return defaults instead of throwing, so pure logic can be tested on the JVM.
+    testOptions {
+        unitTests.isReturnDefaultValues = true
+    }
 }
 
 version = libs.versions.app.versionName.get()
@@ -95,6 +100,12 @@ dependencies {
 
     // AppUpdater for notifying users when there is a new update available.
     api(libs.appUpdater)
+
+    // ////// Test dependencies ////////
+
+    testImplementation("junit:junit:4.13.2")
+    // Real org.json implementation, since the Android stub in unit tests does nothing.
+    testImplementation("org.json:json:20240303")
 }
 
 kotlin {
