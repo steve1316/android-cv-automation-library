@@ -47,6 +47,8 @@ class MediaProjectionService : Service() {
     companion object {
         private const val tag: String = "${SharedData.loggerTag}MediaProjectionService"
 
+        // Read from the bot thread by the screenshot functions and cleared on the main thread, so it must be volatile.
+        @Volatile
         private var mediaProjection: MediaProjection? = null
         private var orientationChangeCallback: OrientationEventListener? = null
         private lateinit var tempDirectory: String
@@ -213,6 +215,9 @@ class MediaProjectionService : Service() {
             saveImage: Boolean = false,
             isException: Boolean = false,
         ): Bitmap? {
+            // After the projection stops the reader can still hold old frames. Return nothing so callers fail instead of acting on a stale screen.
+            if (mediaProjection == null) return null
+
             val cropW: Int = cropW.coerceIn(1, SharedData.displayWidth)
             val cropH: Int = cropH.coerceIn(1, SharedData.displayHeight)
             val cropX: Int = cropX.coerceIn(0, SharedData.displayWidth - cropW)
@@ -302,6 +307,9 @@ class MediaProjectionService : Service() {
          * @return Bitmap of the latest acquired screenshot, or the last cached Bitmap if no new image is available.
          */
         fun takeScreenshotNow(saveImage: Boolean = false, isException: Boolean = false): Bitmap? {
+            // After the projection stops the reader can still hold old frames. Return nothing so callers fail instead of acting on a stale screen.
+            if (mediaProjection == null) return null
+
             val image: Image? = acquireLatestImageWithRetry()
 
             if (image != null) {
@@ -467,6 +475,12 @@ class MediaProjectionService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? {
         return null
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        // stopService() skips the STOP intent, so release the projection here as well. Its stop callback then stops BotService, which ends any run.
+        mediaProjection?.stop()
     }
 
     @RequiresApi(Build.VERSION_CODES.R)

@@ -34,6 +34,10 @@ class BotService : Service() {
     private var isException: Boolean = false
     private var skipNotificationUpdate: Boolean = false
 
+    // Set in onDestroy() so a run that is still unwinding does not post a notification or touch the overlay after shutdown.
+    @Volatile
+    private var isDestroyed: Boolean = false
+
     private lateinit var floatingOverlayButton: FloatingOverlayButton
 
     companion object {
@@ -262,9 +266,18 @@ class BotService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
+        isDestroyed = true
         EventBus.getDefault().unregister(this)
 
         if (::floatingOverlayButton.isInitialized) floatingOverlayButton.cleanup()
+
+        // A run must not outlive this service. Otherwise the bot thread keeps tapping with no overlay or notification left to stop it.
+        if (isRunning) {
+            Log.d(tag, "BotService is being destroyed in the middle of a run. Stopping the run now.")
+            MyAccessibilityService.disableGestures()
+            interruptBotThread()
+            performCleanUp()
+        }
 
         // Stop the Accessibility service.
         Log.d(tag, "BotService is now being destroyed. Shutting down the Accessibility Service as well.")
@@ -290,8 +303,8 @@ class BotService : Service() {
             // Save the message log and reset MessageLog.
             MessageLog.saveLogToFile(myContext)
 
-            // Update the app's notification with the status.
-            if (!isException) {
+            // Update the app's notification with the status. After shutdown the notification has already been cancelled, so do not post it again.
+            if (!isException && !isDestroyed) {
                 val contentIntent: Intent = packageManager.getLaunchIntentForPackage(packageName)!!
                 val className = contentIntent.component!!.className
                 Log.d(tag, "Updating notification for completion success with no exception.")
@@ -302,7 +315,7 @@ class BotService : Service() {
 
             // Reset the overlay button's image on a separate UI thread.
             Handler(Looper.getMainLooper()).post {
-                if (::floatingOverlayButton.isInitialized) floatingOverlayButton.setRunningState(false)
+                if (!isDestroyed && ::floatingOverlayButton.isInitialized) floatingOverlayButton.setRunningState(false)
             }
 
             isException = false
@@ -312,7 +325,7 @@ class BotService : Service() {
 
         // Reset the overlay button's image and animation on a separate UI thread.
         Handler(Looper.getMainLooper()).post {
-            if (::floatingOverlayButton.isInitialized) floatingOverlayButton.setRunningState(false)
+            if (!isDestroyed && ::floatingOverlayButton.isInitialized) floatingOverlayButton.setRunningState(false)
         }
     }
 
