@@ -12,6 +12,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.util.TypedValue
+import android.view.Choreographer
 import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.MotionEvent
@@ -45,6 +46,25 @@ object OverlayConfig {
 private fun Context.dpToPx(dp: Float): Int {
     val density = if (SharedData.displayDensity > 0F) SharedData.displayDensity else this.resources.displayMetrics.density
     return (dp * density).roundToInt()
+}
+
+/**
+ * Shows or hides an overlay window by changing its window alpha instead of its root view visibility.
+ *
+ * Hiding the root view makes WindowManager destroy the window's surface, so every show had to allocate and draw a new surface on the main thread.
+ * A window at zero alpha keeps its surface, is skipped by the compositor, and is ignored by the untrusted-touch filter as long as it is not touchable.
+ *
+ * @param windowManager The WindowManager the view was added to.
+ * @param view The root view of the overlay window.
+ * @param params The layout params the view was added with.
+ * @param shown True to show the window, false to hide it.
+ */
+private fun setOverlayWindowShown(windowManager: WindowManager, view: View, params: WindowManager.LayoutParams, shown: Boolean) {
+    val alpha = if (shown) 1f else 0f
+    if (params.alpha == alpha) return
+    params.alpha = alpha
+    // The view may already have been removed by cleanup.
+    runCatching { windowManager.updateViewLayout(view, params) }
 }
 
 /**
@@ -123,6 +143,9 @@ class FloatingOverlayButton(
     private val handler = Handler(Looper.getMainLooper())
     private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
 
+    // Frame callback that is still adding overlay windows, or null once every window has been added.
+    private var addWindowsCallback: Choreographer.FrameCallback? = null
+
     init {
         createOverlayButton()
         initializeAnimations()
@@ -149,12 +172,40 @@ class FloatingOverlayButton(
         overlayLayoutParams.x = prefs.getInt("lastX", overlayLayoutParams.x)
         overlayLayoutParams.y = prefs.getInt("lastY", overlayLayoutParams.y)
 
-        windowManager.addView(overlayView, overlayLayoutParams)
+        // Add the button last so it stays on top of the guidance and dismiss windows.
+        addWindowsOverFrames(guidanceOverlays.windows + dragToDismiss.windows + (overlayView to overlayLayoutParams))
 
         setupTouchListener()
 
         // Flash the guidance overlays briefly to indicate that the button can be moved.
         guidanceOverlays.flashGuidance()
+    }
+
+    /**
+     * Adds the overlay windows to the WindowManager one per frame, in order.
+     *
+     * Each new window allocates and draws its first surface while the main thread waits, which takes tens of milliseconds per window on emulators.
+     * Adding every window in the same frame froze the screen for over 300ms when the overlay first appeared.
+     *
+     * @param windows The views to add, each paired with the layout params to add it with.
+     */
+    private fun addWindowsOverFrames(windows: List<Pair<View, WindowManager.LayoutParams>>) {
+        val pending = ArrayDeque(windows)
+        val choreographer = Choreographer.getInstance()
+        val callback =
+            object : Choreographer.FrameCallback {
+                override fun doFrame(frameTimeNanos: Long) {
+                    val (view, params) = pending.removeFirstOrNull() ?: return
+                    windowManager.addView(view, params)
+                    if (pending.isEmpty()) {
+                        addWindowsCallback = null
+                    } else {
+                        choreographer.postFrameCallback(this)
+                    }
+                }
+            }
+        addWindowsCallback = callback
+        choreographer.postFrameCallback(callback)
     }
 
     /**
@@ -428,6 +479,10 @@ class FloatingOverlayButton(
      * Removes all views from the WindowManager and cleans up resources.
      */
     fun cleanup() {
+        // Stop adding windows that have not been added yet so none are left behind.
+        addWindowsCallback?.let { Choreographer.getInstance().removeFrameCallback(it) }
+        addWindowsCallback = null
+
         if (::overlayButton.isInitialized) {
             overlayButton.clearAnimation()
         }
@@ -460,10 +515,8 @@ private class GuidanceOverlays(
     private val windowManager: WindowManager,
     private val overlayLayoutParamsType: Int,
 ) {
-    // One view per guidance region. Each is added to WindowManager with a window sized to that region only.
-    private val regionHighlightViews: MutableList<View> = mutableListOf()
-    private lateinit var tooltipView: TextView
-    private lateinit var tooltipLayoutParams: WindowManager.LayoutParams
+    // One window per guidance region, each sized to that region only, followed by the tooltip window.
+    private val guidanceWindows: MutableList<Pair<View, WindowManager.LayoutParams>> = mutableListOf()
 
     // Handler for scheduling the flash hide callback.
     private val flashHandler = Handler(Looper.getMainLooper())
@@ -474,6 +527,10 @@ private class GuidanceOverlays(
 
     var isFullScreenGuidance: Boolean = true
         private set
+
+    /** The guidance windows paired with their layout params, for the caller to add to the WindowManager. */
+    val windows: List<Pair<View, WindowManager.LayoutParams>>
+        get() = guidanceWindows
 
     /**
      * Represents a rectangular area where the button is suggested to be in.
@@ -611,7 +668,7 @@ private class GuidanceOverlays(
     }
 
     /**
-     * Creates the visual elements for guidance (highlight box and tooltip).
+     * Creates the visual elements for guidance (highlight box and tooltip). They are added to the WindowManager by the caller through `windows`.
      */
     @SuppressLint("SetTextI18n")
     private fun createRegionGuidanceOverlays() {
@@ -622,11 +679,7 @@ private class GuidanceOverlays(
 
         // Create one region-sized window per region. Each is its own WindowManager view so areas outside the regions have no overlay at all.
         for (region in guidanceRegions) {
-            val view =
-                RegionHighlightView(context, region).apply {
-                    // Use INVISIBLE instead of GONE so the view is pre-measured and ready.
-                    visibility = View.INVISIBLE
-                }
+            val view = RegionHighlightView(context, region)
 
             val params =
                 WindowManager.LayoutParams(
@@ -640,17 +693,16 @@ private class GuidanceOverlays(
                     x = region.x
                     y = region.y
                     gravity = Gravity.TOP or Gravity.START
+                    // Start hidden. See setOverlayWindowShown().
+                    alpha = 0f
                 }
 
-            windowManager.addView(view, params)
-            regionHighlightViews.add(view)
+            guidanceWindows.add(view to params)
         }
 
         // Create the tooltip view.
-        tooltipView =
+        val tooltipView =
             TextView(context).apply {
-                // Use INVISIBLE instead of GONE so the view is pre-measured and ready.
-                visibility = View.INVISIBLE
                 text = "Recommended to place the button inside the highlighted area(s)."
                 setTextColor(Color.WHITE)
                 textSize = 14f
@@ -668,7 +720,7 @@ private class GuidanceOverlays(
                 isFocusable = false
             }
 
-        tooltipLayoutParams =
+        val tooltipLayoutParams =
             WindowManager.LayoutParams(
                 WindowManager.LayoutParams.WRAP_CONTENT,
                 WindowManager.LayoutParams.WRAP_CONTENT,
@@ -680,9 +732,11 @@ private class GuidanceOverlays(
                 windowAnimations = android.R.style.Animation_Toast
                 // Center the tooltip on the screen.
                 gravity = Gravity.CENTER
+                // Start hidden. See setOverlayWindowShown().
+                alpha = 0f
             }
 
-        windowManager.addView(tooltipView, tooltipLayoutParams)
+        guidanceWindows.add(tooltipView to tooltipLayoutParams)
     }
 
     /**
@@ -711,16 +765,11 @@ private class GuidanceOverlays(
             return
         }
 
-        // Show every per-region highlight.
-        for (view in regionHighlightViews) {
+        // Show every per-region highlight and the tooltip.
+        for ((view, params) in guidanceWindows) {
+            view.animate().cancel()
             view.alpha = 1f
-            view.visibility = View.VISIBLE
-        }
-
-        // Show the tooltip view.
-        if (::tooltipView.isInitialized) {
-            tooltipView.alpha = 1f
-            tooltipView.visibility = View.VISIBLE
+            setOverlayWindowShown(windowManager, view, params, true)
         }
     }
 
@@ -728,15 +777,9 @@ private class GuidanceOverlays(
      * Hides the guidance overlays.
      */
     fun hideGuidance() {
-        // Hide the region highlight and tooltip views using INVISIBLE to stay pre-measured.
-        // Also reset alpha to 1 so showGuidance() works correctly.
-        for (view in regionHighlightViews) {
-            view.alpha = 1f
-            view.visibility = View.INVISIBLE
-        }
-        if (::tooltipView.isInitialized) {
-            tooltipView.alpha = 1f
-            tooltipView.visibility = View.INVISIBLE
+        for ((view, params) in guidanceWindows) {
+            view.animate().cancel()
+            setOverlayWindowShown(windowManager, view, params, false)
         }
     }
 
@@ -803,13 +846,11 @@ private class GuidanceOverlays(
      * @param duration The duration of the fade animation in milliseconds.
      */
     private fun fadeInGuidance(duration: Long) {
-        for (view in regionHighlightViews) {
-            view.visibility = View.VISIBLE
+        for ((view, params) in guidanceWindows) {
+            // Fade from fully transparent if the window was hidden.
+            if (params.alpha == 0f) view.alpha = 0f
+            setOverlayWindowShown(windowManager, view, params, true)
             view.animate().alpha(1f).setDuration(duration).start()
-        }
-        if (::tooltipView.isInitialized) {
-            tooltipView.visibility = View.VISIBLE
-            tooltipView.animate().alpha(1f).setDuration(duration).start()
         }
     }
 
@@ -819,14 +860,9 @@ private class GuidanceOverlays(
      * @param duration The duration of the fade animation in milliseconds.
      */
     private fun fadeOutGuidance(duration: Long) {
-        for (view in regionHighlightViews) {
+        for ((view, params) in guidanceWindows) {
             view.animate().alpha(0f).setDuration(duration).withEndAction {
-                view.visibility = View.INVISIBLE
-            }.start()
-        }
-        if (::tooltipView.isInitialized) {
-            tooltipView.animate().alpha(0f).setDuration(duration).withEndAction {
-                tooltipView.visibility = View.INVISIBLE
+                setOverlayWindowShown(windowManager, view, params, false)
             }.start()
         }
     }
@@ -841,10 +877,10 @@ private class GuidanceOverlays(
     }
 
     /**
-     * Cancels any pending flash hide callback.
+     * Cancels the pending flash callbacks, including fade outs that were already scheduled.
      */
     private fun cancelFlashCallback() {
-        flashHideRunnable?.let { flashHandler.removeCallbacks(it) }
+        flashHandler.removeCallbacksAndMessages(null)
         flashHideRunnable = null
     }
 
@@ -859,16 +895,7 @@ private class GuidanceOverlays(
         isFlashing = false
 
         // Cancel any ongoing animations and hide immediately.
-        for (view in regionHighlightViews) {
-            view.animate().cancel()
-            view.alpha = 1f
-            view.visibility = View.INVISIBLE
-        }
-        if (::tooltipView.isInitialized) {
-            tooltipView.animate().cancel()
-            tooltipView.alpha = 1f
-            tooltipView.visibility = View.INVISIBLE
-        }
+        hideGuidance()
     }
 
     /**
@@ -879,15 +906,12 @@ private class GuidanceOverlays(
         cancelFlashCallback()
 
         // Remove every per-region highlight view and the tooltip view.
-        for (view in regionHighlightViews) {
+        for ((view, _) in guidanceWindows) {
+            view.animate().cancel()
             runCatching { windowManager.removeView(view) }
         }
 
-        regionHighlightViews.clear()
-
-        if (::tooltipView.isInitialized) {
-            runCatching { windowManager.removeView(tooltipView) }
-        }
+        guidanceWindows.clear()
     }
 }
 
@@ -918,6 +942,10 @@ private class DragToDismiss(
     var isHovering: Boolean = false
         private set
 
+    /** The dismiss target window paired with its layout params, for the caller to add to the WindowManager. Empty when the feature is disabled. */
+    val windows: List<Pair<View, WindowManager.LayoutParams>>
+        get() = if (::dismissTargetView.isInitialized) listOf(dismissTargetView to dismissLayoutParams) else emptyList()
+
     init {
         if (OverlayConfig.ENABLE_DISMISS_DRAG) {
             createDismissTargetOverlay()
@@ -925,7 +953,7 @@ private class DragToDismiss(
     }
 
     /**
-     * Creates the dismiss target overlay but keeps it hidden initially.
+     * Creates the dismiss target overlay but keeps it hidden initially. It is added to the WindowManager by the caller through `windows`.
      */
     private fun createDismissTargetOverlay() {
         val targetSizePx = context.dpToPx(SharedData.overlayDismissButtonSizeDP)
@@ -937,8 +965,6 @@ private class DragToDismiss(
 
         dismissTargetView =
             FrameLayout(context).apply {
-                // Use INVISIBLE instead of GONE so the view is pre-measured and ready.
-                visibility = View.INVISIBLE
                 // Use hardware layer for better rendering performance when visibility changes.
                 setLayerType(View.LAYER_TYPE_HARDWARE, null)
             }
@@ -986,9 +1012,9 @@ private class DragToDismiss(
                 x = (screenWidth - containerSizePx) / 2
                 y = (screenHeight - containerSizePx - bottomMargin).coerceAtLeast(0)
                 windowAnimations = android.R.style.Animation_Toast
+                // Start hidden. See setOverlayWindowShown().
+                alpha = 0f
             }
-
-        windowManager.addView(dismissTargetView, dismissLayoutParams)
     }
 
     /**
@@ -997,7 +1023,7 @@ private class DragToDismiss(
     fun show() {
         if (!OverlayConfig.ENABLE_DISMISS_DRAG) return
         if (::dismissTargetView.isInitialized && ::dismissCircleView.isInitialized) {
-            dismissTargetView.visibility = View.VISIBLE
+            setOverlayWindowShown(windowManager, dismissTargetView, dismissLayoutParams, true)
             dismissCircleView.animate().scaleX(1f).scaleY(1f).setDuration(120L).start()
         }
     }
@@ -1008,8 +1034,7 @@ private class DragToDismiss(
     fun hide() {
         if (::dismissTargetView.isInitialized && ::dismissCircleView.isInitialized) {
             dismissCircleView.animate().cancel()
-            // Use INVISIBLE instead of GONE to stay pre-measured.
-            dismissTargetView.visibility = View.INVISIBLE
+            setOverlayWindowShown(windowManager, dismissTargetView, dismissLayoutParams, false)
             dismissCircleView.scaleX = 1f
             dismissCircleView.scaleY = 1f
         }
@@ -1041,7 +1066,7 @@ private class DragToDismiss(
      */
     fun isInside(centerX: Int, centerY: Int): Boolean {
         if (!OverlayConfig.ENABLE_DISMISS_DRAG) return false
-        if (!::dismissTargetView.isInitialized || !::dismissCircleView.isInitialized || !::dismissLayoutParams.isInitialized || dismissTargetView.visibility != View.VISIBLE) {
+        if (!::dismissTargetView.isInitialized || !::dismissCircleView.isInitialized || !::dismissLayoutParams.isInitialized || dismissLayoutParams.alpha == 0f) {
             return false
         }
 
