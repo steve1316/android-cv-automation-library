@@ -274,7 +274,7 @@ class UserStorageManager private constructor(private val context: Context) {
      * success. For `"delete"`, the source is deleted without copying. Stops at the first I/O error and
      * returns partial counts.
      *
-     * Skips subdirectories at the top level -- only regular files are migrated.
+     * Skips subdirectories at the top level -- only regular files are migrated. A `"move"` without a writable SAF folder touches nothing and returns the `NO_DESTINATION` error.
      *
      * @param mode Either `"move"` or `"delete"`.
      *
@@ -288,6 +288,13 @@ class UserStorageManager private constructor(private val context: Context) {
         File(root, "logs").listFiles()?.filter { it.isFile }?.forEach { allFiles.add(it to "logs") }
         File(root, "recordings").listFiles()?.filter { it.isFile }?.forEach { allFiles.add(it to "recordings") }
         val total = allFiles.size
+
+        // Without a SAF folder the copy target resolves to the legacy file itself. Copying would truncate it and the delete would remove the only copy.
+        if (mode == "move" && treeDocument() == null) {
+            Log.e(TAG, "Cannot move legacy files because no writable folder is configured.")
+            return MigrationResult(movedLogs, movedRecordings, "NO_DESTINATION", total)
+        }
+
         for ((idx, pair) in allFiles.withIndex()) {
             val (source, subdir) = pair
             try {
