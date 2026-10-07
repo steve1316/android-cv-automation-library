@@ -7,6 +7,8 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.steve1316.automation_library.R
@@ -26,6 +28,13 @@ class NotificationUtils {
         private const val NOTIFICATION_ID: Int = 1
         private const val CHANNEL_ID: String = "STATUS"
 
+        // Channel without banners. Re-posting the notification on it after BANNER_DURATION_MS ends the banner early.
+        private const val QUIET_CHANNEL_ID: String = "STATUS_QUIET"
+        private const val BANNER_DURATION_MS: Long = 1000L
+
+        // Only schedules the banner collapse, so clearing all of its callbacks never touches anything else.
+        private val bannerHandler = Handler(Looper.getMainLooper())
+
         /**
          * Creates the NotificationChannel and the Notification object.
          *
@@ -41,7 +50,7 @@ class NotificationUtils {
             val newNotification = createNewNotification(context, contentClass)
 
             // Get the NotificationManager and then send the new Notification to it.
-            notificationManager.notify(NOTIFICATION_ID, newNotification)
+            postWithShortBanner(context, newNotification)
 
             return Pair(newNotification, NOTIFICATION_ID)
         }
@@ -64,6 +73,10 @@ class NotificationUtils {
 
                 // Register the channel with the system; you can't change the importance or other notification behaviors after this.
                 notificationManager.createNotificationChannel(mChannel)
+
+                val quietChannel = NotificationChannel(QUIET_CHANNEL_ID, "$channelName (quiet)", NotificationManager.IMPORTANCE_LOW)
+                quietChannel.description = "Keeps the status of $channelName in the notification shade after its banner has closed."
+                notificationManager.createNotificationChannel(quietChannel)
             }
         }
 
@@ -196,7 +209,29 @@ class NotificationUtils {
                     }
                 }
 
-            notificationManager.notify(NOTIFICATION_ID, newNotification)
+            postWithShortBanner(context, newNotification)
+        }
+
+        /**
+         * Posts the notification with its banner, then re-posts the same notification on the quiet channel after `BANNER_DURATION_MS`. A notification
+         * that no longer qualifies for a banner is taken out of the banner, while it stays in the notification shade. Apps cannot set the banner
+         * duration directly, so this keeps it short. Channels only exist from Android 8.0, so older versions keep the system banner.
+         *
+         * @param context The application context.
+         * @param notification The notification to post on the alerting channel.
+         */
+        private fun postWithShortBanner(context: Context, notification: Notification) {
+            // A newer post replaces the notification, so drop the pending collapse of the previous one.
+            bannerHandler.removeCallbacksAndMessages(null)
+            notificationManager.notify(NOTIFICATION_ID, notification)
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+
+            bannerHandler.postDelayed({
+                // Do not bring the notification back if it was cancelled in the meantime, e.g. because the services stopped.
+                if (notificationManager.activeNotifications.none { it.id == NOTIFICATION_ID }) return@postDelayed
+                val quietNotification = Notification.Builder.recoverBuilder(context, notification).setChannelId(QUIET_CHANNEL_ID).build()
+                notificationManager.notify(NOTIFICATION_ID, quietNotification)
+            }, BANNER_DURATION_MS)
         }
 
         /**
@@ -209,6 +244,7 @@ class NotificationUtils {
             if (!::notificationManager.isInitialized) {
                 notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             }
+            bannerHandler.removeCallbacksAndMessages(null)
             Log.d(tag, "Attempting to cancel all notifications")
             Log.d(tag, "Active notifications before cancel: ${notificationManager.activeNotifications.size}")
             notificationManager.cancelAll()
