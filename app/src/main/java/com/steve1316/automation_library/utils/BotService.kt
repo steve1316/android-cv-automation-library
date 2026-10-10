@@ -19,6 +19,7 @@ import kotlinx.coroutines.runBlocking
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import java.io.File
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.thread
 
 /**
@@ -37,6 +38,9 @@ class BotService : Service() {
     // Set in onDestroy() so a run that is still unwinding does not post a notification or touch the overlay after shutdown.
     @Volatile
     private var isDestroyed: Boolean = false
+
+    // Whether this run's end report was already sent. A user Stop runs the cleanup twice, and only the first pass has the log file name.
+    private val runReportSent = AtomicBoolean(false)
 
     private lateinit var floatingOverlayButton: FloatingOverlayButton
 
@@ -117,6 +121,10 @@ class BotService : Service() {
         BotStatus.reset()
         BotHold.reset()
 
+        // Drop the last run's report so a run that dies without cleanup never shows an old result.
+        runReportSent.set(false)
+        RunReport.clear(myContext.filesDir)
+
         isRunning = true
         floatingOverlayButton.setRunningState(true)
 
@@ -182,6 +190,7 @@ class BotService : Service() {
                             BotStatus.setOutcome(BotStatus.Outcome.STOPPED_BY_USER, "You stopped the bot")
                         }
                     } else {
+                        BotStatus.setError(e, packageName)
                         BotStatus.setOutcome(BotStatus.Outcome.CRASHED, e.javaClass.simpleName)
                         MessageLog.e(tag, "$appName encountered an Exception: ${e.stackTraceToString()}")
                     }
@@ -331,10 +340,11 @@ class BotService : Service() {
             isRunning = false
 
             // Save the message log and reset MessageLog.
-            MessageLog.saveLogToFile(myContext)
+            val logFile = MessageLog.saveLogToFile(myContext)
 
             // A run that ended without anyone setting an outcome finished on its own.
             BotStatus.setOutcome(BotStatus.Outcome.FINISHED, "Run ended")
+            publishRunReport(logFile)
             BotHold.reset()
             NotificationUtils.stopRunUpdates()
 
@@ -358,6 +368,22 @@ class BotService : Service() {
     }
 
     /**
+     * Saves the run-end report and sends it to the app. Runs once per run, and a failure here never stops the cleanup.
+     *
+     * @param logFile The saved log file name, or null when the log was not saved.
+     */
+    private fun publishRunReport(logFile: String?) {
+        if (!runReportSent.compareAndSet(false, true)) return
+        try {
+            val report = RunReport.build(logFile)
+            RunReport.save(myContext.filesDir, report)
+            EventBus.getDefault().post(JSEvent("RunEnded", report.toString()))
+        } catch (e: Exception) {
+            Log.e(tag, "Failed to save or send the run-end report.", e)
+        }
+    }
+
+    /**
      * Listener function to call the inner event sending function in order to send the message back to the Javascript frontend.
      *
      * @param event The JSEvent object to parse its event name and message.
@@ -372,6 +398,7 @@ class BotService : Service() {
         } else {
             Log.d(tag, "Process has finished running but an exception(s) were detected.")
 
+            BotStatus.setError(event.exception, packageName)
             BotStatus.setOutcome(BotStatus.Outcome.CRASHED, event.exception.javaClass.simpleName)
 
             MessageLog.e(tag, "$appName encountered an Exception: ${event.exception.stackTraceToString()}")
