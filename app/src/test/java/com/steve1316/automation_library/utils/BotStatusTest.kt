@@ -87,4 +87,43 @@ class BotStatusTest {
         BotStatus.removeListener(listener)
         assertEquals(1, calls)
     }
+
+    private fun crash(vararg frames: StackTraceElement): Throwable = IllegalStateException("boom").apply { stackTrace = arrayOf(*frames) }
+
+    @Test
+    fun errorKeepsAppFramesFirst() {
+        val e =
+            crash(
+                StackTraceElement("java.lang.Thread", "run", "Thread.java", 1),
+                StackTraceElement("com.example.app.bot.Training", "analyze", "Training.kt", 10),
+                StackTraceElement("com.example.app.bot.Campaign", "handle", "Campaign.kt", 20),
+            )
+        BotStatus.setError(e, "com.example.app")
+        val error = BotStatus.lastError()!!
+        assertEquals("IllegalStateException", error.className)
+        assertEquals("boom", error.message)
+        assertEquals(listOf("Training.analyze (Training.kt:10)", "Campaign.handle (Campaign.kt:20)"), error.frames)
+    }
+
+    @Test
+    fun errorFallsBackToRawFramesWithoutAppFrames() {
+        val e = crash(StackTraceElement("java.lang.Thread", "run", "Thread.java", 1), StackTraceElement("java.util.ArrayList", "get", "ArrayList.java", 5))
+        BotStatus.setError(e, "com.example.app")
+        assertEquals(listOf("Thread.run (Thread.java:1)", "ArrayList.get (ArrayList.java:5)"), BotStatus.lastError()!!.frames)
+    }
+
+    @Test
+    fun firstErrorWinsAndResetClearsIt() {
+        BotStatus.setError(crash(StackTraceElement("a.B", "c", "B.kt", 1)), "a")
+        BotStatus.setError(IllegalArgumentException("second"), "a")
+        assertEquals("IllegalStateException", BotStatus.lastError()!!.className)
+        BotStatus.reset()
+        assertEquals(null, BotStatus.lastError())
+    }
+
+    @Test
+    fun frameWithoutFileNameSaysUnknownSource() {
+        BotStatus.setError(crash(StackTraceElement("com.example.app.StartModule\$\$Lambda", "run", null, -1)), "com.example.app")
+        assertEquals(listOf("StartModule\$\$Lambda.run (Unknown Source)"), BotStatus.lastError()!!.frames)
+    }
 }

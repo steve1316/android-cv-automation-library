@@ -164,4 +164,86 @@ class OverlayStateLogicTest {
         assertEquals(1810, OverlayStateLogic.trayTopFor(orbWindowY = 1900, screenHeight = 1920, buttonSizePx = 160, shadowPadPx = 20, trayHeight = 60))
         assertEquals(50, OverlayStateLogic.trayTopFor(orbWindowY = -40, screenHeight = 1920, buttonSizePx = 160, shadowPadPx = 20, trayHeight = 60))
     }
+
+    @Test
+    fun heldTrayWhileRunningShowsTheHeldTagAndLine() {
+        val line = OverlayStateLogic.headlineFor(OverlayVisual.RUNNING, running, isHeld = true)
+        assertEquals("Turn 34/72", line.text)
+        assertEquals("HELD", line.tag)
+        assertEquals(OverlayColors.AMBER, line.tagColor)
+        assertEquals("Waiting while this is open", OverlayStateLogic.trayDetailFor(OverlayVisual.RUNNING, running, isHeld = true))
+    }
+
+    @Test
+    fun heldNeverReplacesPausingPausedOrEndStates() {
+        assertEquals("PAUSING", OverlayStateLogic.headlineFor(OverlayVisual.PAUSING, running, isHeld = true).tag)
+        assertEquals("PAUSED", OverlayStateLogic.headlineFor(OverlayVisual.PAUSED, running, isHeld = true).tag)
+        assertEquals("DONE", OverlayStateLogic.headlineFor(OverlayVisual.FINISHED, running, isHeld = true).tag)
+        assertEquals("1:12:05 · Trained Speed", OverlayStateLogic.trayDetailFor(OverlayVisual.PAUSED, running, isHeld = true))
+    }
+
+    @Test
+    fun notHeldKeepsTheOldRunningLines() {
+        assertNull(OverlayStateLogic.headlineFor(OverlayVisual.RUNNING, running).tag)
+        assertEquals("1:12:05 · Trained Speed", OverlayStateLogic.trayDetailFor(OverlayVisual.RUNNING, running))
+    }
+
+    @Test
+    fun trayOpensTowardTheMiddleOfTheScreen() {
+        assertTrue(OverlayStateLogic.trayOpensRight(orbWindowX = 0, screenWidth = 1080, buttonSizePx = 160))
+        assertFalse(OverlayStateLogic.trayOpensRight(orbWindowX = 920, screenWidth = 1080, buttonSizePx = 160))
+        // Dragged past the right edge, the orb is drawn at 920, so it still opens left.
+        assertFalse(OverlayStateLogic.trayOpensRight(orbWindowX = 1000, screenWidth = 1080, buttonSizePx = 160))
+    }
+
+    @Test
+    fun trayLeftKeepsTheGapToTheOrbWithShadowRoom() {
+        // Orb window 160 px (20 px shadow pad, 120 px orb), gap 10, tray window 300 px wide with 20 px shadow room.
+        assertEquals(130, OverlayStateLogic.trayLeftFor(0, 1080, 160, 20, 10, 300, 20))
+        assertEquals(650, OverlayStateLogic.trayLeftFor(920, 1080, 160, 20, 10, 300, 20))
+    }
+
+    @Test
+    fun trayLeftFollowsTheDrawnOrbPastAnEdge() {
+        assertEquals(650, OverlayStateLogic.trayLeftFor(1000, 1080, 160, 20, 10, 300, 20))
+        assertEquals(130, OverlayStateLogic.trayLeftFor(-50, 1080, 160, 20, 10, 300, 20))
+    }
+
+    @Test
+    fun paddedTrayStaysCenteredOnTheOrb() {
+        // A tray window as tall as the orb plus 20 px shadow room above and below lines its pill up with the orb.
+        assertEquals(800, OverlayStateLogic.trayTopFor(orbWindowY = 800, screenHeight = 1920, buttonSizePx = 160, shadowPadPx = 20, trayHeight = 160))
+    }
+
+    @Test
+    fun unfurlPivotsOnTheEdgeFacingTheOrb() {
+        assertEquals(20f, OverlayStateLogic.unfurlPivotX(opensRight = true, trayPadPx = 20, trayWidth = 300), 0f)
+        assertEquals(280f, OverlayStateLogic.unfurlPivotX(opensRight = false, trayPadPx = 20, trayWidth = 300), 0f)
+    }
+
+    @Test
+    fun closeIsQuickerThanOpenAndOpenStaysShort() {
+        assertTrue(OverlayMotion.TRAY_CLOSE_MS < OverlayMotion.TRAY_OPEN_MS)
+        assertTrue(OverlayMotion.TRAY_OPEN_MS < 300L)
+        assertTrue(OverlayMotion.CONTENT_FADE_OUT_MS <= OverlayMotion.TRAY_CLOSE_MS)
+    }
+
+    @Test
+    fun tagTintKeepsTheHueAtLowAlpha() {
+        assertEquals(0x29FBBF24, OverlayColors.tintOf(OverlayColors.AMBER))
+    }
+
+    @Test
+    fun aClosedTrayRestsInvisibleAtTheUnfurlStart() {
+        // The hidden window keeps its last frame, so a closed tray must rest invisible or it flashes full size on the next open.
+        assertEquals(TrayPose(OverlayMotion.UNFURL_START_SCALE, 0f, 0f), OverlayMotion.HIDDEN_POSE)
+        assertEquals(TrayPose(1f, 1f, 1f), OverlayMotion.OPEN_POSE)
+    }
+
+    @Test
+    fun shadowRoomScalesWithTheOrb() {
+        assertEquals(8f, OverlayStateLogic.shadowPadDpFor(40f), 0f)
+        assertEquals(12f, OverlayStateLogic.shadowPadDpFor(60f), 0f)
+        assertEquals(6f, OverlayStateLogic.shadowPadDpFor(30f), 0f)
+    }
 }

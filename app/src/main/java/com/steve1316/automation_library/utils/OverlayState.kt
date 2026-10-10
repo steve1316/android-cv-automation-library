@@ -7,8 +7,8 @@ internal object OverlayColors {
     /** Orb and tray fill, #141416 at 82% alpha. */
     val ORB_FILL: Int = 0xD1141416.toInt()
 
-    /** Orb and tray edge, white at 14% alpha. */
-    val ORB_STROKE: Int = 0x24FFFFFF
+    /** Orb and tray hairline edge, white at 10% alpha. */
+    val ORB_STROKE: Int = 0x1AFFFFFF
 
     /** Orb drop shadow. */
     val SHADOW: Int = 0x61000000
@@ -34,17 +34,55 @@ internal object OverlayColors {
     /** Dimmed glyph while pausing or stopping, white at 50% alpha. */
     val WHITE_DIM: Int = 0x80FFFFFF.toInt()
 
-    /** Tray second line, white at 66% alpha. */
-    val TRAY_SUBTEXT: Int = 0xA8FFFFFF.toInt()
+    /** Tray second line, white at 58% alpha. */
+    val TRAY_SUBTEXT: Int = 0x94FFFFFF.toInt()
 
-    /** Pause button, white at 10% alpha. */
-    val BUTTON_NEUTRAL: Int = 0x1AFFFFFF
+    /** Top of the orb and tray glass gradient, #2C2C34 at 88% alpha. */
+    val GLASS_TOP: Int = 0xE02C2C34.toInt()
 
-    /** Resume and Start again buttons. */
-    val BUTTON_GO: Int = 0xFF2F9E6B.toInt()
+    /** Bottom of the orb and tray glass gradient, #0E0E12 at 88% alpha. */
+    val GLASS_BOTTOM: Int = 0xE00E0E12.toInt()
 
-    /** Stop button. */
-    val BUTTON_STOP: Int = 0xFFE5484D.toInt()
+    /** Thin highlight along the top inside edge of the glass, white at 18% alpha. */
+    val GLASS_HIGHLIGHT: Int = 0x2EFFFFFF
+
+    /** Tight contact shadow under the glass, black at 40% alpha. */
+    val SHADOW_TIGHT: Int = 0x66000000
+
+    /** Soft wide shadow under the glass, black at 45% alpha. */
+    val SHADOW_SOFT: Int = 0x73000000
+
+    /** Unfilled part of the tray's progress bar, white at 12% alpha. */
+    val PROGRESS_TRACK: Int = 0x1FFFFFFF
+
+    /** Top of the Pause button gradient, white at 16% alpha. */
+    val BUTTON_NEUTRAL_TOP: Int = 0x29FFFFFF
+
+    /** Bottom of the Pause button gradient, white at 7% alpha. */
+    val BUTTON_NEUTRAL_BOTTOM: Int = 0x12FFFFFF
+
+    /** Highlight along the top of every tray button, white at 14% alpha. */
+    val BUTTON_HIGHLIGHT: Int = 0x24FFFFFF
+
+    /** Top of the Stop button gradient. */
+    val BUTTON_STOP_TOP: Int = 0xFFF0605F.toInt()
+
+    /** Bottom of the Stop button gradient. */
+    val BUTTON_STOP_BOTTOM: Int = 0xFFD63C43.toInt()
+
+    /** Top of the Resume and Start again button gradient. */
+    val BUTTON_GO_TOP: Int = 0xFF3CB57D.toInt()
+
+    /** Bottom of the Resume and Start again button gradient. */
+    val BUTTON_GO_BOTTOM: Int = 0xFF278A5C.toInt()
+
+    /**
+     * The faint background of a tray tag: the tag's own color at 16% alpha.
+     *
+     * @param color The tag's text color.
+     * @return The same color at 16% alpha.
+     */
+    fun tintOf(color: Int): Int = (color and 0x00FFFFFF) or 0x29000000
 }
 
 /** Overlay style picked in the consuming app's settings. */
@@ -81,13 +119,14 @@ internal enum class Glyph { PLAY, STOP, PAUSE, CHECK, ALERT }
  *
  * @property glyph The glyph drawn on the button.
  * @property label The accessibility label.
- * @property color The button's fill color.
+ * @property topColor The top of the button's gradient fill.
+ * @property bottomColor The bottom of the button's gradient fill.
  */
-internal enum class TrayButton(val glyph: Glyph, val label: String, val color: Int) {
-    PAUSE(Glyph.PAUSE, "Pause", OverlayColors.BUTTON_NEUTRAL),
-    RESUME(Glyph.PLAY, "Resume", OverlayColors.BUTTON_GO),
-    STOP(Glyph.STOP, "Stop", OverlayColors.BUTTON_STOP),
-    START(Glyph.PLAY, "Start again", OverlayColors.BUTTON_GO),
+internal enum class TrayButton(val glyph: Glyph, val label: String, val topColor: Int, val bottomColor: Int) {
+    PAUSE(Glyph.PAUSE, "Pause", OverlayColors.BUTTON_NEUTRAL_TOP, OverlayColors.BUTTON_NEUTRAL_BOTTOM),
+    RESUME(Glyph.PLAY, "Resume", OverlayColors.BUTTON_GO_TOP, OverlayColors.BUTTON_GO_BOTTOM),
+    STOP(Glyph.STOP, "Stop", OverlayColors.BUTTON_STOP_TOP, OverlayColors.BUTTON_STOP_BOTTOM),
+    START(Glyph.PLAY, "Start again", OverlayColors.BUTTON_GO_TOP, OverlayColors.BUTTON_GO_BOTTOM),
 }
 
 /** The ring drawn around the orb. */
@@ -109,6 +148,64 @@ internal data class TrayHeadline(
     /** Color of the tag. */
     val tagColor: Int,
 )
+
+/** How the tray view is drawn at rest or at the start or end of an animation. */
+internal data class TrayPose(
+    /** Horizontal scale around the unfurl pivot. */
+    val scaleX: Float,
+    /** Alpha of the whole tray, pill included. */
+    val alpha: Float,
+    /** Alpha of the tray's text and buttons. */
+    val contentAlpha: Float,
+)
+
+/** Timings and scales for the overlay's motion, in one place so the views and tests agree. */
+internal object OverlayMotion {
+    /** How long the tray takes to unfurl out of the orb, including its overshoot. */
+    const val TRAY_OPEN_MS = 260L
+
+    /** How long the tray takes to fade in while it unfurls. */
+    const val TRAY_FADE_IN_MS = 120L
+
+    /** Delay before the tray's text and buttons fade in, so they never look squashed mid-stretch. */
+    const val CONTENT_FADE_IN_DELAY_MS = 110L
+
+    /** How long the tray's text and buttons take to fade in. */
+    const val CONTENT_FADE_IN_MS = 140L
+
+    /** How long the tray takes to shrink back into the orb and fade out. The bot is released when it ends. */
+    const val TRAY_CLOSE_MS = 120L
+
+    /** How long the tray's text and buttons take to fade out when it closes. */
+    const val CONTENT_FADE_OUT_MS = 60L
+
+    /** The tray's horizontal scale at the start of opening and the end of closing. */
+    const val UNFURL_START_SCALE = 0.35f
+
+    /** The orb's scale while it is pressed. */
+    const val PRESS_SCALE = 0.92f
+
+    /** How long the orb takes to dip and come back when pressed. */
+    const val PRESS_MS = 120L
+
+    /** How long the ring takes to ease to a new progress value. */
+    const val RING_EASE_MS = 400L
+
+    /** How long the ring and glyph take to cross-fade to a new state color. */
+    const val COLOR_FADE_MS = 250L
+
+    /** A tray button's alpha while it is pressed. */
+    const val PRESSED_BUTTON_ALPHA = 0.75f
+
+    /** The tray fully open. */
+    val OPEN_POSE = TrayPose(1f, 1f, 1f)
+
+    /**
+     * The tray closed: invisible at its unfurl start. A closed tray rests here, since its hidden window keeps the last frame drawn and shows
+     * it for a moment on the next open.
+     */
+    val HIDDEN_POSE = TrayPose(UNFURL_START_SCALE, 0f, 0f)
+}
 
 /** Rules that map the run state to what the overlay draws and does. Kept free of Android views so they can be unit tested. */
 internal object OverlayStateLogic {
@@ -227,11 +324,13 @@ internal object OverlayStateLogic {
      *
      * @param visual What the overlay is showing.
      * @param snapshot The current run status.
+     * @param isHeld True while the tray is open on a running bot, which waits until the tray closes.
      * @return The label and its optional tag.
      */
-    fun headlineFor(visual: OverlayVisual, snapshot: BotStatus.Snapshot): TrayHeadline {
+    fun headlineFor(visual: OverlayVisual, snapshot: BotStatus.Snapshot, isHeld: Boolean = false): TrayHeadline {
         val text = snapshot.label.ifEmpty { "Automation" }
         return when (visual) {
+            OverlayVisual.RUNNING -> if (isHeld) TrayHeadline(text, "HELD", OverlayColors.AMBER) else TrayHeadline(text, null, OverlayColors.WHITE)
             OverlayVisual.PAUSING -> TrayHeadline(text, "PAUSING", OverlayColors.AMBER)
             OverlayVisual.PAUSED -> TrayHeadline(text, "PAUSED", OverlayColors.AMBER)
             OverlayVisual.FINISHED -> TrayHeadline(text, "DONE", OverlayColors.GREEN)
@@ -241,14 +340,17 @@ internal object OverlayStateLogic {
     }
 
     /**
-     * Builds the tray's second line: the running time, then the pause reason, the last action, or the end reason.
+     * Builds the tray's second line: the running time, then the pause reason, the last action, or the end reason. While the tray holds a
+     * running bot it says so instead.
      *
      * @param visual What the overlay is showing.
      * @param snapshot The current run status.
      * @param pauseReason Why the bot is pausing, or empty when the user asked for it. Shown only while pausing or paused.
+     * @param isHeld True while the tray is open on a running bot, which waits until the tray closes.
      * @return The line, such as "1:12:05 - Trained Speed".
      */
-    fun trayDetailFor(visual: OverlayVisual, snapshot: BotStatus.Snapshot, pauseReason: String = ""): String {
+    fun trayDetailFor(visual: OverlayVisual, snapshot: BotStatus.Snapshot, pauseReason: String = "", isHeld: Boolean = false): String {
+        if (isHeld && visual == OverlayVisual.RUNNING) return "Waiting while this is open"
         val time = formatElapsed(snapshot.elapsedMs)
         val extra =
             when {
@@ -275,6 +377,59 @@ internal object OverlayStateLogic {
         val orbSizePx = buttonSizePx - shadowPadPx * 2
         return drawnY + shadowPadPx + (orbSizePx - trayHeight) / 2
     }
+
+    /**
+     * Whether the tray opens to the right of the orb, toward the middle of the screen. Uses the orb's drawn position, since a drag past an
+     * edge leaves the stored x outside it.
+     *
+     * @param orbWindowX The orb window's stored x.
+     * @param screenWidth The screen width in pixels.
+     * @param buttonSizePx The orb window's size, the orb plus its shadow pad on both sides.
+     * @return True to open to the right, false to open to the left.
+     */
+    fun trayOpensRight(orbWindowX: Int, screenWidth: Int, buttonSizePx: Int): Boolean {
+        val drawnX = orbWindowX.coerceIn(0, (screenWidth - buttonSizePx).coerceAtLeast(0))
+        return drawnX + buttonSizePx / 2 < screenWidth / 2
+    }
+
+    /**
+     * Where the tray window's left edge goes so its visible pill sits `gapPx` from the orb on the side facing the middle of the screen. The
+     * tray window carries `trayPadPx` of shadow room on each side, which may overlap the gap. The result is kept on screen.
+     *
+     * @param orbWindowX The orb window's stored x, which can be past an edge after a drag.
+     * @param screenWidth The screen width in pixels.
+     * @param buttonSizePx The orb window's size, the orb plus its shadow pad on both sides.
+     * @param shadowPadPx The orb's shadow pad on each side.
+     * @param gapPx The space between the orb and the tray's pill.
+     * @param trayWidth The tray window's measured width, shadow room included.
+     * @param trayPadPx The tray window's shadow room on each side.
+     * @return The tray window's x.
+     */
+    fun trayLeftFor(orbWindowX: Int, screenWidth: Int, buttonSizePx: Int, shadowPadPx: Int, gapPx: Int, trayWidth: Int, trayPadPx: Int): Int {
+        val drawnX = orbWindowX.coerceIn(0, (screenWidth - buttonSizePx).coerceAtLeast(0))
+        val orbLeft = drawnX + shadowPadPx
+        val orbRight = orbLeft + buttonSizePx - shadowPadPx * 2
+        val x = if (trayOpensRight(orbWindowX, screenWidth, buttonSizePx)) orbRight + gapPx - trayPadPx else orbLeft - gapPx - trayWidth + trayPadPx
+        return x.coerceIn(0, (screenWidth - trayWidth).coerceAtLeast(0))
+    }
+
+    /**
+     * The x the tray scales around while it unfurls: the edge of its pill that faces the orb.
+     *
+     * @param opensRight True when the tray opens to the right of the orb.
+     * @param trayPadPx The tray window's shadow room on each side.
+     * @param trayWidth The tray window's width, shadow room included.
+     * @return The pivot x within the tray view.
+     */
+    fun unfurlPivotX(opensRight: Boolean, trayPadPx: Int, trayWidth: Int): Float = if (opensRight) trayPadPx.toFloat() else (trayWidth - trayPadPx).toFloat()
+
+    /**
+     * The room around the orb and the tray for their shadows. It grows with the orb, since the shadows are drawn in design units.
+     *
+     * @param orbSizeDp The orb's diameter in dp.
+     * @return The shadow room on each side, in dp.
+     */
+    fun shadowPadDpFor(orbSizeDp: Float): Float = orbSizeDp * OverlayOrbView.SHADOW_PAD_UNITS / OverlayOrbView.BASE_SIZE_DP
 
     /**
      * Formats a duration as h:mm:ss, or m:ss under an hour.

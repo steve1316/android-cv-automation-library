@@ -81,11 +81,12 @@ class MessageLog {
          * legacy external files when no SAF folder is configured) under the /logs/ subdirectory.
          *
          * @param context The context for the application.
+         * @returns The saved file name such as "log @ 2026-10-07 22_47_12.txt", or null when this run's log was already saved or could not be written.
          */
-        fun saveLogToFile(context: Context) {
+        fun saveLogToFile(context: Context): String? {
             // Atomically check if saveCheck is false and set it to true. If it was already true, another thread is already saving, so return early.
             if (!saveCheck.compareAndSet(false, true)) {
-                return
+                return null
             }
 
             // Set max to 49 so that when we add our new file, the total becomes 50.
@@ -121,7 +122,7 @@ class MessageLog {
             val outputStream = storage.openOutputStream("logs", "$fileName.txt", "text/plain")
             if (outputStream == null) {
                 Log.e(TAG, "Could not open an output stream for log file \"$fileName.txt\".")
-                return
+                return null
             }
 
             outputStream.bufferedWriter().use { writer ->
@@ -139,6 +140,7 @@ class MessageLog {
                     }
                 }
             }
+            return "$fileName.txt"
         }
 
         /**

@@ -10,6 +10,9 @@ import java.util.concurrent.CopyOnWriteArrayList
  * Listeners are called on the thread that made the change, so UI code should post to the main thread.
  */
 object BotStatus {
+    /** Most stack frames kept for a crash. */
+    private const val MAX_FRAMES = 20
+
     /** How a run ended. */
     enum class Outcome {
         /** The run completed everything it set out to do. */
@@ -47,6 +50,16 @@ object BotStatus {
             get() = if (total <= 0) 0f else (current.toFloat() / total).coerceIn(0f, 1f)
     }
 
+    /** A crash's exception, kept for the run-end report. */
+    data class ErrorInfo(
+        /** Exception class simple name, such as "NullPointerException". */
+        val className: String,
+        /** Exception message, or empty when it had none. */
+        val message: String,
+        /** Stack frames as "Class.method (File.kt:123)", the app's own frames first. */
+        val frames: List<String>,
+    )
+
     /** Millisecond clock used for the timer. Replaced in unit tests. */
     internal var clock: () -> Long = { SystemClock.elapsedRealtime() }
 
@@ -62,6 +75,7 @@ object BotStatus {
     private var pausedAtMs: Long? = null
     private var pausedTotalMs = 0L
     private var frozenElapsedMs: Long? = null
+    private var error: ErrorInfo? = null
 
     /** Running time in milliseconds, leaving out paused time. Stops counting once an outcome is set. */
     val elapsedMs: Long
@@ -82,6 +96,7 @@ object BotStatus {
             pausedAtMs = null
             pausedTotalMs = 0L
             frozenElapsedMs = null
+            error = null
         }
         notifyListeners()
     }
@@ -138,6 +153,41 @@ object BotStatus {
      * @return The current status.
      */
     fun snapshot(): Snapshot = synchronized(lock) { Snapshot(current, total, label, detail, outcome, reason, elapsedLocked()) }
+
+    /**
+     * Records the exception that crashed the run. The first call in a run wins, like the outcome.
+     *
+     * @param throwable The exception that ended the run.
+     * @param appPackage The consuming app's package name, used to put the app's own frames first.
+     */
+    fun setError(throwable: Throwable, appPackage: String) {
+        synchronized(lock) {
+            if (error != null) return
+            error = ErrorInfo(throwable.javaClass.simpleName, throwable.message ?: "", appFrames(throwable.stackTrace, appPackage))
+        }
+    }
+
+    /**
+     * Reads the crash recorded with `setError()`.
+     *
+     * @return The crash, or null when the run did not crash.
+     */
+    fun lastError(): ErrorInfo? = synchronized(lock) { error }
+
+    /**
+     * Picks the stack frames worth showing. Frames from the app's package come first. Without any, the first raw frames are used.
+     *
+     * @param trace The full stack trace.
+     * @param appPackage The consuming app's package name.
+     * @return Up to `MAX_FRAMES` formatted frames.
+     */
+    internal fun appFrames(trace: Array<StackTraceElement>, appPackage: String): List<String> {
+        val own = if (appPackage.isEmpty()) emptyList() else trace.filter { it.className.startsWith(appPackage) }
+        return own.ifEmpty { trace.toList() }.take(MAX_FRAMES).map {
+            val location = if (it.fileName == null) "Unknown Source" else "${it.fileName}:${it.lineNumber}"
+            "${it.className.substringAfterLast('.')}.${it.methodName} ($location)"
+        }
+    }
 
     /**
      * Starts or ends a paused span, which the timer leaves out. Called by `BotHold` only.
