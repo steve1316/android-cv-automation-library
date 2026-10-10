@@ -7,6 +7,7 @@ import android.app.ActivityManager
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
 import android.content.res.Resources
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -16,6 +17,7 @@ import android.os.Bundle
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
 import com.steve1316.automation_library.R
 import com.steve1316.automation_library.data.SharedData
@@ -32,6 +34,11 @@ class MyAccessibilityService : AccessibilityService() {
 
     // The service is its own context, so this is usable before onServiceConnected() runs, e.g. in onDestroy() after an early stop.
     private val myContext: Context get() = this
+
+    /** Packages of the enabled keyboards, read once. A keyboard opening over the game never pauses the run. */
+    private val inputMethodPackages: Set<String> by lazy {
+        (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager).enabledInputMethodList.map { it.packageName }.toSet()
+    }
 
     companion object {
         private const val tag: String = "${SharedData.loggerTag}MyAccessibilityService"
@@ -85,6 +92,20 @@ class MyAccessibilityService : AccessibilityService() {
         }
 
         /**
+         * Closes the notification shade so the screen behind it, usually the game, is visible again. Does nothing if the service is not connected.
+         *
+         * @param context Used for the broadcast fallback before Android 12.
+         */
+        fun dismissNotificationShade(context: Context) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                if (::instance.isInitialized) instance.performGlobalAction(GLOBAL_ACTION_DISMISS_NOTIFICATION_SHADE)
+            } else {
+                @Suppress("DEPRECATION")
+                context.sendBroadcast(Intent(Intent.ACTION_CLOSE_SYSTEM_DIALOGS))
+            }
+        }
+
+        /**
          * Check if the current thread has been interrupted and throw InterruptedException if so.
          * This ensures gestures stop immediately when the thread is interrupted.
          */
@@ -121,6 +142,9 @@ class MyAccessibilityService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+        // Track the app in front, and pause an opted-in run when the game leaves the screen.
+        if (event?.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) onWindowStateChanged(event)
+
         if (enableTextToPaste &&
             event?.source != null &&
             textToPaste != "" &&
@@ -164,6 +188,29 @@ class MyAccessibilityService : AccessibilityService() {
 
         return
     }
+
+    /**
+     * Passes a window change on to `FocusWatch`, which tracks the app in front and pauses an opted-in run when the game leaves the screen.
+     *
+     * @param event The `TYPE_WINDOW_STATE_CHANGED` event.
+     */
+    private fun onWindowStateChanged(event: AccessibilityEvent) {
+        val change = WindowChange(event.packageName?.toString(), event.className?.toString(), activeWindowPackage())
+        Log.d(tag, "Window change: $change")
+        FocusWatch.onWindowChange(change, packageName, inputMethodPackages)
+    }
+
+    /**
+     * Reads the package of the window that has input focus.
+     *
+     * @return The package name, or null when it cannot be read.
+     */
+    private fun activeWindowPackage(): String? =
+        try {
+            rootInActiveWindow?.packageName?.toString()
+        } catch (_: Exception) {
+            null
+        }
 
     override fun onInterrupt() {
         return
@@ -268,7 +315,10 @@ class MyAccessibilityService : AccessibilityService() {
             Log.w(tag, "Thread: ${Thread.currentThread().name}, Interrupted: ${Thread.currentThread().isInterrupted}")
             return false
         }
-		
+
+        // Hold for the open tray, and on an opted-in run abort the step here when a pause is pending.
+        BotHold.checkpoint()
+
         // Check if thread is interrupted.
         if (Thread.currentThread().isInterrupted) {
             Log.w(tag, "Thread interrupted detected. Skipping tap.")
@@ -319,8 +369,9 @@ class MyAccessibilityService : AccessibilityService() {
         var tries = taps - 1
 
         while (tries > 0) {
-            // Check interruption before each additional tap.
+            // Check interruption and a pending pause before each additional tap.
             checkInterruption()
+            BotHold.checkpoint()
             if (!isGestureAllowed) {
                 Log.d(tag, "Gestures disabled during tap loop. Stopping.")
                 break
@@ -354,7 +405,10 @@ class MyAccessibilityService : AccessibilityService() {
             Log.w(tag, "Gestures disabled. Skipping scroll. isGestureAllowed=false")
             return false
         }
-		
+
+        // Hold for the open tray, and on an opted-in run abort the step here when a pause is pending.
+        BotHold.checkpoint()
+
         if (Thread.currentThread().isInterrupted) {
             Log.w(tag, "Thread interrupted detected. Skipping scroll.")
             throw InterruptedException("Thread was interrupted.")
@@ -440,7 +494,10 @@ class MyAccessibilityService : AccessibilityService() {
             Log.w(tag, "Gestures disabled. Skipping swipe. isGestureAllowed=false")
             return false
         }
-		
+
+        // Hold for the open tray, and on an opted-in run abort the step here when a pause is pending.
+        BotHold.checkpoint()
+
         if (Thread.currentThread().isInterrupted) {
             Log.w(tag, "Thread interrupted detected. Skipping swipe.")
             throw InterruptedException("Thread was interrupted.")

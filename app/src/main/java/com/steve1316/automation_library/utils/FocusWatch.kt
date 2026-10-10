@@ -1,0 +1,129 @@
+package com.steve1316.automation_library.utils
+
+/** What one window change means for a run. */
+internal enum class FocusVerdict {
+    /** Nothing to act on, such as this app's overlay windows, a keyboard, or a heads-up banner over the game. */
+    IGNORE,
+
+    /** The game is in front. */
+    GAME_IN_FRONT,
+
+    /** Something other than the game took the screen. */
+    GAME_LEFT,
+}
+
+/** One `TYPE_WINDOW_STATE_CHANGED` event as the accessibility service saw it. */
+internal data class WindowChange(
+    /** Package that sent the event, or null when the event carried none. */
+    val packageName: String?,
+    /** Class name of the window or view that changed, or null. */
+    val className: String?,
+    /** Package of the window that has input focus right after the event, or null when it could not be read. */
+    val activePackage: String?,
+)
+
+/** The package rules a window change is judged by. */
+internal data class FocusRules(
+    /** Package names of the game. */
+    val gamePackages: Set<String>,
+    /** This app's own package. Its screen in front covers the game and counts as leaving it, but its toasts and overlay windows do not. */
+    val ownPackage: String,
+    /** Packages of the enabled keyboards. A keyboard opening over the game is not leaving it. */
+    val inputMethodPackages: Set<String> = emptySet(),
+)
+
+/**
+ * Tracks which app is in front and pauses an opted-in run when the game leaves the screen. `MyAccessibilityService` feeds it every window
+ * change. The rules are pure functions, so they are checked against the emulator truth table in unit tests.
+ */
+object FocusWatch {
+    /** The System UI package, which owns the notification shade, quick settings, and heads-up banners. */
+    const val SYSTEM_UI_PACKAGE = "com.android.systemui"
+
+    /** The last app seen in front, ignoring System UI, keyboards, and this app's toasts and overlays. Null until the first such window change. */
+    @Volatile
+    var foregroundPackage: String? = null
+        private set
+
+    /**
+     * Judges one window change. The game coming to the front is `GAME_IN_FRONT`. This app's own screen in front (one of its activities, or its
+     * active window) is `GAME_LEFT`. Its toasts, starting window, and overlays never take focus, so they are `IGNORE`. A keyboard counts as the
+     * app under it, and is `IGNORE` over the game or when that app is unknown. Events without a package and System UI windows that leave the
+     * game focused (heads-up banners) are `IGNORE`. Everything else, including the shade, is `GAME_LEFT`.
+     *
+     * @param change The window change.
+     * @param rules The package rules.
+     * @return What the change means for the run.
+     */
+    internal fun classify(change: WindowChange, rules: FocusRules): FocusVerdict {
+        val resolved = appUnderKeyboard(change, rules)
+        val pkg = resolved.packageName
+        val activePackage = resolved.activePackage
+        return when {
+            pkg.isNullOrEmpty() -> FocusVerdict.IGNORE
+            pkg == rules.ownPackage -> if (isOwnScreen(resolved, rules)) FocusVerdict.GAME_LEFT else FocusVerdict.IGNORE
+            pkg in rules.inputMethodPackages -> FocusVerdict.IGNORE
+            pkg in rules.gamePackages -> FocusVerdict.GAME_IN_FRONT
+            pkg == SYSTEM_UI_PACKAGE && activePackage != null && activePackage in rules.gamePackages -> FocusVerdict.IGNORE
+            else -> FocusVerdict.GAME_LEFT
+        }
+    }
+
+    /**
+     * Works out the app in front after a window change. This app's event counts only when it is its own screen, otherwise it leaves `current`
+     * unchanged. A keyboard counts as the app under it when that is known. System UI and events without a package leave it unchanged.
+     *
+     * @param change The window change.
+     * @param rules The package rules.
+     * @param current The app in front before the change, or null when unknown.
+     * @return The app in front after the change, or null when still unknown.
+     */
+    internal fun nextForeground(change: WindowChange, rules: FocusRules, current: String?): String? {
+        val resolved = appUnderKeyboard(change, rules)
+        val pkg = resolved.packageName
+        if (pkg == rules.ownPackage) return if (isOwnScreen(resolved, rules)) pkg else current
+        if (pkg.isNullOrEmpty() || pkg == SYSTEM_UI_PACKAGE || pkg in rules.inputMethodPackages) return current
+        return pkg
+    }
+
+    /**
+     * Swaps a keyboard event for the app under the keyboard when that app is known and is not the game. Bringing an app forward with a text
+     * field focused can report only the keyboard, since the accessibility config delivers one window event per second.
+     *
+     * @param change The window change.
+     * @param rules The package rules.
+     * @return The change as the app under the keyboard, or the change itself.
+     */
+    private fun appUnderKeyboard(change: WindowChange, rules: FocusRules): WindowChange {
+        val active = change.activePackage
+        if (change.packageName !in rules.inputMethodPackages || active.isNullOrEmpty()) return change
+        if (active in rules.inputMethodPackages || active in rules.gamePackages) return change
+        return WindowChange(active, null, active)
+    }
+
+    /**
+     * Whether an event from this app is its own screen in front, rather than a toast, the starting window, or an overlay. Its activities are
+     * named under its package, and its focused window is reported as the active one.
+     *
+     * @param change A window change from this app.
+     * @param rules The package rules.
+     * @return True when this app's screen covers the game.
+     */
+    private fun isOwnScreen(change: WindowChange, rules: FocusRules): Boolean =
+        change.activePackage == rules.ownPackage || change.className?.startsWith("${rules.ownPackage}.") == true
+
+    /**
+     * Handles one window change from the accessibility service: updates `foregroundPackage`, and pauses an opted-in run when the game left.
+     *
+     * @param change The window change.
+     * @param ownPackage This app's package.
+     * @param inputMethodPackages Packages of the enabled keyboards.
+     */
+    internal fun onWindowChange(change: WindowChange, ownPackage: String, inputMethodPackages: Set<String>) {
+        val rules = FocusRules(gamePackages = BotHold.gamePackages, ownPackage = ownPackage, inputMethodPackages = inputMethodPackages)
+        foregroundPackage = nextForeground(change, rules, foregroundPackage)
+        if (classify(change, rules) == FocusVerdict.GAME_LEFT && BotHold.pauseForFocusLoss()) {
+            MessageLog.i(message = "[PAUSE] The game left the screen (${change.packageName}). Pausing until you tap Resume.")
+        }
+    }
+}
