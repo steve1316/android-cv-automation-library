@@ -162,6 +162,14 @@ class BotService : Service() {
                     // Clear the message log in the frontend.
                     EventBus.getDefault().post(JSEvent("BotService", "Running"))
 
+                    // End the run before the app gets control when the game is missing or not in front, so nothing taps outside the game.
+                    val blockReason = GameTarget.startBlockReason(myContext)
+                    if (blockReason != null) {
+                        MessageLog.i(tag, "[INFO] $blockReason.")
+                        BotStatus.setOutcome(BotStatus.Outcome.STOPPED_BY_BOT, blockReason)
+                        return@thread
+                    }
+
                     // Start screen recording if enabled in settings.
                     if (SharedData.enableScreenRecording) {
                         MediaProjectionService.startRecording(myContext)
