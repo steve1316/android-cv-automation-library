@@ -58,6 +58,18 @@ class MyAccessibilityService : AccessibilityService() {
         var isGestureAllowed: Boolean = true
 
         /**
+         * Reads the app in front right now: the window focused at this moment, falling back to the app recorded from window changes when that
+         * window is System UI, a keyboard, or unreadable.
+         *
+         * @return The app in front, or null when unknown.
+         */
+        fun currentForeground(): String? {
+            if (!::instance.isInitialized) return FocusWatch.foregroundPackage
+            val rules = FocusRules(gamePackages = BotHold.gamePackages, ownPackage = instance.packageName, inputMethodPackages = instance.inputMethodPackages)
+            return FocusWatch.currentForeground(instance.activeWindowPackage(), FocusWatch.foregroundPackage, rules)
+        }
+
+        /**
          * Returns a static reference to this class.
          *
          * @return Static reference to MyAccessibilityService.

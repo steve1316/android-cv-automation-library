@@ -113,6 +113,17 @@ object FocusWatch {
         change.activePackage == rules.ownPackage || change.className?.startsWith("${rules.ownPackage}.") == true
 
     /**
+     * Works out the app in front right now. The focused window is judged as if it had just sent a window change, so it wins over the record,
+     * which goes stale when the game's window event is never delivered. System UI, a keyboard, or an unreadable window falls back to the record.
+     *
+     * @param active Package of the window focused right now, or null when it cannot be read.
+     * @param recorded The app in front as recorded from window changes, or null when unknown.
+     * @param rules The package rules.
+     * @return The app in front, or null when unknown.
+     */
+    internal fun currentForeground(active: String?, recorded: String?, rules: FocusRules): String? = nextForeground(WindowChange(active, null, active), rules, recorded)
+
+    /**
      * Handles one window change from the accessibility service: updates `foregroundPackage`, and pauses an opted-in run when the game left.
      *
      * @param change The window change.
