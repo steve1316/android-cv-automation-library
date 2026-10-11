@@ -63,7 +63,7 @@ object GameTarget {
      *
      * @return True when the app in front is known and is not the game.
      */
-    fun otherAppInFront(): Boolean = packages.isNotEmpty() && otherAppInFront(packages, FocusWatch.foregroundPackage)
+    fun otherAppInFront(): Boolean = packages.isNotEmpty() && otherAppInFront(packages, MyAccessibilityService.currentForeground())
 
     /**
      * Checks whether a run may start, from the configured game, whether it is installed, and the app in front.
@@ -71,7 +71,7 @@ object GameTarget {
      * @param context Any context, used for the package manager.
      * @return Why the run must not start, or null when it may.
      */
-    fun startBlockReason(context: Context): String? = startBlockReason(name, packages, launchIntent(context) != null, FocusWatch.foregroundPackage)
+    fun startBlockReason(context: Context): String? = startBlockReason(name, packages, launchIntent(context) != null, MyAccessibilityService.currentForeground())
 
     /**
      * Builds the not-installed message.

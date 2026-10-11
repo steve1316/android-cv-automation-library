@@ -101,4 +101,29 @@ class FocusWatchTest {
         assertEquals(SETTINGS, FocusWatch.nextForeground(WindowChange(KEYBOARD, null, SETTINGS), rules, GAME))
         assertEquals(GAME, FocusWatch.nextForeground(WindowChange(KEYBOARD, null, null), rules, GAME))
     }
+
+    @Test
+    fun liveGameWindowWinsOverAStaleRecord() {
+        // The game was on screen but its window event never arrived, so the record still names this app.
+        assertEquals(GAME, FocusWatch.currentForeground(active = GAME, recorded = OWN, rules = rules))
+    }
+
+    @Test
+    fun liveOtherAppWinsOverARecordedGame() {
+        assertEquals(LAUNCHER, FocusWatch.currentForeground(active = LAUNCHER, recorded = GAME, rules = rules))
+        assertEquals(OWN, FocusWatch.currentForeground(active = OWN, recorded = GAME, rules = rules))
+    }
+
+    @Test
+    fun unreadableSystemUiOrKeyboardFallsBackToTheRecord() {
+        assertEquals(GAME, FocusWatch.currentForeground(active = null, recorded = GAME, rules = rules))
+        assertEquals(GAME, FocusWatch.currentForeground(active = "", recorded = GAME, rules = rules))
+        assertEquals(GAME, FocusWatch.currentForeground(active = SYSTEM_UI, recorded = GAME, rules = rules))
+        assertEquals(GAME, FocusWatch.currentForeground(active = KEYBOARD, recorded = GAME, rules = rules))
+    }
+
+    @Test
+    fun nothingKnownStaysUnknown() {
+        assertNull(FocusWatch.currentForeground(active = null, recorded = null, rules = rules))
+    }
 }
