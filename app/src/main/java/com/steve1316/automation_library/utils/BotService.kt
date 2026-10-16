@@ -156,6 +156,9 @@ class BotService : Service() {
         // Reset the save check flag and start the timer for the MessageLog.
         MessageLog.start()
 
+        // Start a fresh set of numbered debug images for this run.
+        DebugCapture.start(myContext, MessageLog.debugMode)
+
         thread =
             thread {
                 try {
@@ -349,6 +352,11 @@ class BotService : Service() {
 
             // Save the message log and reset MessageLog.
             val logFile = MessageLog.saveLogToFile(myContext)
+
+            // Zip the log together with this run's debug images so a bug report is one file.
+            if (logFile != null && DebugCapture.enabled) {
+                DebugCapture.writeBundle(myContext, logFile)?.let { MessageLog.i(tag, "Saved debug bundle \"$it\" next to the log.") }
+            }
 
             // A run that ended without anyone setting an outcome finished on its own.
             BotStatus.setOutcome(BotStatus.Outcome.FINISHED, "Run ended")

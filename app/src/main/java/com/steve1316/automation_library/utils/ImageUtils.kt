@@ -19,7 +19,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import org.opencv.android.Utils
 import org.opencv.core.*
-import org.opencv.imgcodecs.Imgcodecs
 import org.opencv.imgproc.Imgproc
 import java.io.File
 import java.io.FileOutputStream
@@ -36,6 +35,20 @@ import java.util.concurrent.atomic.AtomicReference
 import kotlin.collections.ArrayList
 import kotlin.math.abs
 import kotlin.math.max
+
+/** The best template match candidate seen so far, kept so a miss can still be drawn. */
+private data class BestMatch(
+    /** Raw match score from OpenCV. */
+    val score: Double,
+    /** Top-left corner of the candidate in the searched region. */
+    val location: Point,
+    /** Width of the scaled template. */
+    val width: Int,
+    /** Height of the scaled template. */
+    val height: Int,
+    /** Template scale that produced this candidate. */
+    val scale: Double,
+)
 
 /**
  * Utility and helper functions for image processing via CV like OpenCV.
@@ -252,6 +265,8 @@ open class ImageUtils(protected val context: Context) {
                 }
             }
 
+        var best: BestMatch? = null
+
         while (scales.isNotEmpty()) {
             if (!BotService.isRunning) {
                 throw InterruptedException()
@@ -297,6 +312,7 @@ open class ImageUtils(protected val context: Context) {
                 Imgproc.matchTemplate(sourceMat, clampedTemplateMat, resultMat, matchMethod)
                 val mmr: Core.MinMaxLocResult = Core.minMaxLoc(resultMat)
 
+                val isSqDiff = matchMethod == Imgproc.TM_SQDIFF || matchMethod == Imgproc.TM_SQDIFF_NORMED
                 var matchLocation = Point()
                 var matchCheck = false
 
@@ -304,39 +320,40 @@ open class ImageUtils(protected val context: Context) {
                 val minVal: Double = decimalFormat.format(mmr.minVal).toDouble()
                 val maxVal: Double = decimalFormat.format(mmr.maxVal).toDouble()
 
+                // Remember the best spot across all scales so a miss can still show where the closest candidate was.
+                val score = if (isSqDiff) mmr.minVal else mmr.maxVal
+                if (best == null || (if (isSqDiff) score < best.score else score > best.score)) {
+                    best = BestMatch(score, if (isSqDiff) mmr.minLoc else mmr.maxLoc, clampedTemplateMat.cols(), clampedTemplateMat.rows(), newScale)
+                }
+
                 // Depending on which matching method was used, the algorithms determine which location was the best.
-                if ((matchMethod == Imgproc.TM_SQDIFF || matchMethod == Imgproc.TM_SQDIFF_NORMED) && mmr.minVal <= (1.0 - setConfidence)) {
+                if (isSqDiff && mmr.minVal <= (1.0 - setConfidence)) {
                     matchLocation = mmr.minLoc
                     matchCheck = true
                     if (debugMode) {
-                        MessageLog.d(tag, "Match found for \"$templateName\" with $minVal <= ${1.0 - setConfidence} at Point $matchLocation using scale: $newScale.")
+                        val img = saveMatchImage(srcBitmap, templateName, best!!, true, "<=", 1.0 - setConfidence)
+                        MessageLog.d(tag, "Match found for \"$templateName\" with $minVal <= ${1.0 - setConfidence} at Point $matchLocation using scale: $newScale.${DebugCapture.suffix(img)}")
                     }
-                } else if ((matchMethod != Imgproc.TM_SQDIFF && matchMethod != Imgproc.TM_SQDIFF_NORMED) && mmr.maxVal >= setConfidence) {
+                } else if (!isSqDiff && mmr.maxVal >= setConfidence) {
                     matchLocation = mmr.maxLoc
                     matchCheck = true
                     if (debugMode) {
-                        MessageLog.d(tag, "Match found for \"$templateName\" with $maxVal >= $setConfidence at Point $matchLocation using scale: $newScale.")
+                        val img = saveMatchImage(srcBitmap, templateName, best!!, true, ">=", setConfidence)
+                        MessageLog.d(tag, "Match found for \"$templateName\" with $maxVal >= $setConfidence at Point $matchLocation using scale: $newScale.${DebugCapture.suffix(img)}")
                     }
                 } else {
                     if (debugMode) {
-                        if ((matchMethod != Imgproc.TM_SQDIFF && matchMethod != Imgproc.TM_SQDIFF_NORMED)) {
-                            MessageLog.d(tag, "Match not found for \"$templateName\" with $maxVal not >= $setConfidence at Point ${mmr.maxLoc} using scale $newScale.")
+                        // Only the last scale saves an image, showing the best candidate across every scale tried.
+                        val img = if (scales.isEmpty()) saveMatchImage(srcBitmap, templateName, best!!, false, if (isSqDiff) ">" else "<", if (isSqDiff) 1.0 - setConfidence else setConfidence) else null
+                        if (!isSqDiff) {
+                            MessageLog.d(tag, "Match not found for \"$templateName\" with $maxVal not >= $setConfidence at Point ${mmr.maxLoc} using scale $newScale.${DebugCapture.suffix(img)}")
                         } else {
-                            MessageLog.d(tag, "Match not found for \"$templateName\" with $minVal not <= ${1.0 - setConfidence} at Point ${mmr.minLoc} using scale $newScale.")
+                            MessageLog.d(tag, "Match not found for \"$templateName\" with $minVal not <= ${1.0 - setConfidence} at Point ${mmr.minLoc} using scale $newScale.${DebugCapture.suffix(img)}")
                         }
                     }
                 }
 
                 if (matchCheck) {
-                    if (debugMode) {
-                        // Draw a rectangle around the supposed best matching location and then save the match into a file in /files/temp/ directory. This is for debugging purposes to see if this
-                        // algorithm found the match accurately or not.
-                        if (matchFilePath != "") {
-                            Imgproc.rectangle(sourceMat, matchLocation, Point(matchLocation.x + templateMat.cols(), matchLocation.y + templateMat.rows()), Scalar(0.0, 128.0, 0.0), 10)
-                            Imgcodecs.imwrite("$matchFilePath/match.png", sourceMat)
-                        }
-                    }
-
                     // Center the coordinates so that any tap gesture would be directed at the center of that match location instead of the default
                     // position of the top left corner of the match location.
                     matchLocation.x += (templateMat.cols() / 2)
@@ -360,15 +377,68 @@ open class ImageUtils(protected val context: Context) {
     }
 
     /**
+     * Saves the searched region with the best candidate boxed and its score in a banner.
+     *
+     * @param srcBitmap The searched region.
+     * @param templateName Name of the template.
+     * @param best The best candidate across the scales tried.
+     * @param hit Whether the candidate passed the threshold, which picks green or red.
+     * @param op The comparison shown in the banner such as ">=" or "<".
+     * @param threshold The confidence the score was compared against.
+     * @return The image id, or null when nothing was saved.
+     */
+    private fun saveMatchImage(srcBitmap: Bitmap, templateName: String, best: BestMatch, hit: Boolean, op: String, threshold: Double): String? {
+        val color = if (hit) DebugCapture.GREEN else DebugCapture.RED
+        val name = templateName.substringAfterLast('/')
+        return DebugCapture.save(name, srcBitmap) { mat ->
+            DebugCapture.drawBox(mat, Rect(best.location.x.toInt(), best.location.y.toInt(), best.width, best.height), color)
+            DebugCapture.drawBanner(mat, "$name ${decimalFormat.format(best.score)} $op ${decimalFormat.format(threshold)} s=${best.scale}", color)
+        }
+    }
+
+    /**
+     * Saves the searched region with every match boxed and numbered, plus the rejected candidate that ended the search.
+     *
+     * @param srcBitmap The searched region.
+     * @param templateName Name of the template.
+     * @param matches Centered match points in region coordinates.
+     * @param rejected Top-left corner and score of the candidate that ended the search, or null.
+     * @param width Width of the scaled template.
+     * @param height Height of the scaled template.
+     * @param threshold The confidence the scores were compared against.
+     * @return The image id, or null when nothing was saved.
+     */
+    private fun saveMatchAllImage(srcBitmap: Bitmap, templateName: String, matches: List<Point>, rejected: Pair<Point, Double>?, width: Int, height: Int, threshold: Double): String? {
+        val name = templateName.substringAfterLast('/')
+        return DebugCapture.save(name, srcBitmap) { mat ->
+            matches.forEachIndexed { i, p ->
+                DebugCapture.drawBox(mat, Rect((p.x - width / 2).toInt(), (p.y - height / 2).toInt(), width, height), DebugCapture.GREEN, "${i + 1}")
+            }
+            if (rejected != null) {
+                val (loc, score) = rejected
+                DebugCapture.drawBox(mat, Rect(loc.x.toInt(), loc.y.toInt(), width, height), DebugCapture.RED, decimalFormat.format(score))
+            }
+            DebugCapture.drawBanner(mat, "$name x${matches.size} (threshold ${decimalFormat.format(threshold)})", if (matches.isEmpty()) DebugCapture.RED else DebugCapture.GREEN)
+        }
+    }
+
+    /**
      * Search through the whole source screenshot for all matches to the template image.
      *
      * @param sourceBitmap Bitmap from the /files/temp/ folder.
      * @param templateBitmap Bitmap from the assets folder.
      * @param region Specify the region consisting of (x, y, width, height) of the source screenshot to template match. Defaults to (0, 0, 0, 0) which is equivalent to searching the full image.
      * @param customConfidence Specify a custom confidence. Defaults to the confidence set in the app's settings.
+     * @param templateName Name of the template, used to label the debug image.
      * @return ArrayList of Point objects that represents the matches found on the source screenshot.
      */
-    protected open fun matchAll(sourceBitmap: Bitmap, templateBitmap: Bitmap, region: IntArray = intArrayOf(0, 0, 0, 0), customConfidence: Double = 0.0): ArrayList<Point> {
+    protected open fun matchAll(
+        sourceBitmap: Bitmap,
+        templateBitmap: Bitmap,
+        region: IntArray = intArrayOf(0, 0, 0, 0),
+        customConfidence: Double = 0.0,
+        templateName: String = "matchAll",
+    ): ArrayList<Point> {
         // Create a local matchLocations list for this method
         var matchLocation: Point
         val matchLocations = arrayListOf<Point>()
@@ -409,6 +479,10 @@ open class ImageUtils(protected val context: Context) {
         val templateMat = Mat()
         var resultMat = Mat()
         var clampedTemplateMat: Mat? = null
+
+        // The candidate that ended the search and the log line describing it, written once the debug image id is known.
+        var rejected: Pair<Point, Double>? = null
+        var rejectedMessage: String? = null
 
         // Release the native Mats on every exit path, including an interruption thrown from inside the loops.
         try {
@@ -516,7 +590,6 @@ open class ImageUtils(protected val context: Context) {
 
                     if (debugMode) {
                         MessageLog.d(tag, "Match found with $minVal <= ${1.0 - setConfidence} at Point $tempMatchLocation with scale: $newScale.")
-                        Imgcodecs.imwrite("$matchFilePath/matchAll.png", sourceMat)
                     }
 
                     // Center the location coordinates and then save it.
@@ -542,7 +615,6 @@ open class ImageUtils(protected val context: Context) {
 
                     if (debugMode) {
                         MessageLog.d(tag, "Match found with $maxVal >= $setConfidence at Point $tempMatchLocation with scale: $newScale.")
-                        Imgcodecs.imwrite("$matchFilePath/matchAll.png", sourceMat)
                     }
 
                     // Center the location coordinates and then save it.
@@ -572,17 +644,24 @@ open class ImageUtils(protected val context: Context) {
                     Imgproc.rectangle(sourceMat, tempMatchLocation, Point(tempMatchLocation.x + templateMat.cols(), tempMatchLocation.y + templateMat.rows()), Scalar(0.0, 0.0, 0.0), 20)
 
                     if (debugMode) {
-                        if ((matchMethod == Imgproc.TM_SQDIFF || matchMethod == Imgproc.TM_SQDIFF_NORMED) && mmr.minVal > (1.0 - setConfidence)) {
-                            MessageLog.d(tag, "Match not found with ${mmr.minVal} > ${(1.0 - setConfidence)} at Point $tempMatchLocation with scale: $newScale.")
-                        } else if ((matchMethod != Imgproc.TM_SQDIFF && matchMethod != Imgproc.TM_SQDIFF_NORMED) && mmr.maxVal < setConfidence) {
-                            MessageLog.d(tag, "Match not found with ${mmr.maxVal} < $setConfidence at Point $tempMatchLocation with scale: $newScale.")
+                        val isSqDiff = matchMethod == Imgproc.TM_SQDIFF || matchMethod == Imgproc.TM_SQDIFF_NORMED
+                        rejected = Pair(tempMatchLocation.clone(), if (isSqDiff) mmr.minVal else mmr.maxVal)
+                        if (isSqDiff && mmr.minVal > (1.0 - setConfidence)) {
+                            rejectedMessage = "Match not found with ${mmr.minVal} > ${(1.0 - setConfidence)} at Point $tempMatchLocation with scale: $newScale."
+                        } else if (!isSqDiff && mmr.maxVal < setConfidence) {
+                            rejectedMessage = "Match not found with ${mmr.maxVal} < $setConfidence at Point $tempMatchLocation with scale: $newScale."
                         }
-
-                        Imgcodecs.imwrite("$matchFilePath/matchAll.png", sourceMat)
                     }
 
                     break
                 }
+            }
+
+            if (debugMode) {
+                val width = clampedTemplateMat?.cols() ?: templateMat.cols()
+                val height = clampedTemplateMat?.rows() ?: templateMat.rows()
+                val img = saveMatchAllImage(srcBitmap, templateName, matchLocations, rejected, width, height, setConfidence)
+                MessageLog.d(tag, "${rejectedMessage ?: "Found ${matchLocations.size} match(es) for \"$templateName\"."}${DebugCapture.suffix(img)}")
             }
         } finally {
             sourceMat.release()
@@ -957,7 +1036,7 @@ open class ImageUtils(protected val context: Context) {
         val (sourceBitmap, templateBitmap) = getBitmaps(templateName)
 
         if (templateBitmap != null) {
-            val matchLocations = matchAll(sourceBitmap, templateBitmap, region = region, customConfidence = confidence)
+            val matchLocations = matchAll(sourceBitmap, templateBitmap, region = region, customConfidence = confidence, templateName = templateName)
 
             // Sort the match locations by ascending x and y coordinates.
             matchLocations.sortBy { it.x }
@@ -1260,7 +1339,7 @@ open class ImageUtils(protected val context: Context) {
 
             // Save the cropped image before converting it to black and white in order to troubleshoot issues related to differing device sizes and cropping.
             if (debugMode) {
-                Imgcodecs.imwrite("$matchFilePath/debug_${debugName}_cropped.png", cvImage)
+                DebugCapture.save("ocr_${debugName}_cropped", cvImage)
             }
 
             // Grayscale the cropped image.
@@ -1279,7 +1358,7 @@ open class ImageUtils(protected val context: Context) {
 
                     // Save the cropped image before converting it to black and white in order to troubleshoot issues related to differing device sizes and cropping.
                     if (debugMode) {
-                        Imgcodecs.imwrite("$matchFilePath/debug_${debugName}_threshold.png", bwImage)
+                        DebugCapture.save("ocr_${debugName}_threshold", bwImage)
                     }
                     bwImage
                 } else {

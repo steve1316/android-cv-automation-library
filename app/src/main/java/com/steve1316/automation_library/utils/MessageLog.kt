@@ -30,6 +30,9 @@ class MessageLog {
     companion object {
         private const val TAG: String = "${SharedData.loggerTag}MessageLog"
 
+        /** Most debug bundle zips kept in the logs folder, counting the one the current run writes. */
+        private const val MAX_DEBUG_BUNDLES: Int = 3
+
         // The stamp saveLogToFile() embeds in every log file name, plus the pattern that reads it back out. These two must always agree.
         private const val LOG_TIMESTAMP_PATTERN = "yyyy-MM-dd HH_mm_ss"
         private val LOG_TIMESTAMP_REGEX = Regex("""\d{4}-\d{2}-\d{2} \d{2}_\d{2}_\d{2}""")
@@ -90,7 +93,7 @@ class MessageLog {
             }
 
             // Set max to 49 so that when we add our new file, the total becomes 50.
-            cleanLogsFolder(context, maxAmount = 49)
+            cleanLogsFolder(context, maxLogs = 49, maxBundles = MAX_DEBUG_BUNDLES - 1)
 
             Log.d(TAG, "Now beginning process to save current Message Log to user storage...")
 
@@ -188,17 +191,23 @@ class MessageLog {
          * last-modified, which migrateLegacyFiles() resets when it copies logs to their new home.
          *
          * @param context The context for the application.
-         * @param maxAmount The number of log files to keep. Anything beyond this is deleted oldest-first.
+         * @param maxLogs The number of log files to keep. Anything beyond this is deleted oldest-first.
+         * @param maxBundles The number of debug bundle zips to keep. Anything beyond this is deleted oldest-first.
          */
-        private fun cleanLogsFolder(context: Context, maxAmount: Int = 50) {
+        private fun cleanLogsFolder(context: Context, maxLogs: Int, maxBundles: Int) {
             val storage = UserStorageManager.getInstance(context)
-            val names = sortLogNamesOldestFirst(storage.listFilenames("logs").filter { it.endsWith(".txt", ignoreCase = true) })
-            val diff = names.size - maxAmount
-            if (diff > 0) {
-                Log.w(TAG, "Log file limit reached. Deleting [$diff] oldest log files:")
-                for (i in 0 until diff) {
-                    Log.w(TAG, "\t${names[i]}")
-                    storage.deleteFile("logs", names[i])
+            val allNames = storage.listFilenames("logs")
+
+            // Logs and their debug bundles are capped separately. Bundles are far bigger, so far fewer are kept.
+            for ((extension, maxAmount) in listOf(".txt" to maxLogs, ".zip" to maxBundles)) {
+                val names = sortLogNamesOldestFirst(allNames.filter { it.endsWith(extension, ignoreCase = true) })
+                val diff = names.size - maxAmount
+                if (diff > 0) {
+                    Log.w(TAG, "Log file limit reached. Deleting [$diff] oldest $extension files:")
+                    for (i in 0 until diff) {
+                        Log.w(TAG, "\t${names[i]}")
+                        storage.deleteFile("logs", names[i])
+                    }
                 }
             }
         }
