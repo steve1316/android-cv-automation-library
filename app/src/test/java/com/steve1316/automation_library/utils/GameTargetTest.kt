@@ -11,38 +11,17 @@ class GameTargetTest {
 
     @Test
     fun noGameConfiguredNeverBlocks() {
-        assertNull(GameTarget.startBlockReason(name, emptySet(), installed = false, foreground = "com.other.app"))
+        assertNull(GameTarget.startBlockReason(name, emptySet(), installed = false))
     }
 
     @Test
     fun gameNotInstalledBlocksWithItsNameAndPackage() {
-        assertEquals(
-            "Umamusume Pretty Derby (com.cygames.umamusume) is not installed",
-            GameTarget.startBlockReason(name, packages, installed = false, foreground = null),
-        )
+        assertEquals("Umamusume Pretty Derby (com.cygames.umamusume) is not installed", GameTarget.startBlockReason(name, packages, installed = false))
     }
 
     @Test
-    fun notInstalledWinsOverAnotherAppInFront() {
-        assertEquals(
-            "Umamusume Pretty Derby (com.cygames.umamusume) is not installed",
-            GameTarget.startBlockReason(name, packages, installed = false, foreground = "com.other.app"),
-        )
-    }
-
-    @Test
-    fun anotherAppInFrontBlocks() {
-        assertEquals(GameTarget.NOT_ON_SCREEN_REASON, GameTarget.startBlockReason(name, packages, installed = true, foreground = "com.other.app"))
-    }
-
-    @Test
-    fun gameInFrontStarts() {
-        assertNull(GameTarget.startBlockReason(name, packages, installed = true, foreground = "com.cygames.umamusume"))
-    }
-
-    @Test
-    fun unknownAppInFrontStarts() {
-        assertNull(GameTarget.startBlockReason(name, packages, installed = true, foreground = null))
+    fun installedGameStarts() {
+        assertNull(GameTarget.startBlockReason(name, packages, installed = true))
     }
 
     @Test
