@@ -9,9 +9,6 @@ import android.content.Intent
  * skip the check.
  */
 object GameTarget {
-    /** Reason a run ends with when another app is in front as it starts. */
-    const val NOT_ON_SCREEN_REASON = "The game is not on screen, so the bot did not start"
-
     /** The game's display name, such as "Umamusume Pretty Derby". */
     @Volatile
     private var name: String = ""
@@ -66,12 +63,12 @@ object GameTarget {
     fun otherAppInFront(): Boolean = packages.isNotEmpty() && otherAppInFront(packages, MyAccessibilityService.currentForeground())
 
     /**
-     * Checks whether a run may start, from the configured game, whether it is installed, and the app in front.
+     * Checks whether a run may start, from the configured game and whether it is installed.
      *
      * @param context Any context, used for the package manager.
      * @return Why the run must not start, or null when it may.
      */
-    fun startBlockReason(context: Context): String? = startBlockReason(name, packages, launchIntent(context) != null, MyAccessibilityService.currentForeground())
+    fun startBlockReason(context: Context): String? = startBlockReason(name, packages, launchIntent(context) != null)
 
     /**
      * Builds the not-installed message.
@@ -83,22 +80,15 @@ object GameTarget {
     private fun notInstalledMessage(name: String, packages: Set<String>): String = "$name (${packages.joinToString(", ")}) is not installed"
 
     /**
-     * Decides whether a run may start. A missing game blocks it, and so does another app in front. An unknown app in front lets it start, since
-     * nothing has been seen yet to say the game is not there.
+     * Decides whether a run may start. Only a missing game blocks it.
      *
      * @param name The game's display name.
      * @param packages The game's package names, or empty when no game is configured.
      * @param installed Whether any of the game's packages is installed.
-     * @param foreground The app in front, or null when unknown.
      * @return Why the run must not start, or null when it may.
      */
-    internal fun startBlockReason(name: String, packages: Set<String>, installed: Boolean, foreground: String?): String? =
-        when {
-            packages.isEmpty() -> null
-            !installed -> notInstalledMessage(name, packages)
-            otherAppInFront(packages, foreground) -> NOT_ON_SCREEN_REASON
-            else -> null
-        }
+    internal fun startBlockReason(name: String, packages: Set<String>, installed: Boolean): String? =
+        if (packages.isNotEmpty() && !installed) notInstalledMessage(name, packages) else null
 
     /**
      * Whether the app in front is known and is not the game.
