@@ -83,6 +83,7 @@ open class ImageUtils(protected val context: Context) {
     open val displayWidth: Int = SharedData.displayWidth
     open val displayHeight: Int = SharedData.displayHeight
     open val is1080p: Boolean = (displayWidth == 1080) // 1080p Portrait
+    open val isTall1080p: Boolean = is1080p && displayHeight > 1920 // 1080p Portrait taller than 16:9, such as 1080x2340
     open val is720p: Boolean = (displayWidth == 720) // 720p Portrait
     open val isTabletPortrait: Boolean = (displayWidth == 1600) // Galaxy Tab S7 1600x2560 Portrait Mode
     open val isTabletLandscape: Boolean = (displayWidth == 2560) // Galaxy Tab S7 1600x2560 Landscape Mode
@@ -101,6 +102,9 @@ open class ImageUtils(protected val context: Context) {
         generateSequence(1.00) { it + 0.01 }
             .takeWhile { it <= 2.00 }
             .toMutableList()
+
+    // Some UI on a tall 1080p screen renders about 4% smaller than on 1080x1920, so thin text templates miss at full size. Full size stays first.
+    protected open val tall1080pScales: MutableList<Double> = mutableListOf(1.0, 0.96)
 
     // Define template matching regions of the screen.
     open val regionTopHalf: IntArray = intArrayOf(0, 0, displayWidth, displayHeight / 2)
@@ -259,6 +263,9 @@ open class ImageUtils(protected val context: Context) {
                 }
                 isTablet -> {
                     tabletScales.toMutableList()
+                }
+                isTall1080p -> {
+                    tall1080pScales.toMutableList()
                 }
                 else -> {
                     mutableListOf(1.0)
@@ -460,6 +467,9 @@ open class ImageUtils(protected val context: Context) {
                 }
                 isTablet -> {
                     tabletScales.toMutableList()
+                }
+                isTall1080p -> {
+                    tall1080pScales.toMutableList()
                 }
                 else -> {
                     mutableListOf(1.0)
