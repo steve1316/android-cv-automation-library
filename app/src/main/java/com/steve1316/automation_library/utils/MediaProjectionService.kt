@@ -70,6 +70,19 @@ class MediaProjectionService : Service() {
         private var lastBitmap: Bitmap? = null
         private var lastBitmapIsFromException: Boolean = false
 
+        /** Runs a garbage collection after about 30 full-screen frames so old capture bitmaps cannot pile up in native memory. */
+        private val captureGcBudget = CaptureGcBudget(limitBytes = 256L * 1024 * 1024)
+
+        /**
+         * Counts a newly made capture bitmap and runs a garbage collection when the budget is spent.
+         *
+         * @param bitmap The bitmap that was just created, or null when none was.
+         */
+        private fun trackNewBitmap(bitmap: Bitmap?) {
+            if (bitmap == null || !captureGcBudget.add(bitmap.allocationByteCount.toLong())) return
+            Runtime.getRuntime().gc()
+        }
+
         fun getImageReader(): ImageReader {
             return imageReader
         }
@@ -262,6 +275,7 @@ class MediaProjectionService : Service() {
 
             // Fall back to cropping the cached full screenshot when no new frame arrived. The crop itself is never cached.
             val bitmapToReturn = newBitmap ?: prevBitmap?.let { Bitmap.createBitmap(it, cropX, cropY, cropW, cropH) }
+            trackNewBitmap(bitmapToReturn)
 
             // Save the Bitmap (either fresh or cached) if requested.
             if (saveImage && bitmapToReturn != null) {
@@ -334,6 +348,7 @@ class MediaProjectionService : Service() {
                     // Update the cache.
                     lastBitmap = newBitmap
                     lastBitmapIsFromException = false
+                    trackNewBitmap(newBitmap)
                 } finally {
                     image.close()
                 }
