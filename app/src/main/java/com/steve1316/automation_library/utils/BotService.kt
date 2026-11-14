@@ -190,6 +190,8 @@ class BotService : Service() {
                         }
                     }
 
+                    MemoryLog.log("run_start")
+
                     // Send start message to signal the developer's module to begin running their entry point. Execution will go to the developer's module until it is all done.
                     EventBus.getDefault().postSticky(StartEvent("Entry Point ON"))
                 } catch (e: Exception) {
@@ -206,6 +208,7 @@ class BotService : Service() {
                         MessageLog.e(tag, "$appName encountered an Exception: ${e.stackTraceToString()}")
                     }
                 } finally {
+                    MemoryLog.log("run_end")
                     Log.d(tag, "Performing cleanup in the finally block...")
                     performCleanUp()
                 }
